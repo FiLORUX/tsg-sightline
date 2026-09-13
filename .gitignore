@@ -1,0 +1,21 @@
+# Operating system noise
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Local scratch and exports
+*.log
+/out/
+/dist/
+
+# Venue drawings and production project files are not committed. They embed
+# floor plans supplied under production agreements and belong in the
+# production's own storage, not in the tool repository.
+/plans/
+*.venue.json
+
+# Wrangler local state
+.wrangler/

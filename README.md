@@ -86,12 +86,16 @@ be checked against the supplier rigging data before a position is committed.
 
 ## Hosting
 
-The tool is one static file. GitHub Pages works from a public repository, or
-from a private one on a GitHub Pro or organisation plan; the workflow in
-`.github/workflows/pages.yml` publishes the repository root on every push to
-`main`. Cloudflare Pages hosts a private repository on the free plan: connect
-the repository, leave the build command empty and set the output directory to
-`/`.
+The tool is one static file and runs from disk; hosting only adds an address.
+The published address is `https://thåst.se/tsg/sightline/`, where the TSG
+proxy in the `thast.se` repository mounts it beside the other TSG tools.
+
+The origin behind that address is a Cloudflare Worker defined by
+`wrangler.jsonc` and `worker/index.js`: the repository root is served as
+static assets, `.assetsignore` keeps everything but the tool and the examples
+off the edge, and a request that reaches the Worker's own `*.workers.dev`
+name answers 308 to the canonical address so no duplicate is ever indexed.
+Deploy with `npx wrangler deploy`; there is still no build step.
 
 ## Code standard
 
