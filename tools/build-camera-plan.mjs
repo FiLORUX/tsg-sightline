@@ -1,6 +1,3 @@
-Filnamn i webbuppladdaren: `tools/build-camera-plan.mjs`. Snedstrecket skapar mappen.
-
-```javascript
 // File: tools/build-camera-plan.mjs
 // Builds a camera plan project file from a rigging list, so a standing camera
 // build can be regenerated for a new venue instead of being re-entered by hand.
@@ -126,4 +123,3 @@ if (!target) {
 
 writeFileSync(target, `${JSON.stringify(plan, null, 2)}\n`);
 process.stdout.write(`Wrote ${cameras.length} positions to ${target}\n`);
-```
