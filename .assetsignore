@@ -1,0 +1,13 @@
+# Only the tool and its example builds are served. Everything else is
+# repository furniture and must never reach the edge.
+.git
+.github
+# Wrangler writes its own cache and bundle here while deploying.
+.wrangler
+tools
+worker
+README.md
+wrangler.jsonc
+.gitattributes
+.gitignore
+.assetsignore

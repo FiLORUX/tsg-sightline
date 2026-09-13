@@ -1,0 +1,26 @@
+// File: wrangler.jsonc
+// Origin for TSG Sightline: a Worker that serves the repository's static
+// assets and enforces origin discipline (see worker/index.js).
+//
+// The public address is https://thåst.se/tsg/sightline/, mounted by the
+// tsg-proxy Worker in the thast.se repository. This Worker's own
+// *.workers.dev name is an origin, never a surface, so no custom domain is
+// bound here on purpose. Deploy with `npx wrangler deploy`.
+{
+  "name": "tsg-sightline",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-06-18",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "assets": {
+    // The tool lives at the repository root as a single file, so the root
+    // is the asset directory; .assetsignore keeps repository furniture out.
+    "directory": ".",
+    "binding": "ASSETS",
+    // Every request passes through the Worker first so the redirect rule
+    // applies before any asset is served.
+    "run_worker_first": true,
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none"
+  }
+}

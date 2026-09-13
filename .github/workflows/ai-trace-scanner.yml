@@ -1,0 +1,15 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# AI Trace Scanner — Calls reusable workflow from thast-devkit
+# ═══════════════════════════════════════════════════════════════════════════
+
+name: AI Trace Scanner
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  scan:
+    uses: FiLORUX/thast-devkit/.github/workflows/ai-trace-scanner.yml@main
