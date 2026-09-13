@@ -101,3 +101,7 @@ Deploy with `npx wrangler deploy`; there is still no build step.
 
 British English throughout code, comments and documentation. ES2023, no
 transpilation, no framework. Comments explain why rather than what.
+
+## Licence
+
+MIT. See `LICENSE`.
