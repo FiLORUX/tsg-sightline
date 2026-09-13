@@ -1,0 +1,2869 @@
+<!-- File: camera-plan.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TSG Sightline</title>
+<style>
+  :root {
+    --chrome: #151a1f;
+    --surface: #1d242b;
+    --surface-high: #263039;
+    --line: #303b46;
+    --ink: #dfe6ec;
+    --ink-dim: #8c9ba9;
+    --accent: #e8b33c;
+    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-data: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  /* A class that sets display would otherwise beat the user agent rule for the
+     hidden attribute, leaving panels on screen that the code believes are gone. */
+  [hidden] { display: none !important; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--chrome);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    overscroll-behavior: none;
+  }
+
+  .workspace { display: grid; grid-template-columns: 1fr 372px; height: 100%; }
+
+  .plan-area { position: relative; overflow: hidden; background: #0f1317; }
+
+  #plan { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+  #plan.is-panning { cursor: grabbing; }
+  #plan.mode-place, #plan.mode-calibrate, #plan.mode-path { cursor: crosshair; }
+
+  .toolbar {
+    position: absolute; top: 16px; left: 16px;
+    display: flex; gap: 6px; padding: 6px;
+    background: rgba(21, 26, 31, 0.92);
+    border: 1px solid var(--line); border-radius: 8px;
+  }
+
+  .hint {
+    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    padding: 7px 14px; background: var(--accent); color: #191307;
+    font-weight: 600; font-size: 12.5px; border-radius: 6px;
+    pointer-events: none; opacity: 0; transition: opacity 140ms ease;
+  }
+  .hint.is-visible { opacity: 1; }
+
+  .mode-bar {
+    position: absolute; top: 66px; left: 16px;
+    display: flex; align-items: center; gap: 12px;
+    max-width: 460px; padding: 9px 10px 9px 14px;
+    background: var(--accent); color: #191307;
+    border-radius: 8px; font-size: 12.5px; font-weight: 600; line-height: 1.4;
+    pointer-events: none;
+  }
+  .mode-bar button {
+    background: rgba(25, 19, 7, 0.14); border-color: transparent;
+    color: #191307; font-weight: 600; padding: 5px 12px; flex: 0 0 auto;
+    pointer-events: auto;
+  }
+  .mode-bar button:hover { background: rgba(25, 19, 7, 0.26); }
+
+  .calibration-entry {
+    position: absolute; top: 118px; left: 16px; width: 300px;
+    padding: 12px 14px 10px;
+    background: rgba(21, 26, 31, 0.96);
+    border: 1px solid var(--accent); border-radius: 8px;
+  }
+  .calibration-entry label { display: block; font-size: 11px; color: var(--ink-dim); margin-bottom: 6px; }
+  .calibration-row { display: flex; align-items: center; gap: 6px; }
+  .calibration-row input { flex: 1 1 auto; }
+  .calibration-row span { font-family: var(--font-data); font-size: 12.5px; color: var(--ink-dim); }
+  .calibration-entry p {
+    margin: 8px 0 0; font-family: var(--font-data);
+    font-size: 11px; color: var(--ink-dim); line-height: 1.5;
+  }
+
+  .scale-bar {
+    position: absolute; left: 16px; bottom: 16px;
+    font-family: var(--font-data); font-size: 11px;
+    color: var(--ink-dim); letter-spacing: 0.04em; user-select: none;
+  }
+  .scale-bar .rule { height: 7px; border: 1px solid var(--ink-dim); border-top: none; margin-bottom: 4px; }
+
+  .panel { background: var(--surface); border-left: 1px solid var(--line); overflow-y: auto; padding-bottom: 32px; }
+  .panel header { padding: 18px 18px 14px; border-bottom: 1px solid var(--line); }
+  .panel header h1 {
+    margin: 0; font-family: var(--font-data); font-size: 13px;
+    letter-spacing: 0.22em; text-transform: uppercase; font-weight: 600;
+  }
+  .panel header p { margin: 6px 0 0; font-size: 12px; color: var(--ink-dim); line-height: 1.45; }
+  .panel header .kicker {
+    margin: 0 0 4px; font-family: var(--font-data); font-size: 10px;
+    letter-spacing: 0.3em; color: var(--accent); font-weight: 700;
+  }
+
+  .group { border-bottom: 1px solid var(--line); padding: 16px 18px; }
+  .group > h2 {
+    margin: 0 0 12px; font-family: var(--font-data); font-size: 10.5px;
+    letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-dim); font-weight: 600;
+  }
+
+  .field { margin-bottom: 10px; }
+  .field:last-child { margin-bottom: 0; }
+  .field label { display: block; font-size: 11px; color: var(--ink-dim); margin-bottom: 4px; }
+
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+  input, select, button { font: inherit; color: inherit; }
+
+  input[type="text"], input[type="number"], select {
+    width: 100%; padding: 7px 9px; background: var(--chrome);
+    border: 1px solid var(--line); border-radius: 5px;
+    font-family: var(--font-data); font-size: 12.5px;
+  }
+
+  input:focus-visible, select:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 1px;
+  }
+
+  button {
+    padding: 7px 11px; background: var(--surface-high);
+    border: 1px solid var(--line); border-radius: 5px;
+    cursor: pointer; font-size: 12.5px;
+  }
+  button:hover { background: #2f3a45; }
+  button.is-active { background: var(--accent); border-color: var(--accent); color: #191307; font-weight: 600; }
+  button.danger:hover { background: #6d2c22; border-color: #8a3a2c; }
+
+  .button-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .check { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-dim); cursor: pointer; }
+  .check input { accent-color: var(--accent); }
+
+  .readout { font-family: var(--font-data); font-size: 12px; color: var(--ink-dim); line-height: 1.6; }
+  .readout strong { color: var(--ink); font-weight: 600; }
+
+  .palette { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .palette button {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 8px 2px 6px; line-height: 1.1; font-size: 9px;
+    letter-spacing: 0.03em; text-transform: uppercase; color: var(--ink-dim);
+  }
+  .palette button svg { width: 36px; height: 36px; }
+  .palette button.is-active { color: #191307; }
+
+  table.camera-list { width: 100%; border-collapse: collapse; font-family: var(--font-data); font-size: 11.5px; }
+  table.camera-list th {
+    text-align: left; font-weight: 600; color: var(--ink-dim);
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; padding: 0 6px 6px 0;
+  }
+  table.camera-list td { padding: 5px 6px 5px 0; border-top: 1px solid var(--line); white-space: nowrap; }
+  table.camera-list tr.is-selected td { background: rgba(232, 179, 60, 0.12); }
+  table.camera-list tbody tr { cursor: pointer; }
+  table.camera-list td svg { width: 22px; height: 22px; vertical-align: middle; }
+  table.camera-list td.truncate { max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
+
+  .empty { font-size: 12px; color: var(--ink-dim); line-height: 1.5; }
+
+  dl.keys {
+    display: grid; grid-template-columns: auto 1fr;
+    gap: 5px 12px; margin: 0;
+    font-size: 11.5px; line-height: 1.35;
+  }
+  dl.keys dt { font-family: var(--font-data); color: var(--ink); white-space: nowrap; }
+  dl.keys dd { margin: 0; color: var(--ink-dim); }
+
+  #file-plan, #file-project { display: none; }
+
+  @media (max-width: 900px) {
+    .workspace { grid-template-columns: 1fr; grid-template-rows: 55vh 1fr; }
+    .panel { border-left: none; border-top: 1px solid var(--line); }
+  }
+
+  @media print {
+    .panel, .toolbar, .hint, .scale-bar { display: none; }
+    .workspace { grid-template-columns: 1fr; }
+    html, body, .plan-area { background: #fff; height: auto; }
+    #plan { height: 100vh; }
+  }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<main class="workspace">
+  <section class="plan-area">
+    <svg id="plan" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="grid-fine" patternUnits="userSpaceOnUse">
+          <path id="grid-fine-path" fill="none" stroke="#d9d5c9" stroke-width="0.6"></path>
+        </pattern>
+        <pattern id="grid-coarse" patternUnits="userSpaceOnUse">
+          <rect id="grid-coarse-fill" fill="url(#grid-fine)"></rect>
+          <path id="grid-coarse-path" fill="none" stroke="#c3bda9" stroke-width="1.1"></path>
+        </pattern>
+      </defs>
+      <g id="viewport">
+        <g id="layer-paper">
+          <rect id="paper-rect" fill="#f4f2ec"></rect>
+          <rect id="paper-grid" fill="url(#grid-coarse)"></rect>
+        </g>
+        <image id="layer-background" preserveAspectRatio="none"></image>
+        <g id="layer-cones" pointer-events="none"></g>
+        <g id="layer-envelopes" pointer-events="none"></g>
+        <g id="layer-symbols"></g>
+        <g id="layer-badges"></g>
+        <g id="layer-dimensions" pointer-events="none"></g>
+        <g id="layer-scalebar" pointer-events="none"></g>
+        <g id="layer-titleblock" pointer-events="none"></g>
+        <g id="layer-handles"></g>
+        <g id="layer-calibration" pointer-events="none"></g>
+      </g>
+    </svg>
+
+    <div class="toolbar">
+      <button id="mode-select" class="is-active" title="Select and move (Esc)">Select</button>
+      <button id="mode-calibrate" title="Set drawing scale from a known distance">Set scale</button>
+      <button id="mode-measure" title="Measure and dimension on the plan">Measure</button>
+      <button id="action-fit" title="Fit plan to view">Fit</button>
+    </div>
+
+    <div class="hint" id="hint"></div>
+
+    <div class="mode-bar" id="mode-bar" hidden>
+      <span id="mode-bar-text"></span>
+      <button id="mode-bar-done">Done</button>
+    </div>
+
+    <div class="calibration-entry" id="calibration-entry" hidden>
+      <label for="calibration-value">Reference distance</label>
+      <div class="calibration-row">
+        <input type="number" id="calibration-value" step="0.001" min="0.001" value="10">
+        <span>m</span>
+        <button id="calibration-apply">Set scale</button>
+        <button id="calibration-cancel">Cancel</button>
+      </div>
+      <p id="calibration-note"></p>
+    </div>
+
+    <div class="scale-bar">
+      <div class="rule" id="scale-rule"></div>
+      <span id="scale-label">20 m</span>
+    </div>
+  </section>
+
+  <aside class="panel">
+    <header>
+      <p class="kicker">TSG</p>
+      <h1>Sightline</h1>
+      <p>Camera plot and plan tool. Pick a mount, then click the plan to drop it. Drag the number to move, drag the ring to aim.</p>
+    </header>
+
+    <section class="group">
+      <h2>Mounts</h2>
+      <div class="palette" id="mount-palette"></div>
+    </section>
+
+    <section class="group">
+      <h2>Drawing</h2>
+      <div class="field">
+        <label for="meta-production">Production</label>
+        <input type="text" id="meta-production" value="">
+      </div>
+      <div class="field">
+        <label for="meta-venue">Venue</label>
+        <input type="text" id="meta-venue" value="">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="meta-date">Date</label>
+          <input type="text" id="meta-date" value="">
+        </div>
+        <div class="field">
+          <label for="meta-revision">Revision</label>
+          <input type="text" id="meta-revision" value="A">
+        </div>
+      </div>
+      <div class="field">
+        <label for="meta-author">Drawn by</label>
+        <input type="text" id="meta-author" value="">
+      </div>
+    </section>
+
+    <section class="group">
+      <h2>Base plan</h2>
+      <div class="button-row">
+        <button id="action-load-plan">Load image</button>
+        <button id="action-clear-plan">Remove image</button>
+      </div>
+      <input type="file" id="file-plan" accept="image/*">
+      <div class="field" style="margin-top:12px">
+        <div class="readout">Scale <strong id="readout-scale">20.00 px/m</strong></div>
+        <div class="readout" id="readout-calibration"></div>
+      </div>
+      <div class="field" style="margin-top:12px">
+        <label for="scale-direct">Scale (px per metre)</label>
+        <input type="number" id="scale-direct" step="0.01" min="0.1">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="scale-ratio">Plotted at 1:</label>
+          <input type="number" id="scale-ratio" step="1" min="1" value="200">
+        </div>
+        <div class="field">
+          <label for="scale-paper">Paper width (mm)</label>
+          <input type="number" id="scale-paper" step="1" min="1" value="841">
+        </div>
+      </div>
+      <div class="button-row">
+        <button id="action-apply-ratio">Derive from plot scale</button>
+      </div>
+      <div class="button-row" style="margin-top:6px">
+        <button id="action-clear-dimensions">Clear dimensions</button>
+      </div>
+    </section>
+
+    <section class="group">
+      <h2>Selected position</h2>
+      <div id="camera-editor" hidden>
+        <div class="row">
+          <div class="field">
+            <label for="cam-number">Number</label>
+            <input type="text" id="cam-number">
+          </div>
+          <div class="field">
+            <label for="cam-mount">Mount</label>
+            <select id="cam-mount"></select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="cam-label">Description</label>
+          <input type="text" id="cam-label">
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="cam-body">Camera</label>
+            <input type="text" id="cam-body">
+          </div>
+          <div class="field">
+            <label for="cam-viewfinder">Viewfinder</label>
+            <input type="text" id="cam-viewfinder">
+          </div>
+        </div>
+        <div class="field">
+          <label for="cam-control">Control</label>
+          <input type="text" id="cam-control">
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="cam-heading">Heading (deg)</label>
+            <input type="number" id="cam-heading" step="1">
+          </div>
+          <div class="field">
+            <label for="cam-height">Lens height (m)</label>
+            <input type="number" id="cam-height" step="0.1">
+          </div>
+        </div>
+
+        <div id="arm-fields" hidden>
+          <div class="field">
+            <label for="cam-crane">Arm</label>
+            <select id="cam-crane"></select>
+          </div>
+          <div class="row-3">
+            <div class="field">
+              <label for="cam-reach-min">Retracted (m)</label>
+              <input type="number" id="cam-reach-min" step="0.1" min="0.5">
+            </div>
+            <div class="field">
+              <label for="cam-reach-max">Extended (m)</label>
+              <input type="number" id="cam-reach-max" step="0.1" min="0.5">
+            </div>
+            <div class="field">
+              <label for="cam-swing">Swing (deg)</label>
+              <input type="number" id="cam-swing" step="5" min="1" max="360">
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="cam-reach">Arm at (m)</label>
+              <input type="number" id="cam-reach" step="0.1" min="0.5">
+            </div>
+            <div class="field">
+              <label for="cam-tail">Tail behind post (m)</label>
+              <input type="number" id="cam-tail" step="0.1" min="0.1">
+            </div>
+          </div>
+        </div>
+
+        <div id="roam-fields" hidden>
+          <div class="field">
+            <label for="cam-roam">Working radius (m)</label>
+            <input type="number" id="cam-roam" step="0.5" min="0.5">
+          </div>
+          <div class="button-row">
+            <button id="action-draw-path">Draw move path</button>
+            <button id="action-clear-path">Clear path</button>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:10px">
+          <label for="cam-lens-name">Lens</label>
+          <input type="text" id="cam-lens-name">
+        </div>
+        <div class="field">
+          <label for="cam-lens">Lens preset</label>
+          <select id="cam-lens"></select>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="cam-wide">Wide (mm)</label>
+            <input type="number" id="cam-wide" step="0.1" min="1">
+          </div>
+          <div class="field">
+            <label for="cam-tele">Tele (mm)</label>
+            <input type="number" id="cam-tele" step="1" min="1">
+          </div>
+        </div>
+        <div class="field">
+          <label for="cam-sensor">Imager format</label>
+          <select id="cam-sensor"></select>
+        </div>
+        <div class="field">
+          <label for="cam-throw">Working distance to subject (m)</label>
+          <input type="number" id="cam-throw" step="1" min="1">
+        </div>
+        <div class="field">
+          <label class="check"><input type="checkbox" id="cam-rf"> Radio link</label>
+        </div>
+        <div class="field">
+          <div class="readout" id="readout-coverage"></div>
+        </div>
+        <div class="button-row">
+          <button id="action-duplicate">Duplicate</button>
+          <button id="action-delete" class="danger">Delete</button>
+        </div>
+      </div>
+      <p class="empty" id="camera-empty">Nothing selected. Arrow keys nudge, <kbd>[</kbd> and <kbd>]</kbd> rotate, <kbd>Delete</kbd> removes.</p>
+    </section>
+
+    <section class="group">
+      <h2>Camera list</h2>
+      <table class="camera-list">
+        <thead>
+          <tr><th></th><th>No</th><th>Position</th><th>HFOV</th></tr>
+        </thead>
+        <tbody id="camera-rows"></tbody>
+      </table>
+      <p class="empty" id="list-empty">The list builds itself as positions are placed.</p>
+      <div class="button-row" style="margin-top:12px">
+        <button id="action-copy-list">Copy list</button>
+        <button id="action-renumber">Renumber</button>
+      </div>
+    </section>
+
+    <section class="group">
+      <h2>Output</h2>
+      <div class="field">
+        <label class="check"><input type="checkbox" id="option-monochrome"> Monochrome for print</label>
+      </div>
+      <div class="field">
+        <label class="check"><input type="checkbox" id="option-envelopes" checked> Show reach and working envelopes</label>
+      </div>
+      <div class="button-row">
+        <button id="action-export-svg">Export SVG</button>
+        <button id="action-export-png">Export PNG</button>
+        <button id="action-print">Print</button>
+      </div>
+      <div class="button-row" style="margin-top:6px">
+        <button id="action-save-project">Save project</button>
+        <button id="action-open-project">Open project</button>
+      </div>
+      <input type="file" id="file-project" accept="application/json,.json">
+    </section>
+
+    <section class="group">
+      <h2>Handling</h2>
+      <dl class="keys">
+        <dt>Drag number or symbol</dt><dd>Move the position</dd>
+        <dt>Drag the ring</dt><dd>Aim it, Shift snaps to 15 deg</dd>
+        <dt>Shift + wheel</dt><dd>Working distance</dd>
+        <dt>Alt + wheel</dt><dd>Crane arm extension</dd>
+        <dt>Tab</dt><dd>Next position, centred</dd>
+        <dt>Arrow keys</dt><dd>Nudge, Shift for ten times</dd>
+        <dt>Space + drag</dt><dd>Pan the plan</dd>
+        <dt>Delete</dt><dd>Remove the position</dd>
+      </dl>
+    </section>
+  </aside>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  /* Equipment model -------------------------------------------------------
+     Mount and optics are independent axes. The footprint comes from the mount,
+     the camera silhouette from the lens fitted to it, which is how a plan reader
+     tells a box-lens hard camera from a portable position at a glance and why
+     the drawing stays readable after a monochrome plot. */
+
+  const MOUNTS = [
+    { id: 'tripodHeavy', short: 'Heavy',  name: 'Heavy tripod',            colour: '#14508c', spread: 0.72 },
+    { id: 'ped',         short: 'Ped',    name: 'Studio pedestal',         colour: '#1f6fb8' },
+    { id: 'tripodDolly', short: 'Dolly',  name: 'Tripod on pulley',        colour: '#2f8f8a', spread: 0.58 },
+    { id: 'tripodEng',   short: 'ENG',    name: 'ENG tripod',              colour: '#4a9fd8', spread: 0.52 },
+    { id: 'crane',       short: 'Crane',  name: 'Telescopic crane',        colour: '#a05fc4' },
+    { id: 'jib',         short: 'Jib',    name: 'Jib arm',                 colour: '#7a52c0' },
+    { id: 'steadicam',   short: 'Stead',  name: 'Steadicam',               colour: '#e8a53c' },
+    { id: 'handheld',    short: 'Hand',   name: 'Handheld',                colour: '#dd5f42' },
+    { id: 'robo',        short: 'Robo',   name: 'Robotic head',            colour: '#3aa06f' },
+    { id: 'pov',         short: 'POV',    name: 'POV / minicam',           colour: '#37a8b8' },
+    { id: 'rail',        short: 'Rail',   name: 'Rail or track dolly',     colour: '#c46a9a' },
+    { id: 'special',     short: 'Spec',   name: 'Specialty',               colour: '#7f8c99' }
+  ];
+
+  const IMAGER_FORMATS = [
+    { id: 'b4',  name: '2/3 in B4 (broadcast)', width: 9.59 },
+    { id: '1in', name: '1 in',                  width: 13.20 },
+    { id: 'mft', name: 'Micro Four Thirds',     width: 17.30 },
+    { id: 's35', name: 'Super 35',              width: 24.89 },
+    { id: 'ff',  name: 'Full frame',            width: 36.00 }
+  ];
+
+  const LENS_PRESETS = [
+    { id: 'custom',  name: 'Custom',                    wide: null, tele: null },
+    { id: 'ua107',   name: 'UA107x8.4 (8.4-900 mm)',    wide: 8.4,  tele: 900 },
+    { id: 'ua80',    name: 'UA80x9 (9-720 mm)',         wide: 9.0,  tele: 720 },
+    { id: 'ua27',    name: 'UA27x6.5 (6.5-176 mm)',     wide: 6.5,  tele: 176 },
+    { id: 'ua24',    name: 'UA24x7.8 (7.8-187 mm)',     wide: 7.8,  tele: 187 },
+    { id: 'ua22',    name: 'UA22x8 (8-176 mm)',         wide: 8.0,  tele: 176 },
+    { id: 'ua14',    name: 'UA14x4.5 (4.5-63 mm)',      wide: 4.5,  tele: 63 },
+    { id: 'ua13',    name: 'UA13x4.5 (4.5-59 mm)',      wide: 4.5,  tele: 59 },
+    { id: 'prime36', name: 'POV prime 3.6 mm',          wide: 3.6,  tele: 3.6 }
+  ];
+
+  // Nominal horizontal reach from the pivot, named by arm length as the hire
+  // market lists it. Base and outrigger footprints vary between builds, so these
+  // are a starting point for clearance work rather than a substitute for the
+  // supplier rigging data.
+  // Reach is measured from the post, which is how the manufacturers quote it and
+  // how a rigger reads a plan. The tail figure is the distance the counterweight
+  // trolley sits behind the post: it sweeps its own circle every time the arm
+  // swings, and it is the clearance most often forgotten on a floor plan.
+  const ARM_PRESETS = [
+    { id: 'custom', name: 'Custom',                    min: null, max: null,  base: null, tail: null },
+    { id: 'mb45',   name: 'MovieBird 45 (13.77 m)',    min: 2.43, max: 13.77, base: 1.60, tail: 2.38 },
+    { id: 'mb35',   name: 'MovieBird 35 (10.67 m)',    min: 2.43, max: 10.67, base: 1.60, tail: 2.38 },
+    { id: 'mb30',   name: 'MovieBird 30 (9.14 m)',     min: 2.43, max: 9.14,  base: 1.60, tail: 2.38 },
+    { id: 't30',    name: 'Technocrane 30 (9.14 m)',   min: 2.40, max: 9.14,  base: 1.60, tail: 2.40 },
+    { id: 't50',    name: 'Technocrane 50 (15.24 m)',  min: 3.00, max: 15.24, base: 1.90, tail: 3.00 },
+    { id: 'sc45',   name: 'Scorpio 45 (13.72 m)',      min: 2.60, max: 13.72, base: 1.70, tail: 2.60 },
+    { id: 'jjt',    name: 'Jimmy Jib Triangle (9.1 m)', min: 9.10, max: 9.10, base: 1.50, tail: 2.10 },
+    { id: 'jib6',   name: 'Jib arm, fixed (6.0 m)',    min: 6.00, max: 6.00,  base: 1.40, tail: 1.60 }
+  ];
+
+  // Measured kit that the plan glyphs are drawn from. Only figures published by
+  // the manufacturer or hire house are used, so a footprint on the sheet is the
+  // footprint on the floor.
+  const PEDESTAL = { track: 1.07, ring: 0.74, wheel: 0.16 };
+
+  // Head silhouettes keyed to lens class. The break points follow how the glass
+  // is actually built: long box lenses above 400 mm, field zooms above 120 mm,
+  // portable zooms above 40 mm, and wide-angle primes below that. panAxis is the
+  // distance from the front element back to the pan axis of the head, which is
+  // near the centre of gravity of the build and not under the camera body: a box
+  // lens is heavy enough to pull the balance point well forward.
+  const HEAD_PROFILES = {
+    box:      { hoodWidth: 0.27, hoodLength: 0.15, barrelWidth: 0.18, barrelLength: 0.44, bodyWidth: 0.34, bodyLength: 0.50, viewfinder: 0.15, support: 0.34, demands: true, panAxis: 0.55 },
+    field:    { hoodWidth: 0.20, hoodLength: 0.12, barrelWidth: 0.14, barrelLength: 0.28, bodyWidth: 0.30, bodyLength: 0.46, viewfinder: 0.13, support: 0.26, demands: true, panAxis: 0.50 },
+    portable: { hoodWidth: 0.17, hoodLength: 0.10, barrelWidth: 0.12, barrelLength: 0.16, bodyWidth: 0.28, bodyLength: 0.42, viewfinder: 0.12, panAxis: 0.46 },
+    wide:     { hoodWidth: 0.15, hoodLength: 0.08, barrelWidth: 0.11, barrelLength: 0.08, bodyWidth: 0.26, bodyLength: 0.38, viewfinder: 0.10, panAxis: 0.40 },
+    mini:     { hoodWidth: 0.07, hoodLength: 0.05, barrelWidth: 0.06, barrelLength: 0.05, bodyWidth: 0.16, bodyLength: 0.18, viewfinder: 0, panAxis: 0.12 }
+  };
+
+  const DEFAULT_CONTENT = { width: 2400, height: 1600 };
+  const NUDGE_STEP = 1;
+
+  const state = {
+    background: null,
+    content: { ...DEFAULT_CONTENT },
+    pxPerMetre: 20,
+    calibrated: false,
+    cameras: [],
+    nextNumber: 1,
+    selectedId: null,
+    mode: 'select',
+    pendingMount: 'tripodHeavy',
+    monochrome: false,
+    envelopes: true,
+    calibration: { a: null, b: null },
+    dimensions: [],
+    measure: { a: null },
+    rubber: { start: null, end: null },
+    plotRatio: null,
+    view: { x: 0, y: 0, k: 1 }
+  };
+
+  const drag = { kind: null, id: null, pointerId: null, offset: { x: 0, y: 0 }, origin: null };
+
+  const el = (id) => document.getElementById(id);
+  const svg = el('plan');
+  const viewport = el('viewport');
+
+  const layers = {
+    paperRect: el('paper-rect'),
+    paperGrid: el('paper-grid'),
+    background: el('layer-background'),
+    cones: el('layer-cones'),
+    envelopes: el('layer-envelopes'),
+    symbols: el('layer-symbols'),
+    badges: el('layer-badges'),
+    dimensions: el('layer-dimensions'),
+    scalebar: el('layer-scalebar'),
+    titleblock: el('layer-titleblock'),
+    handles: el('layer-handles'),
+    calibration: el('layer-calibration')
+  };
+
+  const mountById = (id) => MOUNTS.find((m) => m.id === id) || MOUNTS[MOUNTS.length - 1];
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  const toRadians = (deg) => (deg * Math.PI) / 180;
+  const format = (value, digits) => Number(value).toFixed(digits);
+  const isArm = (camera) => camera.mount === 'crane' || camera.mount === 'jib';
+  const isTelescopic = (camera) => camera.mount === 'crane';
+  const isRoaming = (camera) => camera.mount === 'steadicam' || camera.mount === 'handheld';
+  const isTripod = (camera) => camera.mount.startsWith('tripod');
+
+  function headProfile(camera) {
+    if (camera.mount === 'pov') return HEAD_PROFILES.mini;
+    if (camera.tele >= 400) return HEAD_PROFILES.box;
+    if (camera.tele >= 120) return HEAD_PROFILES.field;
+    if (camera.tele >= 40) return HEAD_PROFILES.portable;
+    return HEAD_PROFILES.wide;
+  }
+
+  /* Geometry ------------------------------------------------------------- */
+
+  function angleOfView(focalMm, imagerWidthMm) {
+    if (!focalMm || focalMm <= 0) return 0;
+    return (2 * Math.atan(imagerWidthMm / (2 * focalMm)) * 180) / Math.PI;
+  }
+
+  const frameWidth = (distanceMetres, aovDegrees) =>
+    2 * distanceMetres * Math.tan(toRadians(aovDegrees) / 2);
+
+  // Zero degrees points to the top of the sheet and angles increase clockwise,
+  // the convention shared by lighting, rigging and camera plans.
+  function pointOnCircle(cx, cy, radius, angleDeg) {
+    const rad = toRadians(angleDeg);
+    return { x: cx + radius * Math.sin(rad), y: cy - radius * Math.cos(rad) };
+  }
+
+  function sectorPath(cx, cy, radius, headingDeg, aovDeg) {
+    const half = clamp(aovDeg, 0.5, 359) / 2;
+    const start = pointOnCircle(cx, cy, radius, headingDeg - half);
+    const end = pointOnCircle(cx, cy, radius, headingDeg + half);
+    return `M ${cx.toFixed(2)} ${cy.toFixed(2)} L ${start.x.toFixed(2)} ${start.y.toFixed(2)} ` +
+           `A ${radius.toFixed(2)} ${radius.toFixed(2)} 0 ${half * 2 > 180 ? 1 : 0} 1 ` +
+           `${end.x.toFixed(2)} ${end.y.toFixed(2)} Z`;
+  }
+
+  function arcPath(cx, cy, radius, headingDeg, sweepDeg) {
+    const half = clamp(sweepDeg, 1, 359.9) / 2;
+    const start = pointOnCircle(cx, cy, radius, headingDeg - half);
+    const end = pointOnCircle(cx, cy, radius, headingDeg + half);
+    return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} ` +
+           `A ${radius.toFixed(2)} ${radius.toFixed(2)} 0 ${half * 2 > 180 ? 1 : 0} 1 ` +
+           `${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
+  }
+
+  function annulusPath(cx, cy, inner, outer, headingDeg, sweepDeg) {
+    const half = clamp(sweepDeg, 1, 359.9) / 2;
+    const large = half * 2 > 180 ? 1 : 0;
+    const i1 = pointOnCircle(cx, cy, inner, headingDeg - half);
+    const i2 = pointOnCircle(cx, cy, inner, headingDeg + half);
+    const o1 = pointOnCircle(cx, cy, outer, headingDeg - half);
+    const o2 = pointOnCircle(cx, cy, outer, headingDeg + half);
+    return `M ${i1.x.toFixed(2)} ${i1.y.toFixed(2)} ` +
+           `A ${inner.toFixed(2)} ${inner.toFixed(2)} 0 ${large} 1 ${i2.x.toFixed(2)} ${i2.y.toFixed(2)} ` +
+           `L ${o2.x.toFixed(2)} ${o2.y.toFixed(2)} ` +
+           `A ${outer.toFixed(2)} ${outer.toFixed(2)} 0 ${large} 0 ${o1.x.toFixed(2)} ${o1.y.toFixed(2)} Z`;
+  }
+
+  const normaliseHeading = (deg) => ((deg % 360) + 360) % 360;
+
+  // The stored position of a camera is its axis of rotation, because that is the
+  // point that stays put when the operator pans. For a pedestal or a tripod that
+  // is the pan axis of the head above the column, for an arm it is the post, and
+  // for a Steadicam or a handheld it is the operator's own vertical axis. Storing
+  // the front element instead would swing the whole mount around the glass every
+  // time the heading changed, which is backwards.
+  function pivotOffset(camera) {
+    if (isArm(camera)) return 0;
+    if (camera.mount === 'steadicam') return 1.05;
+    if (camera.mount === 'handheld') return 0.72;
+    if (camera.mount === 'robo') return 0.30;
+    if (camera.mount === 'pov') return 0.20;
+    return headProfile(camera).panAxis;
+  }
+
+  // Ground mounts carry the glass ahead of the pan axis, arms carry it out to the
+  // head, and coverage has to be projected from wherever the front element ends up.
+  function lensOrigin(camera) {
+    const forward = isArm(camera) ? camera.reach : pivotOffset(camera);
+    return pointOnCircle(camera.x, camera.y, forward * state.pxPerMetre, camera.heading);
+  }
+
+  // Annotation is sized to the sheet, not to the venue. A position number is a
+  // label on a drawing rather than an object on the floor, so it has to stay
+  // legible whether the sheet covers a studio or a stadium.
+  const annotation = () => state.content.width / 2000;
+
+  // The badge sits directly behind the axis of rotation, so it never drifts when
+  // the heading changes and never covers the mount it belongs to.
+  function badgeAnchor(camera) {
+    return pointOnCircle(camera.x, camera.y, -(46 * annotation()), camera.heading);
+  }
+
+  /* Transforms ----------------------------------------------------------- */
+
+  function clientToLocal(event) {
+    const rect = svg.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  }
+
+  const localToWorld = (local) => ({
+    x: (local.x - state.view.x) / state.view.k,
+    y: (local.y - state.view.y) / state.view.k
+  });
+
+  const eventToWorld = (event) => localToWorld(clientToLocal(event));
+
+  function applyView() {
+    viewport.setAttribute('transform',
+      `translate(${state.view.x} ${state.view.y}) scale(${state.view.k})`);
+    updateScaleBar();
+  }
+
+  function fitToContent() {
+    const rect = svg.getBoundingClientRect();
+    const margin = 48;
+    state.view.k = clamp(Math.min(
+      (rect.width - margin * 2) / state.content.width,
+      (rect.height - margin * 2) / state.content.height
+    ), 0.02, 40);
+    state.view.x = (rect.width - state.content.width * state.view.k) / 2;
+    state.view.y = (rect.height - state.content.height * state.view.k) / 2;
+    applyView();
+  }
+
+  /* Drawing primitives --------------------------------------------------- */
+
+  function create(tag, attributes) {
+    const node = document.createElementNS(SVG_NS, tag);
+    for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, value);
+    return node;
+  }
+
+  function clear(node) {
+    while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  function palette(camera) {
+    if (state.monochrome) return { line: '#14181c', solid: '#14181c', tint: '#14181c' };
+    const colour = mountById(camera.mount).colour;
+    return { line: colour, solid: colour, tint: colour };
+  }
+
+  const SOLID = (colours) => ({
+    fill: colours.solid, stroke: '#ffffff', 'stroke-width': 1.4,
+    'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round'
+  });
+
+  const OUTLINE = (colours) => ({
+    fill: 'none', stroke: colours.line, 'stroke-width': 1.5,
+    'vector-effect': 'non-scaling-stroke'
+  });
+
+  function bodyRect(width, yFrom, yTo, attributes) {
+    return create('rect', { x: -width / 2, y: yFrom, width, height: yTo - yFrom, ...attributes });
+  }
+
+  function cameraHead(group, colours, spec, offsetX) {
+    const hoodEnd = spec.hoodLength;
+    const barrelEnd = hoodEnd + spec.barrelLength;
+    const bodyEnd = barrelEnd + spec.bodyLength;
+    const solid = SOLID(colours);
+    const shift = (node) => {
+      if (offsetX) node.setAttribute('transform', `translate(${offsetX} 0)`);
+      return node;
+    };
+
+    group.appendChild(shift(bodyRect(spec.hoodWidth, 0, hoodEnd, { ...solid, rx: 0.02 })));
+    group.appendChild(shift(bodyRect(spec.barrelWidth, hoodEnd, barrelEnd, solid)));
+
+    // A box lens is carried on a support bracket bolted to the plate, never on
+    // the camera mount alone. It is the widest part of the build after the front
+    // element and it decides how far forward the whole rig sits on a platform.
+    if (spec.support) {
+      group.appendChild(shift(create('rect', {
+        x: -spec.support / 2, y: hoodEnd + spec.barrelLength * 0.52,
+        width: spec.support, height: 0.09, rx: 0.02, ...solid
+      })));
+    }
+
+    group.appendChild(shift(bodyRect(spec.bodyWidth, barrelEnd, bodyEnd, { ...solid, rx: 0.04 })));
+
+    if (spec.viewfinder) {
+      group.appendChild(shift(create('rect', {
+        x: -spec.bodyWidth / 2 - spec.viewfinder, y: barrelEnd + 0.06,
+        width: spec.viewfinder, height: spec.bodyLength * 0.5, ...solid, rx: 0.03
+      })));
+    }
+
+    // Zoom demand to the right hand, focus demand to the left, on the pan bars.
+    if (spec.demands) {
+      for (const side of [-1, 1]) {
+        group.appendChild(shift(create('line', {
+          x1: side * spec.bodyWidth * 0.34, y1: bodyEnd - 0.04,
+          x2: side * (spec.bodyWidth * 0.34 + 0.10), y2: bodyEnd + 0.34,
+          stroke: colours.line, 'stroke-width': 1.8, 'vector-effect': 'non-scaling-stroke'
+        })));
+        group.appendChild(shift(create('circle', {
+          cx: side * (spec.bodyWidth * 0.34 + 0.10), cy: bodyEnd + 0.36, r: 0.07,
+          fill: colours.line, stroke: '#ffffff', 'stroke-width': 1,
+          'vector-effect': 'non-scaling-stroke'
+        })));
+      }
+    }
+    return bodyEnd;
+  }
+
+  function pedestalBase(group, colours, centreY) {
+    // A Vinten Quattro reads from above as two concentric circles: the wheel
+    // track at 1.07 m and the detachable steering ring at 0.74 m. Nothing else in
+    // a studio has that signature, and the ring is what the operator's hands
+    // occupy, so it belongs on a clearance drawing.
+    const track = PEDESTAL.track / 2;
+    const ring = PEDESTAL.ring / 2;
+
+    group.appendChild(create('circle', {
+      cx: 0, cy: centreY, r: track, fill: 'none', stroke: colours.line,
+      'stroke-width': 1.1, 'stroke-dasharray': '5 4',
+      'vector-effect': 'non-scaling-stroke', 'stroke-opacity': 0.85
+    }));
+
+    for (const angle of [180, 300, 60]) {
+      const p = pointOnCircle(0, centreY, track, angle);
+      const wheel = create('rect', {
+        x: -PEDESTAL.wheel / 2, y: -0.055, width: PEDESTAL.wheel, height: 0.11, rx: 0.03,
+        fill: colours.line, stroke: '#ffffff', 'stroke-width': 1,
+        'vector-effect': 'non-scaling-stroke',
+        transform: `translate(${p.x.toFixed(3)} ${p.y.toFixed(3)}) rotate(${angle + 90})`
+      });
+      group.appendChild(wheel);
+      group.appendChild(create('line', {
+        x1: 0, y1: centreY, x2: p.x, y2: p.y,
+        stroke: colours.line, 'stroke-width': 1.6, 'vector-effect': 'non-scaling-stroke'
+      }));
+    }
+
+    group.appendChild(create('circle', {
+      cx: 0, cy: centreY, r: ring, fill: 'none', stroke: colours.line,
+      'stroke-width': 3.2, 'vector-effect': 'non-scaling-stroke'
+    }));
+
+    // The Quattro column is a triangular extrusion, which is both its stiffness
+    // trick and the quickest way to tell it apart from a round-column pedestal.
+    const column = [90, 210, 330].map((angle) => pointOnCircle(0, centreY, 0.13, angle));
+    group.appendChild(create('polygon', {
+      points: column.map((p) => `${p.x.toFixed(3)},${p.y.toFixed(3)}`).join(' '),
+      fill: colours.line, stroke: '#ffffff', 'stroke-width': 1,
+      'vector-effect': 'non-scaling-stroke'
+    }));
+  }
+
+  function tripodBase(group, colours, centreY, spread, castors) {
+    // One leg forward under the lens and two aft, which is how sticks are set so
+    // the operator stands clear between the rear legs.
+    const feet = [0, 120, 240].map((angle) => pointOnCircle(0, centreY, spread, angle));
+    group.appendChild(create('polygon', {
+      points: feet.map((p) => `${p.x.toFixed(3)},${p.y.toFixed(3)}`).join(' '),
+      fill: colours.line, 'fill-opacity': 0.10, stroke: colours.line,
+      'stroke-width': 1.3, 'stroke-dasharray': castors ? '5 4' : '',
+      'vector-effect': 'non-scaling-stroke'
+    }));
+    for (const foot of feet) {
+      group.appendChild(create('line', {
+        x1: 0, y1: centreY, x2: foot.x, y2: foot.y,
+        stroke: colours.line, 'stroke-width': 2, 'vector-effect': 'non-scaling-stroke'
+      }));
+      group.appendChild(create(castors ? 'circle' : 'rect', castors
+        ? { cx: foot.x, cy: foot.y, r: 0.10, fill: colours.line, stroke: 'none' }
+        : { x: foot.x - 0.07, y: foot.y - 0.07, width: 0.14, height: 0.14, rx: 0.03, fill: colours.line, stroke: 'none' }));
+    }
+    group.appendChild(create('circle', { cx: 0, cy: centreY, r: 0.10, fill: colours.line, stroke: 'none' }));
+  }
+
+  function operatorMark(group, colours, centreY, radius) {
+    group.appendChild(create('circle', {
+      cx: 0, cy: centreY, r: radius, fill: 'none', stroke: colours.line,
+      'stroke-width': 1.2, 'stroke-dasharray': '4 3',
+      'vector-effect': 'non-scaling-stroke', 'stroke-opacity': 0.75
+    }));
+  }
+
+  function radioMark(group, colours, atY) {
+    // Three concentric arcs, the long-standing plan shorthand for a radio link,
+    // placed aft of the body so it never crosses the lens axis.
+    for (let i = 1; i <= 3; i += 1) {
+      const r = 0.15 * i;
+      group.appendChild(create('path', {
+        d: `M ${(-r * 0.72).toFixed(3)} ${(atY + r * 0.72).toFixed(3)} ` +
+           `A ${r.toFixed(3)} ${r.toFixed(3)} 0 0 1 ${(r * 0.72).toFixed(3)} ${(atY + r * 0.72).toFixed(3)}`,
+        fill: 'none', stroke: colours.line, 'stroke-width': 1.4,
+        'vector-effect': 'non-scaling-stroke', 'stroke-linecap': 'round'
+      }));
+    }
+  }
+
+  function armSymbol(group, camera, colours) {
+    const telescopic = isTelescopic(camera);
+    const tail = camera.tail || camera.baseSize * 1.4;
+    const chassisLength = camera.baseSize;
+    const chassisWidth = chassisLength * 0.94;
+
+    if (telescopic) {
+      // A MovieBird sits on a wheeled chassis of about 1.6 by 1.5 m. Four wheels
+      // and a square corner distinguish it from the tripod base a jib stands on.
+      group.appendChild(create('rect', {
+        x: -chassisWidth / 2, y: -chassisLength / 2,
+        width: chassisWidth, height: chassisLength, rx: 0.08,
+        fill: '#ffffff', 'fill-opacity': 0.65, stroke: colours.line,
+        'stroke-width': 1.6, 'vector-effect': 'non-scaling-stroke'
+      }));
+      for (const sx of [-1, 1]) {
+        for (const sy of [-1, 1]) {
+          group.appendChild(create('rect', {
+            x: sx * chassisWidth / 2 - (sx > 0 ? 0.06 : 0.16), y: sy * chassisLength * 0.34 - 0.13,
+            width: 0.22, height: 0.26, rx: 0.05,
+            fill: colours.line, stroke: '#ffffff', 'stroke-width': 1,
+            'vector-effect': 'non-scaling-stroke'
+          }));
+        }
+      }
+    } else {
+      tripodBase(group, colours, 0, chassisLength / 2, true);
+    }
+
+    // Counterweight trolley aft of the post. It swings with the arm, so the tail
+    // is drawn at its true length rather than as a token block.
+    group.appendChild(create('line', {
+      x1: 0, y1: 0, x2: 0, y2: tail,
+      stroke: colours.line, 'stroke-width': 3, 'vector-effect': 'non-scaling-stroke'
+    }));
+    for (let i = 0; i < 3; i += 1) {
+      group.appendChild(create('rect', {
+        x: -0.30, y: tail - 0.34 + i * 0.12, width: 0.60, height: 0.10,
+        fill: colours.line, stroke: '#ffffff', 'stroke-width': 0.8,
+        'vector-effect': 'non-scaling-stroke'
+      }));
+    }
+
+    // Telescopic sections drawn as nested stages so the arm reads as extending
+    // rather than as a single fixed boom.
+    const tip = -camera.reach;
+    const stages = telescopic ? 3 : 1;
+    for (let i = 0; i < stages; i += 1) {
+      const from = (tip / stages) * i;
+      const to = (tip / stages) * (i + 1);
+      const halfWidth = 0.20 - i * 0.045;
+      group.appendChild(create('rect', {
+        x: -halfWidth, y: Math.min(from, to), width: halfWidth * 2, height: Math.abs(to - from),
+        fill: colours.line, 'fill-opacity': 0.5 - i * 0.08,
+        stroke: '#ffffff', 'stroke-width': 1.1, 'vector-effect': 'non-scaling-stroke'
+      }));
+    }
+
+    if (!telescopic) {
+      // The Jimmy Jib Triangle carries a triangular truss, so the plan glyph gets
+      // the bracing that gives the arm its name.
+      const bays = 6;
+      for (let i = 0; i < bays; i += 1) {
+        const y1 = (tip / bays) * i;
+        const y2 = (tip / bays) * (i + 1);
+        group.appendChild(create('line', {
+          x1: i % 2 ? -0.17 : 0.17, y1, x2: i % 2 ? 0.17 : -0.17, y2,
+          stroke: '#ffffff', 'stroke-width': 1.1, 'vector-effect': 'non-scaling-stroke'
+        }));
+      }
+    }
+
+    group.appendChild(create('circle', {
+      cx: 0, cy: 0, r: telescopic ? 0.28 : 0.20,
+      fill: '#ffffff', stroke: colours.line, 'stroke-width': 2.6,
+      'vector-effect': 'non-scaling-stroke'
+    }));
+
+    const head = create('g', { transform: `translate(0 ${tip})` });
+    cameraHead(head, colours, HEAD_PROFILES[camera.tele >= 120 ? 'field' : 'portable']);
+    // Remote head yoke: the arm carries a stabilised head, not an operator.
+    head.appendChild(create('path', {
+      d: 'M -0.22 0.62 L -0.22 0.42 M 0.22 0.62 L 0.22 0.42',
+      stroke: colours.line, 'stroke-width': 2.4, 'vector-effect': 'non-scaling-stroke'
+    }));
+    group.appendChild(head);
+
+    operatorMark(group, colours, tail + 0.75, 0.30);
+  }
+
+  /* Elevation icons -------------------------------------------------------
+     The plan glyph has to stay top-down to be dimensionally honest, but a plan
+     symbol is a poor way to tell an operator which piece of kit is meant. These
+     side elevations carry the silhouette a crew recognises: the steering ring on
+     a Quattro, the counterweight trolley on a MovieBird, the triangular truss on
+     a Jimmy Jib, the sled and iso-elastic arm on an Ultra2. They are used in the
+     palette, the camera list and the drawing legend, never on the plan itself.
+     Drawn in a 120 by 100 box with the ground at y 92, camera facing right. */
+
+  const GROUND = 92;
+
+  function elevation(colours) {
+    const g = create('g', {});
+    const line = (d, width, dash) => g.appendChild(create('path', {
+      d, fill: 'none', stroke: colours.line, 'stroke-width': width || 3,
+      'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+      'stroke-dasharray': dash || '', 'vector-effect': 'non-scaling-stroke'
+    }));
+    const box = (x, y, w, h, r) => g.appendChild(create('rect', {
+      x, y, width: w, height: h, rx: r || 1,
+      fill: colours.solid, stroke: '#ffffff', 'stroke-width': 1.6,
+      'vector-effect': 'non-scaling-stroke'
+    }));
+    const hollow = (x, y, w, h, r) => g.appendChild(create('rect', {
+      x, y, width: w, height: h, rx: r || 1,
+      fill: '#ffffff', stroke: colours.line, 'stroke-width': 2.6,
+      'vector-effect': 'non-scaling-stroke'
+    }));
+    const disc = (cx, cy, r, hollowFill) => g.appendChild(create('circle', {
+      cx, cy, r, fill: hollowFill ? '#ffffff' : colours.solid,
+      stroke: hollowFill ? colours.line : '#ffffff', 'stroke-width': hollowFill ? 2.6 : 1.6,
+      'vector-effect': 'non-scaling-stroke'
+    }));
+    return { g, line, box, hollow, disc };
+  }
+
+  // Long-lens camera build in elevation, shared by every ground-based mount.
+  function boxCameraElevation(draw, x, y, scale) {
+    const s = (v) => v * scale;
+    draw.box(x - s(4), y - s(9), s(26), s(15), s(2));            // body
+    draw.box(x - s(2), y - s(17), s(13), s(9), s(1.5));          // large viewfinder
+    draw.box(x + s(22), y - s(6), s(30), s(11), s(1.5));         // barrel
+    draw.box(x + s(50), y - s(9), s(9), s(17), s(1.5));          // front element
+    draw.box(x + s(28), y + s(5), s(16), s(4), s(1));            // support bracket
+    draw.line(`M ${x + s(4)} ${y + s(6)} L ${x - s(14)} ${y + s(16)}`, 2.6);
+    draw.disc(x - s(16), y + s(17), s(2.6));                     // zoom demand
+  }
+
+  const ELEVATIONS = {
+    ped(draw) {
+      draw.line(`M 4 ${GROUND} L 116 ${GROUND}`, 2, '4 4');
+      draw.disc(30, GROUND - 5, 5, true);
+      draw.disc(62, GROUND - 5, 5, true);
+      draw.hollow(24, GROUND - 16, 44, 8, 2);
+      // Detachable steering ring, seen edge on. Nothing else in a studio has it.
+      draw.line('M 20 68 A 26 4.5 0 0 0 72 68 A 26 4.5 0 0 0 20 68', 3.4);
+      // Four-stage column, each stage narrower than the one below it.
+      draw.hollow(38, 50, 16, 18, 1.5);
+      draw.hollow(40, 36, 12, 15, 1.5);
+      draw.hollow(42, 26, 8, 11, 1.5);
+      draw.hollow(36, 20, 20, 7, 1.5);
+      boxCameraElevation(draw, 46, 12, 0.62);
+    },
+
+    tripodHeavy(draw) {
+      draw.line(`M 4 ${GROUND} L 116 ${GROUND}`, 2, '4 4');
+      draw.line(`M 46 34 L 20 ${GROUND}`, 4);
+      draw.line(`M 46 34 L 72 ${GROUND}`, 4);
+      draw.line(`M 46 34 L 50 ${GROUND}`, 3);
+      draw.line('M 28 66 L 64 66', 2.6);
+      draw.hollow(34, 26, 24, 9, 2);
+      boxCameraElevation(draw, 46, 18, 0.62);
+    },
+
+    tripodEng(draw) {
+      draw.line(`M 4 ${GROUND} L 116 ${GROUND}`, 2, '4 4');
+      draw.line(`M 44 44 L 22 ${GROUND}`, 3);
+      draw.line(`M 44 44 L 66 ${GROUND}`, 3);
+      draw.line(`M 22 ${GROUND - 2} L 66 ${GROUND - 2}`, 2.2);
+      draw.hollow(34, 37, 20, 8, 2);
+      draw.box(40, 22, 26, 14, 2);
+      draw.box(44, 14, 11, 8, 1.5);
+      draw.box(64, 25, 20, 8, 1.5);
+      draw.box(82, 23, 6, 12, 1.5);
+    },
+
+    tripodDolly(draw) {
+      draw.line(`M 4 ${GROUND} L 116 ${GROUND}`, 2, '4 4');
+      draw.line(`M 44 42 L 24 ${GROUND - 8}`, 3);
+      draw.line(`M 44 42 L 64 ${GROUND - 8}`, 3);
+      draw.line(`M 24 ${GROUND - 8} L 64 ${GROUND - 8}`, 2.6);
+      draw.disc(24, GROUND - 4, 4, true);
+      draw.disc(64, GROUND - 4, 4, true);
+      draw.hollow(34, 35, 20, 8, 2);
+      boxCameraElevation(draw, 44, 20, 0.56);
+    },
+
+    crane(draw) {
+      draw.line(`M 4 ${GROUND} L 116 ${GROUND}`, 2, '4 4');
+      // Wheeled chassis, post, then the telescopic arm rising to the nose. The
+      // counterweight trolley on the tail is what needs room behind the position.
+      draw.hollow(14, GROUND - 14, 46, 9, 2);
+      for (const cx of [20, 34, 44, 56]) draw.disc(cx, GROUND - 4, 4, true);
+      draw.hollow(32, GROUND - 30, 12, 17, 1.5);
+      draw.line('M 38 62 L 104 26', 5.5);
+      draw.line('M 38 62 L 76 41', 8);
+      draw.line('M 38 62 L 14 75', 5.5);
+      draw.box(6, 70, 14, 5, 1);
+      draw.box(6, 76, 14, 5, 1);
+      draw.box(4, 64, 18, 5, 1);
+      draw.disc(38, 62, 6, true);
+      draw.hollow(100, 20, 14, 12, 2);
+      draw.box(110, 22, 10, 7, 1.5);
+    },
+
+    jib(draw) {
+      draw.line(`M 4 ${GROUND} L 116 ${GROUND}`, 2, '4 4');
+      draw.line(`M 40 60 L 22 ${GROUND}`, 3);
+      draw.line(`M 40 60 L 58 ${GROUND}`, 3);
+      // Triangular truss: the bracing is the reason the arm carries the name.
+      draw.line('M 40 56 L 106 22', 3);
+      draw.line('M 40 66 L 106 32', 3);
+      for (let i = 0; i <= 5; i += 1) {
+        const x1 = 40 + (66 / 5) * i;
+        const y1 = 56 - (34 / 5) * i;
+        draw.line(`M ${x1} ${y1} L ${x1 - 6.6} ${y1 + 13.4}`, 2);
+      }
+      draw.line('M 40 61 L 16 74', 3.4);
+      draw.box(6, 70, 16, 5, 1);
+      draw.box(6, 76, 16, 5, 1);
+      draw.disc(40, 61, 5, true);
+      draw.hollow(100, 18, 12, 11, 2);
+      draw.box(108, 20, 9, 6, 1.5);
+    },
+
+    steadicam(draw) {
+      draw.line(`M 4 ${GROUND} L 116 ${GROUND}`, 2, '4 4');
+      // Operator, vest and two-section iso-elastic arm.
+      draw.disc(26, 22, 8, true);
+      draw.line(`M 26 30 L 26 ${GROUND - 4}`, 4);
+      draw.hollow(18, 32, 17, 22, 2);
+      draw.line('M 35 40 L 52 34', 3.4);
+      draw.line('M 52 34 L 66 44', 3.4);
+      draw.line('M 37 44 L 52 38', 2.2);
+      draw.line('M 52 38 L 64 47', 2.2);
+      draw.disc(52, 34, 3.4);
+      // The sled: camera stage on top, gimbal at the balance point, monitor
+      // forward and battery mass aft on the lower junction.
+      draw.line('M 78 18 L 78 78', 4.4);
+      draw.disc(78, 44, 5, true);
+      draw.line('M 66 44 L 73 44', 3.4);
+      draw.box(68, 10, 30, 10, 1.5);
+      draw.box(94, 12, 7, 8, 1.5);
+      draw.box(70, 6, 12, 5, 1);
+      draw.hollow(84, 66, 20, 13, 1.5);
+      draw.box(60, 70, 16, 11, 1.5);
+    },
+
+    handheld(draw) {
+      draw.line(`M 4 ${GROUND} L 116 ${GROUND}`, 2, '4 4');
+      draw.disc(40, 30, 9, true);
+      draw.line(`M 40 39 L 40 ${GROUND - 2}`, 4.4);
+      draw.line('M 40 50 L 62 44', 3.4);
+      draw.box(52, 26, 32, 16, 2);
+      draw.box(56, 18, 12, 8, 1.5);
+      draw.box(82, 29, 18, 9, 1.5);
+      draw.box(98, 27, 6, 13, 1.5);
+    },
+
+    robo(draw) {
+      draw.line(`M 4 ${GROUND} L 116 ${GROUND}`, 2, '4 4');
+      draw.hollow(38, GROUND - 12, 40, 10, 2);
+      draw.hollow(50, 52, 16, 16, 2);
+      draw.box(44, 34, 30, 16, 2);
+      draw.box(72, 37, 16, 10, 1.5);
+      draw.box(86, 35, 6, 14, 1.5);
+      draw.line('M 46 30 A 16 10 0 0 1 78 30', 2.2, '4 3');
+    },
+
+    pov(draw) {
+      draw.line(`M 4 ${GROUND} L 116 ${GROUND}`, 2, '4 4');
+      draw.hollow(48, GROUND - 8, 22, 6, 1.5);
+      draw.line('M 59 80 L 59 58', 3.4);
+      draw.box(46, 44, 24, 14, 2);
+      draw.box(68, 47, 8, 8, 1.5);
+      draw.disc(78, 51, 5);
+    },
+
+    rail(draw) {
+      draw.line(`M 4 ${GROUND} L 116 ${GROUND}`, 2, '4 4');
+      draw.line(`M 8 ${GROUND - 4} L 112 ${GROUND - 4}`, 3.4);
+      for (let x = 14; x < 112; x += 14) draw.line(`M ${x} ${GROUND - 8} L ${x} ${GROUND - 1}`, 2);
+      draw.disc(38, GROUND - 10, 5, true);
+      draw.disc(66, GROUND - 10, 5, true);
+      draw.hollow(30, GROUND - 22, 44, 10, 2);
+      boxCameraElevation(draw, 46, 42, 0.56);
+    },
+
+    special(draw) {
+      draw.line(`M 4 ${GROUND} L 116 ${GROUND}`, 2, '4 4');
+      draw.hollow(34, 40, 52, 32, 3);
+      draw.line('M 44 56 L 76 56', 3);
+      draw.line('M 60 46 L 60 66', 3);
+    }
+  };
+
+  function drawElevation(mountId, colours) {
+    const draw = elevation(colours);
+    (ELEVATIONS[mountId] || ELEVATIONS.special)(draw);
+    return draw.g;
+  }
+
+  function drawSymbol(camera, colours) {
+    const group = create('g', {});
+    const profile = headProfile(camera);
+    const centre = pivotOffset(camera);
+
+    switch (camera.mount) {
+      case 'ped':
+        pedestalBase(group, colours, centre);
+        cameraHead(group, colours, profile);
+        operatorMark(group, colours, centre + PEDESTAL.track / 2 + 0.34, 0.28);
+        break;
+
+      case 'tripodHeavy':
+      case 'tripodEng':
+      case 'tripodDolly':
+        tripodBase(group, colours, centre, mountById(camera.mount).spread, camera.mount === 'tripodDolly');
+        cameraHead(group, colours, profile);
+        operatorMark(group, colours, centre + mountById(camera.mount).spread + 0.30, 0.28);
+        break;
+
+      case 'crane':
+      case 'jib':
+        armSymbol(group, camera, colours);
+        break;
+
+      case 'steadicam': {
+        const bodyEnd = cameraHead(group, colours, profile);
+        // An Ultra2 sled hangs the camera stage ahead of the post with the
+        // monitor and battery mass below and aft. From above the giveaway is the
+        // two-section iso-elastic arm reaching out to the operator's right hip,
+        // which is also the side the sled will not cross.
+        group.appendChild(create('rect', {
+          x: -0.11, y: bodyEnd, width: 0.22, height: 0.20, rx: 0.04,
+          fill: colours.solid, stroke: '#ffffff', 'stroke-width': 1.2,
+          'vector-effect': 'non-scaling-stroke'
+        }));
+        group.appendChild(create('circle', {
+          cx: 0, cy: bodyEnd + 0.20, r: 0.09,
+          fill: '#ffffff', stroke: colours.line, 'stroke-width': 2,
+          'vector-effect': 'non-scaling-stroke'
+        }));
+        group.appendChild(create('polyline', {
+          points: `0.09,${(bodyEnd + 0.20).toFixed(3)} 0.46,${(bodyEnd + 0.30).toFixed(3)} ` +
+                  `0.30,${(bodyEnd + 0.56).toFixed(3)} 0.13,${(centre - 0.22).toFixed(3)}`,
+          fill: 'none', stroke: colours.line, 'stroke-width': 2.6,
+          'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'vector-effect': 'non-scaling-stroke'
+        }));
+        group.appendChild(create('circle', {
+          cx: 0, cy: centre, r: 0.32, fill: '#ffffff', stroke: colours.line,
+          'stroke-width': 2, 'vector-effect': 'non-scaling-stroke'
+        }));
+        group.appendChild(create('path', {
+          d: `M -0.20 ${centre} A 0.20 0.20 0 0 1 0.20 ${centre}`,
+          fill: 'none', stroke: colours.line, 'stroke-width': 1.6, 'vector-effect': 'non-scaling-stroke'
+        }));
+        break;
+      }
+
+      case 'handheld':
+        cameraHead(group, colours, profile, 0.13);
+        group.appendChild(create('circle', {
+          cx: 0, cy: centre, r: 0.30, fill: '#ffffff', stroke: colours.line,
+          'stroke-width': 2, 'vector-effect': 'non-scaling-stroke'
+        }));
+        break;
+
+      case 'robo':
+        group.appendChild(bodyRect(0.13, 0, 0.16, SOLID(colours)));
+        group.appendChild(bodyRect(0.30, 0.16, 0.46, { ...SOLID(colours), rx: 0.05 }));
+        group.appendChild(create('path', {
+          d: 'M -0.42 0.40 A 0.46 0.46 0 0 1 0.42 0.40',
+          fill: 'none', stroke: colours.line, 'stroke-width': 1.2,
+          'stroke-dasharray': '4 3', 'vector-effect': 'non-scaling-stroke'
+        }));
+        break;
+
+      case 'pov':
+        group.appendChild(bodyRect(0.07, 0, 0.09, SOLID(colours)));
+        group.appendChild(create('circle', { cx: 0, cy: 0.20, r: 0.14, ...SOLID(colours) }));
+        break;
+
+      case 'rail':
+        cameraHead(group, colours, profile);
+        group.appendChild(create('rect', {
+          x: -0.45, y: centre - 0.18, width: 0.90, height: 0.36, rx: 0.06, ...OUTLINE(colours)
+        }));
+        for (const offset of [-0.30, 0.30]) {
+          group.appendChild(create('line', {
+            x1: -1.6, y1: centre + offset, x2: 1.6, y2: centre + offset,
+            stroke: colours.line, 'stroke-width': 1.6, 'vector-effect': 'non-scaling-stroke'
+          }));
+        }
+        break;
+
+      default:
+        cameraHead(group, colours, profile);
+        group.appendChild(create('polygon', {
+          points: `0,${centre - 0.30} 0.30,${centre} 0,${centre + 0.30} -0.30,${centre}`,
+          ...OUTLINE(colours)
+        }));
+    }
+
+    if (camera.rf) radioMark(group, colours, centre + 0.55);
+
+    // Everything above is drawn with the front element at the local origin, which
+    // is the natural way to lay out a camera. Shifting the finished glyph back by
+    // the pivot offset puts the axis of rotation on the stored position, so the
+    // symbol turns about the column rather than swinging the mount around the lens.
+    const shell = create('g', { transform: `translate(0 ${-centre})` });
+    shell.appendChild(group);
+    return shell;
+  }
+
+  /* Layers --------------------------------------------------------------- */
+
+  function renderCones() {
+    clear(layers.cones);
+    for (const camera of state.cameras) {
+      const colours = palette(camera);
+      const origin = lensOrigin(camera);
+      const radius = camera.throwMetres * state.pxPerMetre;
+      const wideAov = angleOfView(camera.wide, camera.imagerWidth);
+      const teleAov = angleOfView(camera.tele, camera.imagerWidth);
+      const selected = camera.id === state.selectedId;
+      const group = create('g', {});
+
+      group.appendChild(create('path', {
+        d: sectorPath(origin.x, origin.y, radius, camera.heading, wideAov),
+        fill: colours.tint, 'fill-opacity': state.monochrome ? 0.07 : (selected ? 0.20 : 0.13),
+        stroke: colours.tint, 'stroke-opacity': 0.5, 'stroke-width': 1.2,
+        'vector-effect': 'non-scaling-stroke'
+      }));
+      if (teleAov > 0.4 && camera.tele > camera.wide) {
+        group.appendChild(create('path', {
+          d: sectorPath(origin.x, origin.y, radius, camera.heading, Math.max(teleAov, 0.6)),
+          fill: colours.tint, 'fill-opacity': state.monochrome ? 0.14 : (selected ? 0.32 : 0.24),
+          stroke: 'none'
+        }));
+      }
+      const axis = pointOnCircle(origin.x, origin.y, radius, camera.heading);
+      group.appendChild(create('line', {
+        x1: origin.x, y1: origin.y, x2: axis.x, y2: axis.y,
+        stroke: colours.tint, 'stroke-width': 1, 'stroke-dasharray': '6 5',
+        'stroke-opacity': 0.7, 'vector-effect': 'non-scaling-stroke'
+      }));
+      layers.cones.appendChild(group);
+    }
+  }
+
+  function renderEnvelopes() {
+    clear(layers.envelopes);
+    if (!state.envelopes) return;
+
+    for (const camera of state.cameras) {
+      const colours = palette(camera);
+      const group = create('g', {});
+
+      if (isArm(camera)) {
+        const tail = (camera.tail || camera.baseSize * 1.4) * state.pxPerMetre;
+        // The counterweight trolley sweeps its own circle behind the post. It is
+        // the clearance that gets missed, because nobody looks behind a crane.
+        group.appendChild(create('circle', {
+          cx: camera.x, cy: camera.y, r: tail,
+          fill: colours.tint, 'fill-opacity': state.monochrome ? 0.05 : 0.09,
+          stroke: colours.tint, 'stroke-width': 1.4, 'stroke-dasharray': '3 4',
+          'stroke-opacity': 0.9, 'vector-effect': 'non-scaling-stroke'
+        }));
+      }
+
+      if (isTelescopic(camera)) {
+        group.appendChild(create('path', {
+          d: annulusPath(camera.x, camera.y,
+            camera.reachMin * state.pxPerMetre, camera.reachMax * state.pxPerMetre,
+            camera.heading, camera.swing),
+          fill: colours.tint, 'fill-opacity': state.monochrome ? 0.06 : 0.10,
+          stroke: colours.tint, 'stroke-width': 1.2, 'stroke-dasharray': '7 5',
+          'stroke-opacity': 0.75, 'vector-effect': 'non-scaling-stroke'
+        }));
+      } else if (camera.mount === 'jib') {
+        // A fixed arm sweeps an arc rather than an annulus, so the envelope is the
+        // line the head travels along.
+        group.appendChild(create('path', {
+          d: arcPath(camera.x, camera.y, camera.reach * state.pxPerMetre, camera.heading, camera.swing),
+          fill: 'none', stroke: colours.tint, 'stroke-width': 1.6,
+          'stroke-dasharray': '7 5', 'stroke-opacity': 0.8, 'vector-effect': 'non-scaling-stroke'
+        }));
+      }
+
+      if (isRoaming(camera) && !camera.path.length) {
+        group.appendChild(create('circle', {
+          cx: camera.x, cy: camera.y, r: camera.roam * state.pxPerMetre,
+          fill: colours.tint, 'fill-opacity': state.monochrome ? 0.05 : 0.08,
+          stroke: colours.tint, 'stroke-width': 1.2, 'stroke-dasharray': '7 5',
+          'stroke-opacity': 0.7, 'vector-effect': 'non-scaling-stroke'
+        }));
+      }
+
+      if (camera.path.length) {
+        const points = [{ x: camera.x, y: camera.y }, ...camera.path];
+        group.appendChild(create('polyline', {
+          points: points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '),
+          fill: 'none', stroke: colours.tint, 'stroke-width': 2.4,
+          'stroke-dasharray': '10 7', 'stroke-linecap': 'round',
+          'stroke-linejoin': 'round', 'vector-effect': 'non-scaling-stroke'
+        }));
+
+        const size = 0.45 * state.pxPerMetre;
+        for (let i = 1; i < points.length; i += 1) {
+          const from = points[i - 1];
+          const to = points[i];
+          const mid = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+          const angle = Math.atan2(to.y - from.y, to.x - from.x);
+          const wing = (sign) => ({
+            x: mid.x - size * Math.cos(angle - sign * 0.45),
+            y: mid.y - size * Math.sin(angle - sign * 0.45)
+          });
+          const a = wing(1);
+          const b = wing(-1);
+          group.appendChild(create('polygon', {
+            points: `${mid.x.toFixed(1)},${mid.y.toFixed(1)} ${a.x.toFixed(1)},${a.y.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)}`,
+            fill: colours.tint, stroke: 'none'
+          }));
+        }
+
+        const last = points[points.length - 1];
+        group.appendChild(create('circle', {
+          cx: last.x, cy: last.y, r: 0.42 * state.pxPerMetre,
+          fill: '#ffffff', stroke: colours.tint, 'stroke-width': 1.8,
+          'vector-effect': 'non-scaling-stroke'
+        }));
+        const letter = create('text', {
+          x: last.x, y: last.y, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+          fill: colours.tint, 'font-family': 'ui-monospace, Menlo, Consolas, monospace',
+          'font-size': 0.5 * state.pxPerMetre, 'font-weight': 700
+        });
+        letter.textContent = 'B';
+        group.appendChild(letter);
+      }
+
+      layers.envelopes.appendChild(group);
+    }
+  }
+
+  function renderSymbols() {
+    clear(layers.symbols);
+    for (const camera of state.cameras) {
+      const group = create('g', {
+        'data-role': 'body', 'data-id': camera.id, style: 'cursor:move',
+        transform: `translate(${camera.x} ${camera.y}) rotate(${camera.heading}) scale(${state.pxPerMetre})`
+      });
+      group.appendChild(drawSymbol(camera, palette(camera)));
+      layers.symbols.appendChild(group);
+    }
+  }
+
+  function renderBadges() {
+    clear(layers.badges);
+    const A = annotation();
+    const radius = 30 * A;
+
+    for (const camera of state.cameras) {
+      const colours = palette(camera);
+      const seat = { x: camera.x, y: camera.y };
+      const centre = badgeAnchor(camera);
+      const selectedHere = camera.id === state.selectedId;
+
+      // The number is also the grab target. It is the largest thing on the sheet
+      // at venue scale, so it is what the hand reaches for.
+      const group = create('g', {
+        'data-role': 'body', 'data-id': camera.id, style: 'cursor:move'
+      });
+
+      group.appendChild(create('line', {
+        x1: seat.x, y1: seat.y, x2: centre.x, y2: centre.y,
+        stroke: colours.line, 'stroke-width': 1.4, 'vector-effect': 'non-scaling-stroke'
+      }));
+
+      if (selectedHere) {
+        group.appendChild(create('circle', {
+          cx: centre.x, cy: centre.y, r: radius + 8 * A, fill: 'none',
+          stroke: '#14181c', 'stroke-width': 1.6, 'stroke-dasharray': '5 4',
+          'vector-effect': 'non-scaling-stroke'
+        }));
+      }
+
+      group.appendChild(create('circle', {
+        cx: centre.x, cy: centre.y, r: radius + 3.5 * A,
+        fill: '#ffffff', stroke: 'none'
+      }));
+      group.appendChild(create('circle', {
+        cx: centre.x, cy: centre.y, r: radius,
+        fill: colours.solid, stroke: '#14181c', 'stroke-width': 1.4,
+        'vector-effect': 'non-scaling-stroke'
+      }));
+
+      const number = create('text', {
+        x: centre.x, y: centre.y,
+        'text-anchor': 'middle', 'dominant-baseline': 'central',
+        fill: '#ffffff', 'font-family': 'ui-monospace, Menlo, Consolas, monospace',
+        'font-size': radius * 1.32, 'font-weight': 700
+      });
+      number.textContent = camera.number;
+      group.appendChild(number);
+
+      if (camera.label) {
+        const label = create('text', {
+          x: centre.x + radius + 8 * A, y: centre.y + 8 * A,
+          fill: '#14181c', 'font-family': 'ui-monospace, Menlo, Consolas, monospace',
+          'font-size': 23 * A, 'font-weight': 600,
+          stroke: '#ffffff', 'stroke-width': 4, 'stroke-linejoin': 'round',
+          'paint-order': 'stroke', 'vector-effect': 'non-scaling-stroke'
+        });
+        label.textContent = camera.label;
+        group.appendChild(label);
+      }
+
+      layers.badges.appendChild(group);
+    }
+  }
+
+  function renderHandles() {
+    clear(layers.handles);
+    const camera = selected();
+    if (!camera) return;
+
+    const A = annotation();
+    const colours = palette(camera);
+    const origin = lensOrigin(camera);
+    const point = pointOnCircle(origin.x, origin.y,
+      camera.throwMetres * state.pxPerMetre, camera.heading);
+    // The grip never falls below a thumb-sized target on screen, however far the
+    // view is zoomed out.
+    const radius = Math.max(15 / state.view.k, 13 * A);
+
+    const group = create('g', { 'data-role': 'handle', 'data-id': camera.id, style: 'cursor:alias' });
+    group.appendChild(create('circle', {
+      cx: point.x, cy: point.y, r: radius,
+      fill: '#ffffff', stroke: colours.tint, 'stroke-width': 2.4,
+      'vector-effect': 'non-scaling-stroke'
+    }));
+    group.appendChild(create('circle', {
+      cx: point.x, cy: point.y, r: radius * 0.42,
+      fill: colours.tint, stroke: 'none'
+    }));
+    layers.handles.appendChild(group);
+
+    // The axis of rotation, marked so it can be checked rather than trusted.
+    const axis = create('g', { 'pointer-events': 'none' });
+    const arm = 11 * A;
+    axis.appendChild(create('circle', {
+      cx: camera.x, cy: camera.y, r: 6 * A,
+      fill: 'none', stroke: '#14181c', 'stroke-width': 1.6,
+      'vector-effect': 'non-scaling-stroke'
+    }));
+    axis.appendChild(create('path', {
+      d: `M ${camera.x - arm} ${camera.y} L ${camera.x + arm} ${camera.y} ` +
+         `M ${camera.x} ${camera.y - arm} L ${camera.x} ${camera.y + arm}`,
+      stroke: '#14181c', 'stroke-width': 1.6, 'vector-effect': 'non-scaling-stroke'
+    }));
+    layers.handles.appendChild(axis);
+  }
+
+  function renderCalibration() {
+    clear(layers.calibration);
+    const { a, b } = state.calibration;
+    if (!a) return;
+    const mark = (p) => layers.calibration.appendChild(create('circle', {
+      cx: p.x, cy: p.y, r: 5 / state.view.k, fill: '#e8b33c',
+      stroke: '#191307', 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke'
+    }));
+    mark(a);
+    if (b) {
+      mark(b);
+      layers.calibration.appendChild(create('line', {
+        x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: '#e8b33c',
+        'stroke-width': 2, 'vector-effect': 'non-scaling-stroke'
+      }));
+    }
+  }
+
+  function renderDimensions() {
+    clear(layers.dimensions);
+
+    const live = state.rubber.start
+      ? [{ a: state.rubber.start, b: state.rubber.end, live: true }]
+      : (state.measure.a ? [{ a: state.measure.a, b: state.measure.a, live: true }] : []);
+
+    for (const dimension of [...state.dimensions, ...live]) {
+      const { a, b } = dimension;
+      const metres = Math.hypot(b.x - a.x, b.y - a.y) / state.pxPerMetre;
+      const angle = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+      const ink = dimension.live && state.mode === 'calibrate' ? '#b07a0a' : '#14181c';
+      const A = annotation();
+      const group = create('g', {});
+
+      group.appendChild(create('line', {
+        x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+        stroke: ink, 'stroke-width': dimension.live ? 2 : 1.4,
+        'stroke-dasharray': dimension.live ? '9 6' : '',
+        'vector-effect': 'non-scaling-stroke'
+      }));
+
+      // Architectural ticks rather than arrowheads: they stay legible at any plot
+      // reduction and never fill in when the sheet is printed small.
+      const tick = toRadians(angle + 45);
+      const dx = Math.cos(tick) * 11 * A;
+      const dy = Math.sin(tick) * 11 * A;
+      for (const point of [a, b]) {
+        group.appendChild(create('line', {
+          x1: point.x - dx, y1: point.y - dy, x2: point.x + dx, y2: point.y + dy,
+          stroke: ink, 'stroke-width': 1.6, 'vector-effect': 'non-scaling-stroke'
+        }));
+      }
+
+      // Text always reads left to right, so the label is flipped when the run of
+      // the dimension would otherwise put it upside down.
+      const upright = angle > 90 || angle < -90 ? angle + 180 : angle;
+      const label = create('text', {
+        transform: `translate(${(a.x + b.x) / 2} ${(a.y + b.y) / 2}) rotate(${upright}) ` +
+                   `translate(0 ${-14 * A})`,
+        'text-anchor': 'middle', fill: ink,
+        'font-family': 'ui-monospace, Menlo, Consolas, monospace',
+        'font-size': 24 * A, 'font-weight': 600,
+        stroke: '#ffffff', 'stroke-width': 4, 'stroke-linejoin': 'round',
+        'paint-order': 'stroke', 'vector-effect': 'non-scaling-stroke'
+      });
+      label.textContent = `${format(metres, metres < 10 ? 2 : 1)} m`;
+      group.appendChild(label);
+
+      layers.dimensions.appendChild(group);
+    }
+  }
+
+  function renderScaleBar() {
+    clear(layers.scalebar);
+
+    // A drawn graphic scale survives resizing, photocopying and screenshotting in
+    // a way a stated ratio does not, which is why every drawing carries one. The
+    // subdivided extension left of zero is what makes it readable to a fifth of a
+    // major division without any instrument other than the eye.
+    const majors = 4;
+    const annotation = state.content.width / 2000;
+    const ideal = (state.content.width * 0.16) / (majors * state.pxPerMetre);
+    if (!(ideal > 0) || !Number.isFinite(ideal)) return;
+
+    // Snapping to a one, two or five multiple guarantees a round division the eye
+    // can subdivide, and because the chosen step never exceeds the ideal the bar
+    // cannot outgrow the space reserved for it at any drawing scale.
+    const magnitude = 10 ** Math.floor(Math.log10(ideal));
+    const normalised = ideal / magnitude;
+    const step = (normalised >= 5 ? 5 : normalised >= 2 ? 2 : 1) * magnitude;
+    const tidy = (value) => Number(value.toFixed(3)).toString();
+
+    const unit = step * state.pxPerMetre;
+    const barLength = unit * majors;
+    const height = 17 * annotation;
+    const padding = 26 * annotation;
+    const zero = padding + unit;
+    const baseline = state.content.height - padding - height * 2.2;
+    const group = create('g', {});
+
+    group.appendChild(create('rect', {
+      x: padding - height * 1.1, y: baseline - height * 2.3,
+      width: unit + barLength + height * 2.2, height: height * 5.1,
+      rx: height * 0.35, fill: '#ffffff', 'fill-opacity': 0.92,
+      stroke: '#c8cfd6', 'stroke-width': 1, 'vector-effect': 'non-scaling-stroke'
+    }));
+
+    const segment = (x, width, filled) => group.appendChild(create('rect', {
+      x, y: baseline, width, height,
+      fill: filled ? '#14181c' : '#ffffff',
+      stroke: '#14181c', 'stroke-width': 1.1, 'vector-effect': 'non-scaling-stroke'
+    }));
+
+    for (let i = 0; i < 5; i += 1) segment(zero - unit + (unit / 5) * i, unit / 5, i % 2 === 0);
+    for (let i = 0; i < majors; i += 1) segment(zero + unit * i, unit, i % 2 === 1);
+
+    group.appendChild(create('rect', {
+      x: zero - unit, y: baseline, width: unit + barLength, height,
+      fill: 'none', stroke: '#14181c', 'stroke-width': 1.6, 'vector-effect': 'non-scaling-stroke'
+    }));
+
+    const caption = (text, x, y, size, spacing) => {
+      const node = create('text', {
+        x, y, 'text-anchor': 'middle', fill: '#14181c',
+        'font-family': 'ui-monospace, Menlo, Consolas, monospace',
+        'font-size': size, 'font-weight': 600, 'letter-spacing': spacing || 0
+      });
+      node.textContent = text;
+      group.appendChild(node);
+    };
+
+    const labelSize = height * 1.15;
+    caption(tidy(step), zero - unit, baseline - height * 0.5, labelSize);
+    for (let i = 0; i <= majors; i += 1) {
+      caption(tidy(step * i), zero + unit * i, baseline - height * 0.5, labelSize);
+    }
+    caption(state.plotRatio ? `METRES   1:${state.plotRatio}` : 'METRES',
+      zero + (barLength - unit) / 2, baseline + height * 2.1, labelSize * 0.9, labelSize * 0.18);
+
+    layers.scalebar.appendChild(group);
+  }
+
+  function renderTitleBlock() {
+    clear(layers.titleblock);
+
+    const usedMounts = MOUNTS.filter((mount) =>
+      state.cameras.some((camera) => camera.mount === mount.id));
+    const scale = state.content.width / 2000;
+    const blockWidth = 490 * scale;
+    const rowHeight = 34 * scale;
+    const blockHeight = 132 * scale + (usedMounts.length ? usedMounts.length * rowHeight + 14 * scale : 0);
+    const x = state.content.width - blockWidth - 24 * scale;
+    const y = state.content.height - blockHeight - 24 * scale;
+
+    const group = create('g', {});
+    group.appendChild(create('rect', {
+      x, y, width: blockWidth, height: blockHeight,
+      fill: '#ffffff', 'fill-opacity': 0.95, stroke: '#161b20',
+      'stroke-width': 1.6, 'vector-effect': 'non-scaling-stroke'
+    }));
+
+    const addText = (text, tx, ty, size, weight, colour, spacing, anchor) => {
+      const node = create('text', {
+        x: tx, y: ty, fill: colour,
+        'font-family': 'ui-monospace, Menlo, Consolas, monospace',
+        'font-size': size * scale, 'font-weight': weight,
+        'letter-spacing': (spacing || 0) * scale, 'text-anchor': anchor || 'start'
+      });
+      node.textContent = text;
+      group.appendChild(node);
+    };
+
+    addText('CAMERA PLAN', x + 16 * scale, y + 28 * scale, 13, 700, '#5c6773', 2.4);
+    addText(el('meta-production').value.trim() || 'Production', x + 16 * scale, y + 58 * scale, 21, 700, '#161b20', 0);
+    addText(el('meta-venue').value.trim() || 'Venue', x + 16 * scale, y + 82 * scale, 14, 500, '#3c4750', 0);
+    addText([
+      el('meta-date').value.trim(),
+      el('meta-revision').value.trim() ? `REV ${el('meta-revision').value.trim()}` : '',
+      el('meta-author').value.trim()
+    ].filter(Boolean).join('   |   '), x + 16 * scale, y + 104 * scale, 12, 500, '#5c6773', 0);
+
+    if (usedMounts.length) {
+      let cursor = y + 128 * scale;
+      group.appendChild(create('line', {
+        x1: x + 16 * scale, y1: cursor - 18 * scale,
+        x2: x + blockWidth - 16 * scale, y2: cursor - 18 * scale,
+        stroke: '#c8cfd6', 'stroke-width': 1, 'vector-effect': 'non-scaling-stroke'
+      }));
+
+      for (const mount of usedMounts) {
+        const members = state.cameras.filter((camera) => camera.mount === mount.id);
+        const ink = state.monochrome
+          ? { line: '#14181c', solid: '#14181c', tint: '#14181c' }
+          : { line: mount.colour, solid: mount.colour, tint: mount.colour };
+
+        // Two views per row. The plan glyph lets a reader match the legend to the
+        // marks on the sheet, the elevation tells them which piece of kit it is.
+        const glyph = create('g', {
+          transform: `translate(${x + 30 * scale} ${cursor - 12 * scale}) scale(${16 * scale})`
+        });
+        glyph.appendChild(drawSymbol({ ...members[0], rf: false }, ink));
+        group.appendChild(glyph);
+
+        const side = create('g', {
+          transform: `translate(${x + 52 * scale} ${cursor - 22 * scale}) scale(${0.26 * scale})`
+        });
+        side.appendChild(drawElevation(mount.id, ink));
+        group.appendChild(side);
+
+        addText(mount.name, x + 92 * scale, cursor, 13, 600, '#161b20', 0);
+        addText(members.map((camera) => camera.number).join(', '),
+          x + blockWidth - 16 * scale, cursor, 13, 500, '#5c6773', 0, 'end');
+        cursor += rowHeight;
+      }
+    }
+
+    // Tool line in the bottom margin, the way a CAD title block names the
+    // application it was drawn in: small, grey, and never competing with the
+    // drawing title.
+    addText('TSG SIGHTLINE', x + blockWidth - 16 * scale, y + blockHeight - 9 * scale,
+      8.5, 600, '#8a949c', 1.6, 'end');
+
+    layers.titleblock.appendChild(group);
+  }
+
+  /* Chrome --------------------------------------------------------------- */
+
+  function updatePaper() {
+    const { width, height } = state.content;
+    for (const node of [layers.paperRect, layers.paperGrid]) {
+      node.setAttribute('x', 0);
+      node.setAttribute('y', 0);
+      node.setAttribute('width', width);
+      node.setAttribute('height', height);
+    }
+    layers.paperGrid.style.display = state.background ? 'none' : '';
+
+    const fine = state.pxPerMetre;
+    const coarse = fine * 5;
+    el('grid-fine').setAttribute('width', fine);
+    el('grid-fine').setAttribute('height', fine);
+    el('grid-fine-path').setAttribute('d', `M ${fine} 0 L 0 0 0 ${fine}`);
+    el('grid-coarse').setAttribute('width', coarse);
+    el('grid-coarse').setAttribute('height', coarse);
+    el('grid-coarse-fill').setAttribute('width', coarse);
+    el('grid-coarse-fill').setAttribute('height', coarse);
+    el('grid-coarse-path').setAttribute('d', `M ${coarse} 0 L 0 0 0 ${coarse}`);
+
+    if (state.background) {
+      layers.background.setAttribute('href', state.background.href);
+      layers.background.setAttribute('x', 0);
+      layers.background.setAttribute('y', 0);
+      layers.background.setAttribute('width', width);
+      layers.background.setAttribute('height', height);
+      layers.background.style.display = '';
+    } else {
+      layers.background.style.display = 'none';
+    }
+  }
+
+  function updateScaleBar() {
+    const candidates = [1, 2, 5, 10, 20, 50, 100, 200];
+    const target = candidates.find((metres) => metres * state.pxPerMetre * state.view.k > 90)
+      || candidates[candidates.length - 1];
+    el('scale-rule').style.width = `${target * state.pxPerMetre * state.view.k}px`;
+    el('scale-label').textContent = `${target} m`;
+  }
+
+  function updateReadouts() {
+    el('readout-scale').textContent = `${format(state.pxPerMetre, 2)} px/m`;
+    if (document.activeElement !== el('scale-direct')) {
+      el('scale-direct').value = format(state.pxPerMetre, 2);
+    }
+    el('readout-calibration').textContent = state.calibrated
+      ? `Sheet covers ${format(state.content.width / state.pxPerMetre, 0)} by ` +
+        `${format(state.content.height / state.pxPerMetre, 0)} metres, margins included.`
+      : 'Grid 5 m. Set the scale before trusting any clearance.';
+  }
+
+  const selected = () => state.cameras.find((item) => item.id === state.selectedId);
+
+  function updateEditor() {
+    const camera = selected();
+    el('camera-editor').hidden = !camera;
+    el('camera-empty').hidden = Boolean(camera);
+    if (!camera) return;
+
+    el('cam-number').value = camera.number;
+    el('cam-label').value = camera.label;
+    el('cam-mount').value = camera.mount;
+    el('cam-body').value = camera.body;
+    el('cam-control').value = camera.control;
+    el('cam-viewfinder').value = camera.viewfinder;
+    el('cam-lens-name').value = camera.lensName;
+    el('cam-heading').value = Math.round(camera.heading);
+    el('cam-height').value = camera.height;
+    el('cam-sensor').value = camera.imagerId;
+    el('cam-wide').value = camera.wide;
+    el('cam-tele').value = camera.tele;
+    el('cam-throw').value = camera.throwMetres;
+    el('cam-rf').checked = camera.rf;
+
+    el('arm-fields').hidden = !isArm(camera);
+    el('roam-fields').hidden = !isRoaming(camera);
+
+    if (isArm(camera)) {
+      el('cam-reach-min').value = camera.reachMin;
+      el('cam-reach-max').value = camera.reachMax;
+      el('cam-reach').value = camera.reach;
+      el('cam-swing').value = camera.swing;
+      el('cam-tail').value = camera.tail;
+      const preset = ARM_PRESETS.find((item) => item.min === camera.reachMin && item.max === camera.reachMax);
+      el('cam-crane').value = preset ? preset.id : 'custom';
+    }
+    if (isRoaming(camera)) el('cam-roam').value = camera.roam;
+
+    const lens = LENS_PRESETS.find((item) => item.wide === camera.wide && item.tele === camera.tele);
+    el('cam-lens').value = lens ? lens.id : 'custom';
+
+    const wideAov = angleOfView(camera.wide, camera.imagerWidth);
+    const teleAov = angleOfView(camera.tele, camera.imagerWidth);
+    el('readout-coverage').innerHTML =
+      `HFOV <strong>${format(wideAov, 1)}&deg;</strong> to <strong>${format(teleAov, 2)}&deg;</strong><br>` +
+      `Frame width at ${format(camera.throwMetres, 0)} m: ` +
+      `<strong>${format(frameWidth(camera.throwMetres, wideAov), 1)} m</strong> to ` +
+      `<strong>${format(frameWidth(camera.throwMetres, teleAov), 2)} m</strong>` +
+      (isArm(camera) ? `<br>Head at <strong>${format(camera.reach, 1)} m</strong> from pivot` : '');
+  }
+
+  function miniature(mountId, size) {
+    const colour = mountById(mountId).colour;
+    const node = create('svg', { viewBox: '0 0 120 100', xmlns: SVG_NS });
+    node.appendChild(drawElevation(mountId, { line: colour, solid: colour, tint: colour }));
+    if (size) {
+      node.setAttribute('width', size);
+      node.setAttribute('height', Math.round(size * 0.83));
+    }
+    return node;
+  }
+
+  function updateList() {
+    const body = el('camera-rows');
+    clear(body);
+    el('list-empty').hidden = state.cameras.length > 0;
+
+    for (const camera of state.cameras) {
+      const wideAov = angleOfView(camera.wide, camera.imagerWidth);
+      const teleAov = angleOfView(camera.tele, camera.imagerWidth);
+      const row = document.createElement('tr');
+      row.dataset.id = camera.id;
+      if (camera.id === state.selectedId) row.className = 'is-selected';
+
+      const glyphCell = document.createElement('td');
+      glyphCell.appendChild(miniature(camera.mount, 26));
+      row.appendChild(glyphCell);
+
+      const cells = [
+        { text: camera.number },
+        { text: camera.label || mountById(camera.mount).short, truncate: true },
+        { text: `${format(wideAov, 0)}-${format(teleAov, teleAov < 10 ? 1 : 0)}\u00b0` }
+      ];
+      for (const cell of cells) {
+        const node = document.createElement('td');
+        node.textContent = cell.text;
+        if (cell.truncate) node.className = 'truncate';
+        row.appendChild(node);
+      }
+      body.appendChild(row);
+    }
+  }
+
+  function buildPalette() {
+    const container = el('mount-palette');
+    clear(container);
+    for (const mount of MOUNTS) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.title = mount.name;
+      if (mount.id === state.pendingMount) {
+        button.classList.add('is-active');
+        button.style.background = mount.colour;
+        button.style.borderColor = mount.colour;
+      }
+      button.appendChild(miniature(mount.id, null));
+      const caption = document.createElement('span');
+      caption.textContent = mount.short;
+      button.appendChild(caption);
+      button.addEventListener('click', () => {
+        state.pendingMount = mount.id;
+        setMode('place');
+        buildPalette();
+      });
+      container.appendChild(button);
+    }
+  }
+
+  function render() {
+    updatePaper();
+    renderCones();
+    renderEnvelopes();
+    renderSymbols();
+    renderBadges();
+    renderDimensions();
+    renderScaleBar();
+    renderTitleBlock();
+    renderHandles();
+    renderCalibration();
+    updateReadouts();
+    updateEditor();
+    updateList();
+  }
+
+  /* Position lifecycle --------------------------------------------------- */
+
+  function defaultsFor(mountId) {
+    const longLens = mountId === 'tripodHeavy' || mountId === 'ped';
+    const arm = ARM_PRESETS.find((item) => item.id === (mountId === 'jib' ? 'jjt' : 'mb45'));
+    return {
+      id: 'preview',
+      number: '1',
+      label: '',
+      mount: mountId,
+      body: '',
+      control: '',
+      viewfinder: '',
+      lensName: '',
+      x: 0, y: 0, heading: 0,
+      imagerId: 'b4', imagerWidth: 9.59,
+      wide: mountId === 'pov' ? 3.6 : (longLens ? 8.4 : 4.5),
+      tele: mountId === 'pov' ? 3.6 : (longLens ? 900 : 63),
+      throwMetres: longLens ? 40 : 15,
+      height: 1.5,
+      reachMin: arm.min, reachMax: arm.max, reach: arm.max,
+      swing: mountId === 'jib' ? 120 : 180,
+      baseSize: arm.base, tail: arm.tail,
+      roam: mountId === 'steadicam' ? 8 : 4,
+      path: [],
+      rf: mountId === 'steadicam' || mountId === 'handheld'
+    };
+  }
+
+  function addCamera(point, mountId) {
+    const previous = [...state.cameras].reverse().find((item) => item.mount === mountId);
+    const camera = {
+      ...(previous ? { ...previous, path: [] } : defaultsFor(mountId)),
+      id: `cam-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
+      number: String(state.nextNumber),
+      label: '',
+      x: point.x,
+      y: point.y
+    };
+    state.nextNumber += 1;
+    state.cameras.push(camera);
+    state.selectedId = camera.id;
+    render();
+    return camera;
+  }
+
+  function updateSelected(changes) {
+    const camera = selected();
+    if (!camera) return;
+    Object.assign(camera, changes);
+    if (isArm(camera)) camera.reach = clamp(camera.reach, camera.reachMin, camera.reachMax);
+    render();
+  }
+
+  function deleteSelected() {
+    state.cameras = state.cameras.filter((item) => item.id !== state.selectedId);
+    state.selectedId = null;
+    render();
+  }
+
+  /* Interaction ---------------------------------------------------------- */
+
+  let hintTimer = null;
+  let lastPlacement = 0;
+  let spaceHeld = false;
+
+  window.addEventListener('keydown', (event) => {
+    if (event.code === 'Space' && !event.target.matches('input, select, textarea, button')) {
+      spaceHeld = true;
+      event.preventDefault();
+    }
+  });
+
+  window.addEventListener('keyup', (event) => {
+    if (event.code === 'Space') spaceHeld = false;
+  });
+
+  window.addEventListener('blur', () => { spaceHeld = false; });
+
+  function showHint(text, autoHide) {
+    const hint = el('hint');
+    hint.textContent = text;
+    hint.classList.add('is-visible');
+    window.clearTimeout(hintTimer);
+    if (autoHide) hintTimer = window.setTimeout(hideHint, 2600);
+  }
+
+  const hideHint = () => el('hint').classList.remove('is-visible');
+
+  const MODE_INSTRUCTIONS = {
+    measure: 'Measuring. Drag across the plan to read a distance. Hold space to pan.',
+    calibrate: 'Setting scale. Drag between two points whose real distance you know.',
+    path: 'Drawing a move path. Click along the move, then press Done.'
+  };
+
+  function setMode(mode) {
+    state.mode = mode;
+    el('mode-select').classList.toggle('is-active', mode === 'select');
+    el('mode-calibrate').classList.toggle('is-active', mode === 'calibrate');
+    el('mode-measure').classList.toggle('is-active', mode === 'measure');
+    svg.classList.toggle('mode-place', mode === 'place');
+    svg.classList.toggle('mode-calibrate', mode === 'calibrate' || mode === 'measure');
+    svg.classList.toggle('mode-path', mode === 'path');
+
+    if (mode !== 'measure') state.measure.a = null;
+    if (mode !== 'calibrate') el('calibration-entry').hidden = true;
+    if (mode === 'calibrate') state.calibration = { a: null, b: null };
+    if (mode === 'select') buildPalette();
+    state.rubber = { start: null, end: null };
+
+    const instruction = mode === 'place'
+      ? `Click on the plan to drop the ${mountById(state.pendingMount).name.toLowerCase()}.`
+      : MODE_INSTRUCTIONS[mode];
+
+    el('mode-bar').hidden = !instruction;
+    if (instruction) el('mode-bar-text').textContent = instruction;
+    if (!instruction) hideHint();
+
+    renderCalibration();
+    renderDimensions();
+  }
+
+  function openCalibrationEntry() {
+    const { a, b } = state.calibration;
+    const pixels = Math.hypot(b.x - a.x, b.y - a.y);
+    el('calibration-entry').hidden = false;
+    el('calibration-note').textContent =
+      `Span measured: ${format(pixels, 0)} px. A drawing unit of millimetres ` +
+      `means a CAD reading of 148950 is entered here as 148.95.`;
+    hideHint();
+    const field = el('calibration-value');
+    field.focus();
+    field.select();
+  }
+
+  function closeCalibrationEntry() {
+    el('calibration-entry').hidden = true;
+    state.calibration = { a: null, b: null };
+    renderCalibration();
+  }
+
+  function applyCalibration() {
+    const { a, b } = state.calibration;
+    if (!a || !b) return;
+    const pixels = Math.hypot(b.x - a.x, b.y - a.y);
+    const metres = Number(el('calibration-value').value);
+    if (Number.isFinite(metres) && metres > 0 && pixels > 0) {
+      state.pxPerMetre = pixels / metres;
+      state.plotRatio = null;
+      state.calibrated = true;
+      showHint(`Scale set to ${format(state.pxPerMetre, 2)} px/m`, true);
+    }
+    closeCalibrationEntry();
+    setMode('select');
+    render();
+  }
+
+  // Placing, calibrating and measuring all defer to pointerup so the plan can be
+  // panned and zoomed between two clicks. That matters when the reference span is
+  // the length of a building and both ends cannot be on screen at a useful zoom.
+  const CLICK_TOLERANCE = 4;
+
+  function performModeClick(world) {
+    if (state.mode === 'path') {
+      const camera = selected();
+      if (camera) {
+        camera.path.push(world);
+        render();
+      }
+      return;
+    }
+
+    if (state.mode === 'place') {
+      addCamera(world, state.pendingMount);
+      lastPlacement = performance.now();
+      setMode('select');
+    }
+  }
+
+  function beginPan(event) {
+    drag.kind = 'pan';
+    drag.pointerId = event.pointerId;
+    drag.origin = { local: clientToLocal(event), view: { ...state.view } };
+    drag.moved = 0;
+    drag.pendingWorld = null;
+    svg.setPointerCapture(event.pointerId);
+  }
+
+  function commitSpan(a, b) {
+    if (state.mode === 'calibrate') {
+      state.calibration = { a, b };
+      renderCalibration();
+      openCalibrationEntry();
+    } else {
+      state.dimensions.push({ a, b });
+      const metres = Math.hypot(b.x - a.x, b.y - a.y) / state.pxPerMetre;
+      showHint(`${format(metres, metres < 10 ? 2 : 1)} m`, true);
+      render();
+    }
+  }
+
+  svg.addEventListener('pointerdown', (event) => {
+    // Middle button and held space pan in every mode, so a tool that owns the
+    // drag gesture never traps the operator on one corner of a large sheet.
+    if (event.button === 1 || spaceHeld) {
+      event.preventDefault();
+      beginPan(event);
+      return;
+    }
+    if (event.button !== 0) return;
+    const world = eventToWorld(event);
+
+    // Dragging out the span is the primary gesture for measuring and for setting
+    // the scale, because it shows the reading as it is being taken. Two separate
+    // clicks remain available for spans longer than a screen.
+    if (state.mode === 'measure' || state.mode === 'calibrate') {
+      drag.kind = 'rubber';
+      drag.pointerId = event.pointerId;
+      state.rubber = { start: world, end: world };
+      svg.setPointerCapture(event.pointerId);
+      renderDimensions();
+      return;
+    }
+
+    if (state.mode !== 'select') {
+      beginPan(event);
+      drag.pendingWorld = world;
+      return;
+    }
+
+    const target = event.target.closest('[data-role]');
+    if (target) {
+      const camera = state.cameras.find((item) => item.id === target.dataset.id);
+      state.selectedId = target.dataset.id;
+      drag.kind = target.dataset.role === 'handle' ? 'rotate' : 'move';
+      drag.id = target.dataset.id;
+      drag.pointerId = event.pointerId;
+      drag.offset = { x: world.x - camera.x, y: world.y - camera.y };
+      svg.setPointerCapture(event.pointerId);
+      render();
+      return;
+    }
+
+    state.selectedId = null;
+    drag.kind = 'pan';
+    drag.pointerId = event.pointerId;
+    drag.origin = { local: clientToLocal(event), view: { ...state.view } };
+    drag.moved = 0;
+    drag.pendingWorld = null;
+    svg.setPointerCapture(event.pointerId);
+    render();
+  });
+
+  svg.addEventListener('pointermove', (event) => {
+    if (!drag.kind || event.pointerId !== drag.pointerId) return;
+
+    if (drag.kind === 'rubber') {
+      state.rubber.end = eventToWorld(event);
+      renderDimensions();
+      return;
+    }
+
+    if (drag.kind === 'pan') {
+      const local = clientToLocal(event);
+      drag.moved = Math.max(drag.moved,
+        Math.hypot(local.x - drag.origin.local.x, local.y - drag.origin.local.y));
+      if (drag.moved > CLICK_TOLERANCE) svg.classList.add('is-panning');
+      state.view.x = drag.origin.view.x + (local.x - drag.origin.local.x);
+      state.view.y = drag.origin.view.y + (local.y - drag.origin.local.y);
+      applyView();
+      return;
+    }
+
+    const camera = state.cameras.find((item) => item.id === drag.id);
+    if (!camera) return;
+    const world = eventToWorld(event);
+
+    if (drag.kind === 'move') {
+      const shiftX = world.x - drag.offset.x - camera.x;
+      const shiftY = world.y - drag.offset.y - camera.y;
+      // A move path belongs to the position, so it travels with it rather than
+      // being left behind on the sheet.
+      for (const point of camera.path) {
+        point.x += shiftX;
+        point.y += shiftY;
+      }
+      camera.x += shiftX;
+      camera.y += shiftY;
+    } else {
+      const raw = (Math.atan2(world.x - camera.x, camera.y - world.y) * 180) / Math.PI;
+      camera.heading = event.shiftKey
+        ? normaliseHeading(Math.round(raw / 15) * 15)
+        : normaliseHeading(Math.round(raw));
+    }
+    render();
+  });
+
+  function endDrag(event) {
+    if (event.pointerId !== drag.pointerId) return;
+
+    if (drag.kind === 'rubber') {
+      const { start, end } = state.rubber;
+      const travelled = Math.hypot(end.x - start.x, end.y - start.y) * state.view.k;
+      state.rubber = { start: null, end: null };
+      drag.kind = null;
+      drag.pointerId = null;
+
+      if (travelled > CLICK_TOLERANCE) {
+        state.measure.a = null;
+        commitSpan(start, end);
+      } else if (state.mode === 'calibrate') {
+        if (!state.calibration.a) {
+          state.calibration.a = start;
+          renderCalibration();
+        } else {
+          commitSpan(state.calibration.a, start);
+        }
+      } else if (state.measure.a) {
+        const from = state.measure.a;
+        state.measure.a = null;
+        commitSpan(from, start);
+      } else {
+        state.measure.a = start;
+        render();
+      }
+      return;
+    }
+
+    const wasClick = drag.kind === 'pan' && drag.pendingWorld && drag.moved <= CLICK_TOLERANCE;
+    const point = drag.pendingWorld;
+    drag.kind = null;
+    drag.id = null;
+    drag.pointerId = null;
+    drag.pendingWorld = null;
+    drag.moved = 0;
+    svg.classList.remove('is-panning');
+    if (wasClick) performModeClick(point);
+  }
+
+  svg.addEventListener('pointerup', endDrag);
+  svg.addEventListener('pointercancel', endDrag);
+
+  svg.addEventListener('dblclick', (event) => {
+    if (state.mode === 'path') { setMode('select'); return; }
+    if (state.mode !== 'select') return;
+    if (performance.now() - lastPlacement < 500) return;
+    if (event.target.closest('[data-role]')) return;
+    addCamera(eventToWorld(event), state.pendingMount);
+  });
+
+  svg.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    const camera = selected();
+
+    // With a position selected the wheel becomes a trim control: the modifier
+    // decides whether the coverage or the arm extension is being pulled, which
+    // keeps both adjustments on the plan instead of in the side panel.
+    if (camera && (event.shiftKey || event.altKey)) {
+      const factor = Math.exp(-event.deltaY * 0.0014);
+      if (event.altKey && isArm(camera)) {
+        camera.reach = clamp(camera.reach * factor, camera.reachMin, camera.reachMax);
+        showHint(`Arm ${format(camera.reach, 1)} m`, true);
+      } else {
+        camera.throwMetres = clamp(Math.round(camera.throwMetres * factor * 10) / 10, 1, 400);
+        showHint(`${format(camera.throwMetres, 1)} m`, true);
+      }
+      render();
+      return;
+    }
+
+    const local = clientToLocal(event);
+    const world = localToWorld(local);
+    state.view.k = clamp(state.view.k * Math.exp(-event.deltaY * 0.0016), 0.02, 40);
+    state.view.x = local.x - world.x * state.view.k;
+    state.view.y = local.y - world.y * state.view.k;
+    applyView();
+    renderHandles();
+    renderCalibration();
+  }, { passive: false });
+
+  // Stepping through positions with the keyboard is how a plan actually gets
+  // built: select, place, aim, next. The view follows so a position dropped off
+  // screen is never lost.
+  function focusCamera(camera) {
+    const rect = svg.getBoundingClientRect();
+    state.selectedId = camera.id;
+    state.view.x = rect.width / 2 - camera.x * state.view.k;
+    state.view.y = rect.height / 2 - camera.y * state.view.k;
+    applyView();
+    render();
+  }
+
+  window.addEventListener('keydown', (event) => {
+    if (event.target.matches('input, select, textarea')) return;
+
+    if (event.key === 'Tab' && state.cameras.length) {
+      event.preventDefault();
+      const index = state.cameras.findIndex((item) => item.id === state.selectedId);
+      const step = event.shiftKey ? -1 : 1;
+      const next = (index + step + state.cameras.length) % state.cameras.length;
+      focusCamera(state.cameras[index === -1 ? 0 : next]);
+      return;
+    }
+
+    if (event.key === 'Escape') { setMode('select'); return; }
+
+    const camera = selected();
+    if (!camera) return;
+    const step = event.shiftKey ? NUDGE_STEP * 10 : NUDGE_STEP;
+    const moves = {
+      ArrowLeft: [-step, 0], ArrowRight: [step, 0],
+      ArrowUp: [0, -step], ArrowDown: [0, step]
+    };
+
+    if (moves[event.key]) {
+      event.preventDefault();
+      camera.x += moves[event.key][0];
+      camera.y += moves[event.key][1];
+      for (const point of camera.path) {
+        point.x += moves[event.key][0];
+        point.y += moves[event.key][1];
+      }
+      render();
+    } else if (event.key === '[' || event.key === ']') {
+      camera.heading = normaliseHeading(
+        camera.heading + (event.key === '[' ? -1 : 1) * (event.shiftKey ? 15 : 1));
+      render();
+    } else if (event.key === 'Delete' || event.key === 'Backspace') {
+      event.preventDefault();
+      deleteSelected();
+    }
+  });
+
+  /* Panel bindings ------------------------------------------------------- */
+
+  function populateSelect(select, items) {
+    for (const item of items) {
+      const option = document.createElement('option');
+      option.value = item.id;
+      option.textContent = item.name;
+      select.appendChild(option);
+    }
+  }
+
+  populateSelect(el('cam-mount'), MOUNTS);
+  populateSelect(el('cam-sensor'), IMAGER_FORMATS);
+  populateSelect(el('cam-lens'), LENS_PRESETS);
+  populateSelect(el('cam-crane'), ARM_PRESETS);
+
+  el('mode-select').addEventListener('click', () => setMode('select'));
+  el('mode-calibrate').addEventListener('click', () => setMode('calibrate'));
+  el('mode-measure').addEventListener('click', () => setMode('measure'));
+  el('mode-bar-done').addEventListener('click', () => setMode('select'));
+  el('action-fit').addEventListener('click', fitToContent);
+
+  el('calibration-apply').addEventListener('click', applyCalibration);
+  el('calibration-cancel').addEventListener('click', () => {
+    closeCalibrationEntry();
+    setMode('select');
+  });
+  el('calibration-value').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') applyCalibration();
+  });
+
+  el('scale-direct').addEventListener('change', (e) => {
+    const value = Number(e.target.value);
+    if (Number.isFinite(value) && value > 0) {
+      state.pxPerMetre = value;
+      state.calibrated = true;
+      render();
+    }
+  });
+
+  el('action-apply-ratio').addEventListener('click', () => {
+    // A sheet plotted at a stated ratio carries its scale implicitly: the pixel
+    // width of the raster divided by the paper width gives pixels per millimetre,
+    // and the ratio converts that to pixels per metre without measuring anything.
+    const ratio = Number(el('scale-ratio').value);
+    const paper = Number(el('scale-paper').value);
+    if (!(ratio > 0) || !(paper > 0)) {
+      showHint('Enter both the plot ratio and the paper width', true);
+      return;
+    }
+    state.pxPerMetre = (state.content.width / paper) * (1000 / ratio);
+    state.plotRatio = ratio;
+    state.calibrated = true;
+    showHint(`Scale set to ${format(state.pxPerMetre, 2)} px/m`, true);
+    render();
+  });
+
+  el('action-clear-dimensions').addEventListener('click', () => {
+    state.dimensions = [];
+    state.measure.a = null;
+    render();
+  });
+
+  const bindText = (id, key) =>
+    el(id).addEventListener('input', (e) => updateSelected({ [key]: e.target.value }));
+
+  bindText('cam-number', 'number');
+  bindText('cam-label', 'label');
+  bindText('cam-body', 'body');
+  bindText('cam-control', 'control');
+  bindText('cam-viewfinder', 'viewfinder');
+  bindText('cam-lens-name', 'lensName');
+
+  el('cam-mount').addEventListener('change', (e) => {
+    const template = defaultsFor(e.target.value);
+    const camera = selected();
+    updateSelected({
+      mount: e.target.value,
+      reachMin: camera.reachMin || template.reachMin,
+      reachMax: camera.reachMax || template.reachMax,
+      reach: camera.reach || template.reach,
+      baseSize: camera.baseSize || template.baseSize,
+      tail: camera.tail || template.tail,
+      swing: camera.swing || template.swing,
+      roam: camera.roam || template.roam
+    });
+  });
+
+  el('cam-heading').addEventListener('input', (e) =>
+    updateSelected({ heading: normaliseHeading(Number(e.target.value) || 0) }));
+  el('cam-height').addEventListener('input', (e) =>
+    updateSelected({ height: Number(e.target.value) || 0 }));
+  el('cam-throw').addEventListener('input', (e) =>
+    updateSelected({ throwMetres: Math.max(1, Number(e.target.value) || 1) }));
+  el('cam-wide').addEventListener('input', (e) =>
+    updateSelected({ wide: Math.max(1, Number(e.target.value) || 1) }));
+  el('cam-tele').addEventListener('input', (e) =>
+    updateSelected({ tele: Math.max(1, Number(e.target.value) || 1) }));
+  el('cam-rf').addEventListener('change', (e) => updateSelected({ rf: e.target.checked }));
+
+  el('cam-reach-min').addEventListener('input', (e) =>
+    updateSelected({ reachMin: Math.max(0.5, Number(e.target.value) || 0.5) }));
+  el('cam-reach-max').addEventListener('input', (e) =>
+    updateSelected({ reachMax: Math.max(0.5, Number(e.target.value) || 0.5) }));
+  el('cam-reach').addEventListener('input', (e) =>
+    updateSelected({ reach: Math.max(0.5, Number(e.target.value) || 0.5) }));
+  el('cam-swing').addEventListener('input', (e) =>
+    updateSelected({ swing: clamp(Number(e.target.value) || 1, 1, 360) }));
+  el('cam-tail').addEventListener('input', (e) =>
+    updateSelected({ tail: Math.max(0.1, Number(e.target.value) || 0.1) }));
+  el('cam-roam').addEventListener('input', (e) =>
+    updateSelected({ roam: Math.max(0.5, Number(e.target.value) || 0.5) }));
+
+  el('cam-crane').addEventListener('change', (e) => {
+    const preset = ARM_PRESETS.find((item) => item.id === e.target.value);
+    if (preset && preset.max) {
+      updateSelected({
+        reachMin: preset.min, reachMax: preset.max, reach: preset.max,
+        baseSize: preset.base, tail: preset.tail
+      });
+    }
+  });
+
+  el('cam-sensor').addEventListener('change', (e) => {
+    const imager = IMAGER_FORMATS.find((item) => item.id === e.target.value);
+    updateSelected({ imagerId: imager.id, imagerWidth: imager.width });
+  });
+
+  el('cam-lens').addEventListener('change', (e) => {
+    const preset = LENS_PRESETS.find((item) => item.id === e.target.value);
+    if (preset && preset.wide) {
+      updateSelected({ wide: preset.wide, tele: preset.tele, lensName: preset.name.split(' (')[0] });
+    }
+  });
+
+  el('action-draw-path').addEventListener('click', () => { if (selected()) setMode('path'); });
+  el('action-clear-path').addEventListener('click', () => updateSelected({ path: [] }));
+  el('action-delete').addEventListener('click', deleteSelected);
+
+  el('action-duplicate').addEventListener('click', () => {
+    const source = selected();
+    if (!source) return;
+    const copy = {
+      ...source,
+      id: `cam-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
+      number: String(state.nextNumber),
+      x: source.x + 60,
+      y: source.y + 60,
+      path: source.path.map((point) => ({ x: point.x + 60, y: point.y + 60 }))
+    };
+    state.nextNumber += 1;
+    state.cameras.push(copy);
+    state.selectedId = copy.id;
+    render();
+  });
+
+  el('action-renumber').addEventListener('click', () => {
+    state.cameras.forEach((camera, index) => { camera.number = String(index + 1); });
+    state.nextNumber = state.cameras.length + 1;
+    render();
+  });
+
+  el('camera-rows').addEventListener('click', (event) => {
+    const row = event.target.closest('tr');
+    if (!row) return;
+    state.selectedId = row.dataset.id;
+    render();
+  });
+
+  el('option-monochrome').addEventListener('change', (e) => {
+    state.monochrome = e.target.checked;
+    render();
+  });
+
+  el('option-envelopes').addEventListener('change', (e) => {
+    state.envelopes = e.target.checked;
+    render();
+  });
+
+  for (const id of ['meta-production', 'meta-venue', 'meta-date', 'meta-revision', 'meta-author']) {
+    el(id).addEventListener('input', renderTitleBlock);
+  }
+
+  /* Base plan ------------------------------------------------------------ */
+
+  el('action-load-plan').addEventListener('click', () => el('file-plan').click());
+
+  el('file-plan').addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        state.background = { href: reader.result, width: image.naturalWidth, height: image.naturalHeight };
+        state.content = { width: image.naturalWidth, height: image.naturalHeight };
+        state.calibrated = false;
+        render();
+        fitToContent();
+        showHint('Now set the scale from a known dimension', true);
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+  });
+
+  el('action-clear-plan').addEventListener('click', () => {
+    state.background = null;
+    state.content = { ...DEFAULT_CONTENT };
+    render();
+    fitToContent();
+  });
+
+  /* Output --------------------------------------------------------------- */
+
+  function buildExportSvg() {
+    const clone = svg.cloneNode(true);
+    clone.setAttribute('xmlns', SVG_NS);
+    clone.setAttribute('width', state.content.width);
+    clone.setAttribute('height', state.content.height);
+    clone.setAttribute('viewBox', `0 0 ${state.content.width} ${state.content.height}`);
+    clone.removeAttribute('style');
+    clone.querySelector('#viewport').removeAttribute('transform');
+    for (const id of ['layer-handles', 'layer-calibration']) {
+      const node = clone.querySelector(`#${id}`);
+      if (node) node.remove();
+    }
+    for (const node of clone.querySelectorAll('[data-role]')) node.removeAttribute('style');
+    return new XMLSerializer().serializeToString(clone);
+  }
+
+  function download(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function planFilename(extension) {
+    const production = el('meta-production').value.trim() || 'camera-plan';
+    const revision = el('meta-revision').value.trim();
+    const slug = production.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    return `${slug}${revision ? `-rev-${revision.toLowerCase()}` : ''}.${extension}`;
+  }
+
+  el('action-export-svg').addEventListener('click', () => {
+    download(new Blob([buildExportSvg()], { type: 'image/svg+xml' }), planFilename('svg'));
+  });
+
+  el('action-export-png').addEventListener('click', () => {
+    const blob = new Blob([buildExportSvg()], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const image = new Image();
+    image.onload = () => {
+      // Twice the drawing size keeps position numbers legible when the sheet is
+      // dropped into a run-down or plotted at A3.
+      const factor = 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = state.content.width * factor;
+      canvas.height = state.content.height * factor;
+      const context = canvas.getContext('2d');
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((output) => download(output, planFilename('png')), 'image/png');
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      showHint('PNG export failed. Use SVG export instead.', true);
+    };
+    image.src = url;
+  });
+
+  el('action-print').addEventListener('click', () => window.print());
+
+  el('action-copy-list').addEventListener('click', async () => {
+    const header = ['No', 'Position', 'Camera', 'Control', 'Lens', 'Mount', 'Viewfinder',
+      'HFOV wide', 'HFOV tele', 'Distance', 'Frame tele', 'Height', 'Reach', 'Link'];
+    const rows = state.cameras.map((camera) => {
+      const wideAov = angleOfView(camera.wide, camera.imagerWidth);
+      const teleAov = angleOfView(camera.tele, camera.imagerWidth);
+      return [
+        camera.number,
+        camera.label,
+        camera.body,
+        camera.control,
+        camera.lensName || `${camera.wide}-${camera.tele} mm`,
+        mountById(camera.mount).name,
+        camera.viewfinder,
+        `${format(wideAov, 1)} deg`,
+        `${format(teleAov, 2)} deg`,
+        `${format(camera.throwMetres, 0)} m`,
+        `${format(frameWidth(camera.throwMetres, teleAov), 2)} m`,
+        `${format(camera.height, 2)} m`,
+        isArm(camera) ? `${format(camera.reachMin, 1)}-${format(camera.reachMax, 1)} m` : '',
+        camera.rf ? 'RF' : 'Cabled'
+      ].join('\t');
+    });
+    try {
+      await navigator.clipboard.writeText([header.join('\t'), ...rows].join('\n'));
+      showHint('Camera list copied', true);
+    } catch (error) {
+      showHint('Clipboard blocked. Use Save project instead.', true);
+    }
+  });
+
+  el('action-save-project').addEventListener('click', () => {
+    download(new Blob([JSON.stringify({
+      format: 'camera-plan/4',
+      meta: {
+        production: el('meta-production').value,
+        venue: el('meta-venue').value,
+        date: el('meta-date').value,
+        revision: el('meta-revision').value,
+        author: el('meta-author').value
+      },
+      content: state.content,
+      pxPerMetre: state.pxPerMetre,
+      calibrated: state.calibrated,
+      background: state.background,
+      cameras: state.cameras,
+      dimensions: state.dimensions,
+      nextNumber: state.nextNumber
+    }, null, 2)], { type: 'application/json' }), planFilename('json'));
+  });
+
+  el('action-open-project').addEventListener('click', () => el('file-project').click());
+
+  // Earlier project files used a single type axis and had no equipment fields, so
+  // legacy identifiers are mapped forward and missing values filled from defaults.
+  const LEGACY_MOUNTS = {
+    box: 'ped', ped: 'ped', crane: 'crane', stead: 'steadicam',
+    hand: 'handheld', robo: 'robo', pov: 'pov', spec: 'special'
+  };
+
+  el('file-project').addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const project = JSON.parse(reader.result);
+        if (!String(project.format || '').startsWith('camera-plan/')) {
+          throw new Error('Unrecognised project format');
+        }
+        // A project saved without a base plan carries positions that are only
+        // meaningful in metres. Opening it must not discard a drawing already
+        // loaded in this session, so the sheet is kept and the coordinates are
+        // rescaled to preserve the spacing between positions.
+        const carriesPlan = Boolean(project.background);
+        const sourceScale = project.pxPerMetre || state.pxPerMetre;
+
+        if (carriesPlan) {
+          state.content = project.content;
+          state.background = project.background;
+          state.pxPerMetre = project.pxPerMetre;
+          state.calibrated = Boolean(project.calibrated);
+          state.plotRatio = project.plotRatio || null;
+        } else if (project.calibrated && !state.calibrated) {
+          state.content = project.content;
+          state.pxPerMetre = project.pxPerMetre;
+          state.calibrated = true;
+        }
+
+        const factor = state.pxPerMetre / sourceScale;
+        const remap = (point) => ({ x: point.x * factor, y: point.y * factor });
+
+        // Files before version 4 stored the front element as the position. Moving
+        // the anchor back onto the pan axis keeps the glass where it was drawn.
+        const legacyAnchor = Number(String(project.format).split('/')[1]) < 4;
+        state.cameras = project.cameras.map((camera) => {
+          const mount = camera.mount || LEGACY_MOUNTS[camera.type] || 'special';
+          const merged = {
+            ...defaultsFor(mount), ...camera, mount,
+            x: camera.x * factor,
+            y: camera.y * factor,
+            path: (camera.path || []).map(remap)
+          };
+          if (legacyAnchor && !isArm(merged)) {
+            const seat = pointOnCircle(merged.x, merged.y,
+              -pivotOffset(merged) * state.pxPerMetre, merged.heading);
+            merged.x = seat.x;
+            merged.y = seat.y;
+          }
+          return merged;
+        });
+        state.dimensions = (project.dimensions || []).map((dimension) => ({
+          a: remap(dimension.a), b: remap(dimension.b)
+        }));
+        state.measure.a = null;
+        state.nextNumber = project.nextNumber || state.cameras.length + 1;
+        state.selectedId = null;
+        el('meta-production').value = project.meta.production || '';
+        el('meta-venue').value = project.meta.venue || '';
+        el('meta-date').value = project.meta.date || '';
+        el('meta-revision').value = project.meta.revision || '';
+        el('meta-author').value = project.meta.author || '';
+        render();
+        fitToContent();
+      } catch (error) {
+        showHint('That file is not a camera plan project', true);
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  });
+
+  /* Start-up ------------------------------------------------------------- */
+
+  window.addEventListener('resize', applyView);
+
+  el('meta-date').value = new Date().toISOString().slice(0, 10);
+  buildPalette();
+  render();
+  fitToContent();
+})();
+</script>
+</body>
+</html>
