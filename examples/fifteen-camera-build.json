@@ -1,6 +1,3 @@
-Filnamn: `examples/fifteen-camera-build.json`
-
-```json
 {
   "format": "camera-plan/4",
   "meta": {
@@ -452,4 +449,3 @@ Filnamn: `examples/fifteen-camera-build.json`
   "dimensions": [],
   "nextNumber": 16
 }
-```
