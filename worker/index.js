@@ -24,7 +24,17 @@ export default {
       return Response.redirect(`${CANONICAL}${url.pathname}${url.search}`, 308);
     }
 
-    const response = await env.ASSETS.fetch(request);
+    const upstream = await env.ASSETS.fetch(request);
+
+    // The proxy's fetch of this origin is cached in the apex zone, and a
+    // must-revalidate entry there was still served minutes after a deploy.
+    // no-cache makes every hop revalidate against the ETag, so a deploy is
+    // visible at once; the cost is one conditional request per page load.
+    const headers = new Headers(upstream.headers);
+    headers.set('Cache-Control', 'no-cache');
+    const response = new Response(upstream.body, {
+      status: upstream.status, statusText: upstream.statusText, headers
+    });
 
     // The asset layer normalises paths such as /index.html with a redirect
     // whose Location names this origin. Rewrite it onto the canonical host
@@ -33,7 +43,6 @@ export default {
     if (location && REDIRECT_STATUSES.has(response.status)) {
       const target = new URL(location, url);
       if (target.hostname === url.hostname) {
-        const headers = new Headers(response.headers);
         headers.set('Location', `${CANONICAL}${target.pathname}${target.search}`);
         return new Response(null, { status: response.status, headers });
       }
