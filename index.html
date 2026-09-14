@@ -12,7 +12,7 @@
 <meta name="description" content="Camera plot and plan tool for broadcast and event production. Mount footprints, lens coverage and crane envelopes drawn to true scale on your venue plan.">
 <link rel="canonical" href="https://xn--thst-roa.se/tsg/sightline/">
 <meta name="theme-color" content="#151a1f">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23151a1f'/%3E%3Cpath d='M10 22 26 8v14z' fill='%23e8b33c' fill-opacity='.35'/%3E%3Ccircle cx='10' cy='22' r='4' fill='none' stroke='%23e8b33c' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M17 47 33.9 10.7A40 40 0 0 1 53.3 30.1Z' fill='%2369bfff' fill-opacity='.22'/%3E%3Cpath d='M20 40.7 33.9 10.7A40 40 0 0 1 53.3 30.1L23.3 44' fill='none' stroke='%2369bfff' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='17' cy='47' r='7' fill='none' stroke='%2369bfff' stroke-width='5'/%3E%3C/svg%3E">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="TSG Suite">
 <meta property="og:locale" content="en_GB">
@@ -216,18 +216,36 @@
   dl.keys dt { font-family: var(--font-data); color: var(--ink); white-space: nowrap; }
   dl.keys dd { margin: 0; color: var(--ink-dim); }
 
-  #file-plan, #file-project { display: none; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand svg { width: 36px; height: 36px; flex: 0 0 auto; }
+  .brand div { min-width: 0; }
+
+  .layer-list { display: grid; gap: 4px; margin-top: 10px; max-height: 190px; overflow-y: auto; }
+  .layer-list .check { font-size: 12px; }
+  .layer-list .check span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .restore-bar {
+    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px; max-width: 540px;
+    padding: 9px 10px 9px 14px; background: var(--surface-high); color: var(--ink);
+    border: 1px solid var(--accent); border-radius: 8px; font-size: 12.5px; line-height: 1.4;
+  }
+
+  #file-plan, #file-project, #file-logo { display: none; }
+  #print-sheet { display: none; }
 
   @media (max-width: 900px) {
     .workspace { grid-template-columns: 1fr; grid-template-rows: 55vh 1fr; }
     .panel { border-left: none; border-top: 1px solid var(--line); }
   }
 
+  /* Printing hands the browser a sheet with physical dimensions rather than
+     the screen view, so a PDF saved at 100 % is a true-scale plot. */
   @media print {
-    .panel, .toolbar, .hint, .scale-bar { display: none; }
-    .workspace { grid-template-columns: 1fr; }
-    html, body, .plan-area { background: #fff; height: auto; }
-    #plan { height: 100vh; }
+    .workspace { display: none !important; }
+    html, body { background: #fff; height: auto; }
+    #print-sheet { display: block !important; }
+    #print-sheet svg { display: block; }
   }
 
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -253,6 +271,7 @@
           <rect id="paper-grid" fill="url(#grid-coarse)"></rect>
         </g>
         <image id="layer-background" preserveAspectRatio="none"></image>
+        <g id="layer-vector" pointer-events="none"></g>
         <g id="layer-cones" pointer-events="none"></g>
         <g id="layer-envelopes" pointer-events="none"></g>
         <g id="layer-symbols"></g>
@@ -294,12 +313,27 @@
       <div class="rule" id="scale-rule"></div>
       <span id="scale-label">20 m</span>
     </div>
+
+    <div class="restore-bar" id="restore-bar" hidden>
+      <span id="restore-text"></span>
+      <button id="restore-apply">Restore</button>
+      <button id="restore-discard">Discard</button>
+    </div>
   </section>
 
   <aside class="panel">
     <header>
-      <p class="kicker">TSG</p>
-      <h1>Sightline</h1>
+      <div class="brand">
+        <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+          <path d="M17 47 33.9 10.7A40 40 0 0 1 53.3 30.1Z" fill="#69bfff" fill-opacity=".22"/>
+          <path d="M20 40.7 33.9 10.7A40 40 0 0 1 53.3 30.1L23.3 44" fill="none" stroke="#69bfff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="17" cy="47" r="7" fill="none" stroke="#69bfff" stroke-width="5"/>
+        </svg>
+        <div>
+          <p class="kicker">TSG</p>
+          <h1>Sightline</h1>
+        </div>
+      </div>
       <p>Camera plot and plan tool. Pick a mount, then click the plan to drop it. Drag the number to move, drag the ring to aim.</p>
     </header>
 
@@ -332,15 +366,37 @@
         <label for="meta-author">Drawn by</label>
         <input type="text" id="meta-author" value="">
       </div>
+      <div class="field">
+        <label for="action-load-logo">Production logo in the title block</label>
+        <div class="button-row">
+          <button id="action-load-logo">Load logo</button>
+          <button id="action-clear-logo">Remove logo</button>
+        </div>
+      </div>
+      <input type="file" id="file-logo" accept="image/*">
     </section>
 
     <section class="group">
       <h2>Base plan</h2>
       <div class="button-row">
-        <button id="action-load-plan">Load image</button>
-        <button id="action-clear-plan">Remove image</button>
+        <button id="action-load-plan" title="PNG or JPEG of the plan, or a DXF straight from CAD">Load plan</button>
+        <button id="action-clear-plan">Remove plan</button>
       </div>
-      <input type="file" id="file-plan" accept="image/*">
+      <input type="file" id="file-plan" accept="image/*,.dxf">
+      <div id="vector-controls" hidden>
+        <div class="field" style="margin-top:12px">
+          <label for="vector-units">Drawing units in the DXF</label>
+          <select id="vector-units">
+            <option value="mm">Millimetres</option>
+            <option value="cm">Centimetres</option>
+            <option value="m">Metres</option>
+            <option value="in">Inches</option>
+            <option value="ft">Feet</option>
+          </select>
+        </div>
+        <div class="readout" id="readout-vector"></div>
+        <div class="layer-list" id="vector-layers"></div>
+      </div>
       <div class="field" style="margin-top:12px">
         <div class="readout">Scale <strong id="readout-scale">20.00 px/m</strong></div>
         <div class="readout" id="readout-calibration"></div>
@@ -514,14 +570,41 @@
       <div class="field">
         <label class="check"><input type="checkbox" id="option-envelopes" checked> Show reach and working envelopes</label>
       </div>
+      <div class="row">
+        <div class="field">
+          <label for="sheet-paper">Paper</label>
+          <select id="sheet-paper">
+            <option value="A4">A4</option>
+            <option value="A3" selected>A3</option>
+            <option value="A2">A2</option>
+            <option value="A1">A1</option>
+            <option value="A0">A0</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="sheet-ratio">Output scale</label>
+          <select id="sheet-ratio">
+            <option value="fit">Fit to paper</option>
+            <option value="50">1:50</option>
+            <option value="100">1:100</option>
+            <option value="200">1:200</option>
+            <option value="250">1:250</option>
+            <option value="500">1:500</option>
+            <option value="1000">1:1000</option>
+          </select>
+        </div>
+      </div>
+      <div class="readout" id="readout-plot" style="margin-bottom:10px"></div>
       <div class="button-row">
         <button id="action-export-svg">Export SVG</button>
         <button id="action-export-png">Export PNG</button>
-        <button id="action-print">Print</button>
+        <button id="action-print" title="Print at 100 %, never fit to page, for a true-scale sheet">Print / PDF</button>
       </div>
       <div class="button-row" style="margin-top:6px">
-        <button id="action-save-project">Save project</button>
+        <button id="action-save-project" title="Ctrl+S">Save project</button>
+        <button id="action-save-as" title="Ctrl+Shift+S" hidden>Save as</button>
         <button id="action-open-project">Open project</button>
+        <button id="action-share" title="Positions and title block travel in the link; the drawing does not">Copy share link</button>
       </div>
       <input type="file" id="file-project" accept="application/json,.json">
     </section>
@@ -537,16 +620,28 @@
         <dt>Arrow keys</dt><dd>Nudge, Shift for ten times</dd>
         <dt>Space + drag</dt><dd>Pan the plan</dd>
         <dt>Delete</dt><dd>Remove the position</dd>
+        <dt>Ctrl + S</dt><dd>Save the project, Shift to choose a file</dd>
       </dl>
     </section>
   </aside>
 </main>
+
+<div id="print-sheet" hidden></div>
+<style id="print-page"></style>
 
 <script>
 (() => {
   'use strict';
 
   const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  // The Sightline mark: a pan axis and the coverage it commands, in the TSG
+  // family's monoline style so the suite reads as one set of instruments.
+  const MARK = {
+    fill: 'M17 47 33.9 10.7A40 40 0 0 1 53.3 30.1Z',
+    stroke: 'M20 40.7 33.9 10.7A40 40 0 0 1 53.3 30.1L23.3 44',
+    axis: { cx: 17, cy: 47, r: 7 }
+  };
 
   /* Equipment model -------------------------------------------------------
      Mount and optics are independent axes. The footprint comes from the mount,
@@ -648,6 +743,9 @@
     measure: { a: null },
     rubber: { start: null, end: null },
     plotRatio: null,
+    vector: null,
+    logo: null,
+    sheet: { paper: 'A3', ratio: 'fit' },
     view: { x: 0, y: 0, k: 1 }
   };
 
@@ -661,6 +759,7 @@
     paperRect: el('paper-rect'),
     paperGrid: el('paper-grid'),
     background: el('layer-background'),
+    vector: el('layer-vector'),
     cones: el('layer-cones'),
     envelopes: el('layer-envelopes'),
     symbols: el('layer-symbols'),
@@ -770,6 +869,35 @@
   // the heading changes and never covers the mount it belongs to.
   function badgeAnchor(camera) {
     return pointOnCircle(camera.x, camera.y, -(46 * annotation()), camera.heading);
+  }
+
+  /* Output scale ----------------------------------------------------------
+     A camera plan is only useful on paper if a scale rule can be laid on it.
+     The sheet is therefore given physical dimensions from the drawing scale
+     and a chosen paper size, and the print route hands the browser a page of
+     exactly that size, so "Save as PDF" at 100 % is a true-scale plot. */
+
+  const PAPERS = { A4: [297, 210], A3: [420, 297], A2: [594, 420], A1: [841, 594], A0: [1189, 841] };
+  const PRINT_MARGIN_MM = 10;
+  const STANDARD_RATIOS = [20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
+
+  function outputPlot() {
+    if (!state.calibrated) return null;
+    const [longSide, shortSide] = PAPERS[state.sheet.paper] || PAPERS.A3;
+    const sheetW = state.content.width / state.pxPerMetre;
+    const sheetH = state.content.height / state.pxPerMetre;
+    const landscape = sheetW >= sheetH;
+    const printableW = (landscape ? longSide : shortSide) - 2 * PRINT_MARGIN_MM;
+    const printableH = (landscape ? shortSide : longSide) - 2 * PRINT_MARGIN_MM;
+    const fitsAt = (ratio) =>
+      (sheetW * 1000) / ratio <= printableW && (sheetH * 1000) / ratio <= printableH;
+    let ratio = Number(state.sheet.ratio);
+    const chosen = ratio > 0;
+    if (!chosen) ratio = STANDARD_RATIOS.find(fitsAt) || STANDARD_RATIOS[STANDARD_RATIOS.length - 1];
+    return {
+      ratio, chosen, paper: state.sheet.paper in PAPERS ? state.sheet.paper : 'A3', landscape,
+      widthMm: (sheetW * 1000) / ratio, heightMm: (sheetH * 1000) / ratio, fits: fitsAt(ratio)
+    };
   }
 
   /* Transforms ----------------------------------------------------------- */
@@ -1276,6 +1404,19 @@
     return draw.g;
   }
 
+  function markGlyph(colour) {
+    const g = create('g', {});
+    g.appendChild(create('path', { d: MARK.fill, fill: colour, 'fill-opacity': 0.22 }));
+    g.appendChild(create('path', {
+      d: MARK.stroke, fill: 'none', stroke: colour, 'stroke-width': 5,
+      'stroke-linecap': 'round', 'stroke-linejoin': 'round'
+    }));
+    g.appendChild(create('circle', {
+      cx: MARK.axis.cx, cy: MARK.axis.cy, r: MARK.axis.r, fill: 'none', stroke: colour, 'stroke-width': 5
+    }));
+    return g;
+  }
+
   function drawSymbol(camera, colours) {
     const group = create('g', {});
     const profile = headProfile(camera);
@@ -1390,6 +1531,38 @@
   }
 
   /* Layers --------------------------------------------------------------- */
+
+  const VECTOR_UNITS = { mm: 0.001, cm: 0.01, m: 1, in: 0.0254, ft: 0.3048 };
+
+  // CAD keeps y upwards and the sheet keeps it downwards, so the flip happens
+  // once here and nowhere else.
+  function vectorPoint(x, y) {
+    const { bounds, margin, pxPerUnit } = state.vector;
+    return { x: (x - bounds.minX + margin) * pxPerUnit, y: (bounds.maxY - y + margin) * pxPerUnit };
+  }
+
+  function renderVector() {
+    clear(layers.vector);
+    if (!state.vector) return;
+    // One path per layer keeps the DOM small on a plan with tens of thousands of
+    // segments, and lets a layer be shown or hidden without re-tessellating.
+    for (const layer of state.vector.layers) {
+      if (!layer.visible) continue;
+      const parts = [];
+      for (const line of layer.paths) {
+        for (let i = 0; i < line.length; i += 2) {
+          const p = vectorPoint(line[i], line[i + 1]);
+          parts.push(`${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`);
+        }
+      }
+      if (!parts.length) continue;
+      layers.vector.appendChild(create('path', {
+        d: parts.join(''), fill: 'none', stroke: state.monochrome ? '#14181c' : '#2f3a45',
+        'stroke-width': 0.9, 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+        'vector-effect': 'non-scaling-stroke', 'data-layer': layer.name
+      }));
+    }
+  }
 
   function renderCones() {
     clear(layers.cones);
@@ -1773,7 +1946,10 @@
     for (let i = 0; i <= majors; i += 1) {
       caption(tidy(step * i), zero + unit * i, baseline - height * 0.5, labelSize);
     }
-    caption(state.plotRatio ? `METRES   1:${state.plotRatio}` : 'METRES',
+    // The stated ratio is the one the sheet prints at, not the one the source
+    // plot was made at, because that is the ratio a rule will be laid against.
+    const plot = outputPlot();
+    caption(plot ? `METRES   1:${plot.ratio}` : 'METRES',
       zero + (barLength - unit) / 2, baseline + height * 2.1, labelSize * 0.9, labelSize * 0.18);
 
     layers.scalebar.appendChild(group);
@@ -1808,6 +1984,19 @@
       node.textContent = text;
       group.appendChild(node);
     };
+
+    if (state.logo) {
+      // The production's own mark, top right, where a client expects to find it
+      // on a drawing sheet. It is boxed to a fixed height so a wide wordmark and
+      // a square badge occupy the same corner.
+      const ratio = state.logo.width / state.logo.height || 3;
+      const h = Math.min(40 * scale, (150 * scale) / ratio);
+      const w = h * ratio;
+      group.appendChild(create('image', {
+        href: state.logo.href, x: x + blockWidth - 16 * scale - w, y: y + 14 * scale,
+        width: w, height: h, preserveAspectRatio: 'xMaxYMin meet'
+      }));
+    }
 
     addText('CAMERA PLAN', x + 16 * scale, y + 28 * scale, 13, 700, '#5c6773', 2.4);
     addText(el('meta-production').value.trim() || 'Production', x + 16 * scale, y + 58 * scale, 21, 700, '#161b20', 0);
@@ -1853,11 +2042,23 @@
       }
     }
 
+    // The output ratio in the bottom margin. A graphic scale bar survives any
+    // reduction, but a stated ratio is what the reader checks the rule against.
+    const plot = outputPlot();
+    if (plot) {
+      addText(`SCALE 1:${plot.ratio} AT ${plot.paper}`, x + 16 * scale, y + blockHeight - 9 * scale,
+        8.5, 600, '#5c6773', 1.6);
+    }
+
     // Tool line in the bottom margin, the way a CAD title block names the
     // application it was drawn in: small, grey, and never competing with the
     // drawing title.
     addText('TSG SIGHTLINE', x + blockWidth - 16 * scale, y + blockHeight - 9 * scale,
       8.5, 600, '#8a949c', 1.6, 'end');
+    const mark = markGlyph('#8a949c');
+    mark.setAttribute('transform',
+      `translate(${x + blockWidth - 112 * scale} ${y + blockHeight - 19 * scale}) scale(${0.17 * scale})`);
+    group.appendChild(mark);
 
     layers.titleblock.appendChild(group);
   }
@@ -1872,7 +2073,7 @@
       node.setAttribute('width', width);
       node.setAttribute('height', height);
     }
-    layers.paperGrid.style.display = state.background ? 'none' : '';
+    layers.paperGrid.style.display = state.background || state.vector ? 'none' : '';
 
     const fine = state.pxPerMetre;
     const coarse = fine * 5;
@@ -1914,6 +2115,23 @@
       ? `Sheet covers ${format(state.content.width / state.pxPerMetre, 0)} by ` +
         `${format(state.content.height / state.pxPerMetre, 0)} metres, margins included.`
       : 'Grid 5 m. Set the scale before trusting any clearance.';
+
+    if (state.vector) {
+      const { bounds, units, layers: vectorLayers } = state.vector;
+      const factor = VECTOR_UNITS[units] || 1;
+      el('readout-vector').textContent =
+        `${vectorLayers.length} layers. Drawing extent ` +
+        `${format((bounds.maxX - bounds.minX) * factor, 1)} by ` +
+        `${format((bounds.maxY - bounds.minY) * factor, 1)} m. ` +
+        'If that is ten or a thousand times off, the units above are wrong.';
+    }
+
+    const plot = outputPlot();
+    el('readout-plot').textContent = plot
+      ? `Prints at 1:${plot.ratio} on ${plot.paper} ${plot.landscape ? 'landscape' : 'portrait'}, ` +
+        `${format(plot.widthMm, 0)} by ${format(plot.heightMm, 0)} mm` +
+        (plot.fits ? '.' : '. Too large for the paper: choose a smaller scale or a larger sheet.')
+      : 'Set the scale to print at a stated ratio.';
   }
 
   const selected = () => state.cameras.find((item) => item.id === state.selectedId);
@@ -2035,6 +2253,7 @@
 
   function render() {
     updatePaper();
+    renderVector();
     renderCones();
     renderEnvelopes();
     renderSymbols();
@@ -2047,6 +2266,7 @@
     updateReadouts();
     updateEditor();
     updateList();
+    scheduleAutosave();
   }
 
   /* Position lifecycle --------------------------------------------------- */
@@ -2128,12 +2348,12 @@
 
   window.addEventListener('blur', () => { spaceHeld = false; });
 
-  function showHint(text, autoHide) {
+  function showHint(text, autoHide, duration) {
     const hint = el('hint');
     hint.textContent = text;
     hint.classList.add('is-visible');
     window.clearTimeout(hintTimer);
-    if (autoHide) hintTimer = window.setTimeout(hideHint, 2600);
+    if (autoHide) hintTimer = window.setTimeout(hideHint, duration || 2600);
   }
 
   const hideHint = () => el('hint').classList.remove('is-visible');
@@ -2662,8 +2882,63 @@
   });
 
   for (const id of ['meta-production', 'meta-venue', 'meta-date', 'meta-revision', 'meta-author']) {
-    el(id).addEventListener('input', renderTitleBlock);
+    el(id).addEventListener('input', () => {
+      renderTitleBlock();
+      scheduleAutosave();
+    });
   }
+
+  el('sheet-paper').addEventListener('change', (e) => {
+    state.sheet.paper = e.target.value;
+    render();
+  });
+
+  el('sheet-ratio').addEventListener('change', (e) => {
+    state.sheet.ratio = e.target.value;
+    render();
+  });
+
+  /* Production logo ------------------------------------------------------ */
+
+  el('action-load-logo').addEventListener('click', () => el('file-logo').click());
+
+  el('file-logo').addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        // Raster logos are resampled to a modest size: the title block draws
+        // them forty sheet units high, and a project file should not carry a
+        // print-resolution wordmark for every revision.
+        const width = image.naturalWidth || 300;
+        const height = image.naturalHeight || 100;
+        let href = reader.result;
+        if (file.type !== 'image/svg+xml' && Math.max(width, height) > 800) {
+          const factor = 800 / Math.max(width, height);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(width * factor);
+          canvas.height = Math.round(height * factor);
+          canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+          href = canvas.toDataURL('image/png');
+        }
+        state.logo = { href, width, height };
+        renderTitleBlock();
+        scheduleAutosave();
+      };
+      image.onerror = () => showHint('That image could not be read', true);
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  el('action-clear-logo').addEventListener('click', () => {
+    state.logo = null;
+    renderTitleBlock();
+    scheduleAutosave();
+  });
 
   /* Base plan ------------------------------------------------------------ */
 
@@ -2671,29 +2946,486 @@
 
   el('file-plan').addEventListener('change', (event) => {
     const file = event.target.files[0];
+    event.target.value = '';
     if (!file) return;
+
+    if (/\.dxf$/i.test(file.name)) {
+      if (file.size > 40 * 1024 * 1024) {
+        showHint('That DXF is over 40 MB. Purge it and export only the plan layers.', true, 5000);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => loadDxfText(String(reader.result), file.name);
+      reader.readAsText(file);
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
       const image = new Image();
       image.onload = () => {
         state.background = { href: reader.result, width: image.naturalWidth, height: image.naturalHeight };
+        state.vector = null;
         state.content = { width: image.naturalWidth, height: image.naturalHeight };
         state.calibrated = false;
+        buildLayerList();
         render();
         fitToContent();
         showHint('Now set the scale from a known dimension', true);
       };
+      image.onerror = () => showHint('That image could not be read', true);
       image.src = reader.result;
     };
     reader.readAsDataURL(file);
-    event.target.value = '';
   });
 
   el('action-clear-plan').addEventListener('click', () => {
     state.background = null;
+    state.vector = null;
     state.content = { ...DEFAULT_CONTENT };
+    buildLayerList();
     render();
     fitToContent();
+  });
+
+  /* DXF import -------------------------------------------------------------
+     A venue plan arrives as CAD more often than as a picture, and CAD carries
+     its scale with it. Reading the drawing directly removes the calibration
+     step and gives linework that plots sharp at any ratio. Only the entities
+     that draw a floor plan are read: lines, polylines, arcs, circles, ellipses,
+     splines as polylines through their fit points, and block inserts. Text,
+     hatches and dimensions are left out on purpose: they are annotation on the
+     source drawing, not geometry a camera can collide with. The parser is kept
+     free of DOM references so tools/test-dxf-parser.mjs can run it in Node. */
+
+  // #region dxf
+  const DXF_UNIT_CODES = { 1: 'in', 2: 'ft', 4: 'mm', 5: 'cm', 6: 'm' };
+  const degrees = (deg) => (deg * Math.PI) / 180;
+
+  function tokeniseDxf(text) {
+    const lines = text.split(/\r\n|\r|\n/);
+    const pairs = [];
+    for (let i = 0; i + 1 < lines.length; i += 2) {
+      pairs.push([Number.parseInt(lines[i], 10), lines[i + 1].trim()]);
+    }
+    return pairs;
+  }
+
+  function interpretDxfEntity(record) {
+    const g = record.groups;
+    const num = (code, fallback) => {
+      const hit = g.find((pair) => pair[0] === code);
+      return hit ? Number(hit[1]) : fallback;
+    };
+    const all = (code) => g.filter((pair) => pair[0] === code).map((pair) => Number(pair[1]));
+    const layer = (g.find((pair) => pair[0] === 8) || [8, '0'])[1];
+    const base = { type: record.type, layer, paperSpace: num(67, 0) === 1 };
+
+    switch (record.type) {
+      case 'LINE':
+        return { ...base, points: [num(10, 0), num(20, 0), num(11, 0), num(21, 0)] };
+      case 'LWPOLYLINE': {
+        // Vertices arrive as repeated 10/20 pairs, each optionally followed by a
+        // 42 bulge, so they must be walked in order rather than collected by code.
+        const vertices = [];
+        for (const [code, value] of g) {
+          if (code === 10) vertices.push({ x: Number(value), y: 0, bulge: 0 });
+          else if (code === 20 && vertices.length) vertices[vertices.length - 1].y = Number(value);
+          else if (code === 42 && vertices.length) vertices[vertices.length - 1].bulge = Number(value);
+        }
+        return { ...base, vertices, closed: (num(70, 0) & 1) === 1 };
+      }
+      case 'POLYLINE': {
+        const flags = num(70, 0);
+        if (flags & (16 | 64)) return null;
+        const vertices = (record.vertices || []).map((vertex) => {
+          const pick = (code, fallback) => {
+            const hit = vertex.groups.find((pair) => pair[0] === code);
+            return hit ? Number(hit[1]) : fallback;
+          };
+          return { x: pick(10, 0), y: pick(20, 0), bulge: pick(42, 0) };
+        });
+        return { ...base, type: 'LWPOLYLINE', vertices, closed: (flags & 1) === 1 };
+      }
+      case 'ARC':
+        return { ...base, cx: num(10, 0), cy: num(20, 0), r: num(40, 0), start: num(50, 0), end: num(51, 360) };
+      case 'CIRCLE':
+        return { ...base, cx: num(10, 0), cy: num(20, 0), r: num(40, 0) };
+      case 'ELLIPSE':
+        return {
+          ...base, cx: num(10, 0), cy: num(20, 0), mx: num(11, 1), my: num(21, 0),
+          ratio: num(40, 1), start: num(41, 0), end: num(42, Math.PI * 2)
+        };
+      case 'SPLINE': {
+        const fitX = all(11);
+        const fitY = all(21);
+        const xs = fitX.length >= 2 ? fitX : all(10);
+        const ys = fitX.length >= 2 ? fitY : all(20);
+        return { ...base, points: xs.flatMap((x, index) => [x, ys[index] || 0]) };
+      }
+      case 'INSERT':
+        return {
+          ...base, name: (g.find((pair) => pair[0] === 2) || [2, ''])[1],
+          x: num(10, 0), y: num(20, 0), sx: num(41, 1), sy: num(42, 1), rotation: num(50, 0),
+          columns: num(70, 1), rows: num(71, 1), columnSpacing: num(44, 0), rowSpacing: num(45, 0)
+        };
+      default:
+        return null;
+    }
+  }
+
+  function parseDxf(text) {
+    if (text.startsWith('AutoCAD Binary DXF')) {
+      throw new Error('Binary DXF is not supported. Save as ASCII DXF.');
+    }
+    const pairs = tokeniseDxf(text);
+    const dxf = { units: 0, layers: new Map(), blocks: new Map(), entities: [] };
+    let i = 0;
+
+    const at = (code, value) => i < pairs.length && pairs[i][0] === code && pairs[i][1] === value;
+
+    // One record: the type at code 0 and every pair up to the next code 0.
+    const readRecord = () => {
+      const record = { type: pairs[i][1], groups: [] };
+      i += 1;
+      while (i < pairs.length && pairs[i][0] !== 0) {
+        record.groups.push(pairs[i]);
+        i += 1;
+      }
+      return record;
+    };
+
+    const readHeader = () => {
+      while (i < pairs.length && !at(0, 'ENDSEC')) {
+        if (pairs[i][0] === 9 && pairs[i][1] === '$INSUNITS' && pairs[i + 1] && pairs[i + 1][0] === 70) {
+          dxf.units = Number(pairs[i + 1][1]);
+        }
+        i += 1;
+      }
+      i += 1;
+    };
+
+    const readTables = () => {
+      while (i < pairs.length && !at(0, 'ENDSEC')) {
+        if (at(0, 'LAYER')) {
+          const record = readRecord();
+          const layer = { name: '0', colour: 7, frozen: false, off: false };
+          for (const [code, value] of record.groups) {
+            if (code === 2) layer.name = value;
+            else if (code === 62) {
+              layer.colour = Math.abs(Number(value));
+              layer.off = Number(value) < 0;
+            } else if (code === 70) layer.frozen = (Number(value) & 1) === 1;
+          }
+          dxf.layers.set(layer.name, layer);
+        } else {
+          i += 1;
+        }
+      }
+      i += 1;
+    };
+
+    const readEntities = (into, terminator) => {
+      while (i < pairs.length && !at(0, terminator)) {
+        if (pairs[i][0] !== 0) {
+          i += 1;
+          continue;
+        }
+        const record = readRecord();
+        if (record.type === 'POLYLINE') {
+          record.vertices = [];
+          while (at(0, 'VERTEX')) record.vertices.push(readRecord());
+          if (at(0, 'SEQEND')) readRecord();
+        }
+        const entity = interpretDxfEntity(record);
+        if (entity) into.push(entity);
+      }
+      if (i < pairs.length) readRecord();
+    };
+
+    const readBlocks = () => {
+      while (i < pairs.length && !at(0, 'ENDSEC')) {
+        if (at(0, 'BLOCK')) {
+          const header = readRecord();
+          const block = { name: '', base: { x: 0, y: 0 }, entities: [] };
+          for (const [code, value] of header.groups) {
+            if (code === 2) block.name = value;
+            else if (code === 10) block.base.x = Number(value);
+            else if (code === 20) block.base.y = Number(value);
+          }
+          readEntities(block.entities, 'ENDBLK');
+          dxf.blocks.set(block.name, block);
+        } else {
+          i += 1;
+        }
+      }
+      i += 1;
+    };
+
+    while (i < pairs.length) {
+      if (at(0, 'SECTION') && pairs[i + 1] && pairs[i + 1][0] === 2) {
+        const name = pairs[i + 1][1];
+        i += 2;
+        if (name === 'HEADER') readHeader();
+        else if (name === 'TABLES') readTables();
+        else if (name === 'BLOCKS') readBlocks();
+        else if (name === 'ENTITIES') readEntities(dxf.entities, 'ENDSEC');
+        else {
+          while (i < pairs.length && !at(0, 'ENDSEC')) i += 1;
+          i += 1;
+        }
+      } else {
+        i += 1;
+      }
+    }
+    return dxf;
+  }
+
+  // Affine matrices as [a, b, c, d, e, f], the SVG convention, so a block insert
+  // is a plain multiplication and nesting is a stack of them.
+  const IDENTITY = [1, 0, 0, 1, 0, 0];
+  const multiply = (m, n) => [
+    m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1],
+    m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3],
+    m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5]
+  ];
+  const translation = (x, y) => [1, 0, 0, 1, x, y];
+  const scaling = (x, y) => [x, 0, 0, y, 0, 0];
+  const rotation = (deg) => {
+    const r = degrees(deg);
+    return [Math.cos(r), Math.sin(r), -Math.sin(r), Math.cos(r), 0, 0];
+  };
+  const applyMatrix = (m, x, y) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
+
+  // Arcs become chords short enough to read as curves at plot scale: one every
+  // six degrees and never fewer than four per arc, so a door swing stays round.
+  function arcPoints(cx, cy, r, startRad, sweepRad, includeStart) {
+    const steps = Math.max(4, Math.ceil(Math.abs(sweepRad) / (Math.PI / 30)));
+    const points = [];
+    for (let k = includeStart ? 0 : 1; k <= steps; k += 1) {
+      const angle = startRad + (sweepRad * k) / steps;
+      points.push(cx + r * Math.cos(angle), cy + r * Math.sin(angle));
+    }
+    return points;
+  }
+
+  function polylinePoints(vertices, closed) {
+    const points = [];
+    const count = vertices.length;
+    if (!count) return points;
+    points.push(vertices[0].x, vertices[0].y);
+    const last = closed ? count : count - 1;
+    for (let k = 0; k < last; k += 1) {
+      const from = vertices[k];
+      const to = vertices[(k + 1) % count];
+      if (from.bulge && Math.abs(from.bulge) > 1e-9) {
+        // A bulge is the tangent of a quarter of the included angle, the classic
+        // compact encoding of an arc between two polyline vertices. Positive
+        // bulges turn anticlockwise, so the centre sits to the left of the chord.
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const chord = Math.hypot(dx, dy);
+        if (chord < 1e-12) continue;
+        const theta = 4 * Math.atan(from.bulge);
+        const half = theta / 2;
+        const radius = Math.abs(chord / (2 * Math.sin(half)));
+        const h = (chord / 2) / Math.tan(half);
+        const cx = (from.x + to.x) / 2 - (dy / chord) * h;
+        const cy = (from.y + to.y) / 2 + (dx / chord) * h;
+        points.push(...arcPoints(cx, cy, radius, Math.atan2(from.y - cy, from.x - cx), theta, false));
+      } else {
+        points.push(to.x, to.y);
+      }
+    }
+    return points;
+  }
+
+  function flattenDxf(dxf) {
+    const byLayer = new Map();
+    const emit = (layerName, points, matrix) => {
+      if (points.length < 4) return;
+      const out = new Array(points.length);
+      for (let k = 0; k < points.length; k += 2) {
+        const [x, y] = applyMatrix(matrix, points[k], points[k + 1]);
+        out[k] = Math.round(x * 1000) / 1000;
+        out[k + 1] = Math.round(y * 1000) / 1000;
+      }
+      if (!byLayer.has(layerName)) byLayer.set(layerName, []);
+      byLayer.get(layerName).push(out);
+    };
+
+    const walk = (entities, matrix, depth, inheritedLayer) => {
+      for (const entity of entities) {
+        if (entity.paperSpace) continue;
+        // Geometry drawn on layer 0 inside a block takes the layer of the insert,
+        // which is how CAD lets one door symbol serve every wall layer.
+        const layerName = entity.layer === '0' && inheritedLayer ? inheritedLayer : entity.layer;
+        switch (entity.type) {
+          case 'LINE':
+          case 'SPLINE':
+            emit(layerName, entity.points, matrix);
+            break;
+          case 'LWPOLYLINE':
+            emit(layerName, polylinePoints(entity.vertices, entity.closed), matrix);
+            break;
+          case 'ARC': {
+            let end = entity.end;
+            while (end <= entity.start) end += 360;
+            emit(layerName, arcPoints(entity.cx, entity.cy, entity.r,
+              degrees(entity.start), degrees(end - entity.start), true), matrix);
+            break;
+          }
+          case 'CIRCLE':
+            emit(layerName, arcPoints(entity.cx, entity.cy, entity.r, 0, Math.PI * 2, true), matrix);
+            break;
+          case 'ELLIPSE': {
+            let end = entity.end;
+            while (end <= entity.start) end += Math.PI * 2;
+            const steps = Math.max(8, Math.ceil((end - entity.start) / (Math.PI / 30)));
+            const points = [];
+            for (let k = 0; k <= steps; k += 1) {
+              const t = entity.start + ((end - entity.start) * k) / steps;
+              points.push(
+                entity.cx + entity.mx * Math.cos(t) - entity.my * entity.ratio * Math.sin(t),
+                entity.cy + entity.my * Math.cos(t) + entity.mx * entity.ratio * Math.sin(t)
+              );
+            }
+            emit(layerName, points, matrix);
+            break;
+          }
+          case 'INSERT': {
+            const block = dxf.blocks.get(entity.name);
+            if (!block || depth > 8) break;
+            for (let column = 0; column < Math.max(1, entity.columns); column += 1) {
+              for (let row = 0; row < Math.max(1, entity.rows); row += 1) {
+                let m = multiply(matrix, translation(entity.x, entity.y));
+                m = multiply(m, rotation(entity.rotation));
+                m = multiply(m, translation(column * entity.columnSpacing, row * entity.rowSpacing));
+                m = multiply(m, scaling(entity.sx, entity.sy));
+                m = multiply(m, translation(-block.base.x, -block.base.y));
+                walk(block.entities, m, depth + 1, layerName);
+              }
+            }
+            break;
+          }
+          default:
+            break;
+        }
+      }
+    };
+    walk(dxf.entities, IDENTITY, 0, null);
+
+    const layers = [];
+    for (const [name, paths] of byLayer) {
+      const table = dxf.layers.get(name) || {};
+      layers.push({
+        name, paths, colour: table.colour || 7,
+        visible: !(table.frozen || table.off || name.toUpperCase() === 'DEFPOINTS')
+      });
+    }
+    layers.sort((a, b) => a.name.localeCompare(b.name, 'en'));
+
+    const bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+    for (const layer of layers) {
+      if (!layer.visible) continue;
+      for (const line of layer.paths) {
+        for (let k = 0; k < line.length; k += 2) {
+          bounds.minX = Math.min(bounds.minX, line[k]);
+          bounds.maxX = Math.max(bounds.maxX, line[k]);
+          bounds.minY = Math.min(bounds.minY, line[k + 1]);
+          bounds.maxY = Math.max(bounds.maxY, line[k + 1]);
+        }
+      }
+    }
+    if (!Number.isFinite(bounds.minX) || bounds.maxX - bounds.minX <= 0 || bounds.maxY - bounds.minY <= 0) {
+      throw new Error('No visible linework found in the DXF');
+    }
+    return { layers, bounds, units: DXF_UNIT_CODES[dxf.units] || null };
+  }
+
+  // Unitless files are common. A floor plan wider than a kilometre in metres is
+  // not a floor plan, so anything over 1500 units across is read as millimetres.
+  function guessDxfUnits(flat) {
+    if (flat.units) return flat.units;
+    const extent = Math.max(flat.bounds.maxX - flat.bounds.minX, flat.bounds.maxY - flat.bounds.minY);
+    return extent > 1500 ? 'mm' : 'm';
+  }
+  // #endregion dxf
+
+  function installVector(flat, units) {
+    const { bounds } = flat;
+    const extentX = bounds.maxX - bounds.minX;
+    const extentY = bounds.maxY - bounds.minY;
+    const margin = Math.max(extentX, extentY) * 0.08;
+    // About four thousand pixels across, the density the raster workflow asks
+    // for, so annotation sizes and export resolution match a plotted scan.
+    const pxPerUnit = 4000 / (Math.max(extentX, extentY) + 2 * margin);
+    state.background = null;
+    state.vector = { units, layers: flat.layers, bounds, margin, pxPerUnit };
+    state.content = {
+      width: Math.round((extentX + 2 * margin) * pxPerUnit),
+      height: Math.round((extentY + 2 * margin) * pxPerUnit)
+    };
+    applyVectorUnits(units);
+  }
+
+  // The geometry keeps its drawing units; only the metre interpretation moves.
+  // That is the same operation as recalibrating a raster, so the rest of the
+  // tool needs no special case for vector plans.
+  function applyVectorUnits(units) {
+    state.vector.units = units;
+    state.pxPerMetre = state.vector.pxPerUnit / VECTOR_UNITS[units];
+    state.plotRatio = null;
+    state.calibrated = true;
+    el('vector-units').value = units;
+  }
+
+  function buildLayerList() {
+    const list = el('vector-layers');
+    clear(list);
+    el('vector-controls').hidden = !state.vector;
+    if (!state.vector) return;
+    for (const layer of state.vector.layers) {
+      const label = document.createElement('label');
+      label.className = 'check';
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = layer.visible;
+      box.addEventListener('change', () => {
+        layer.visible = box.checked;
+        renderVector();
+        scheduleAutosave();
+      });
+      const name = document.createElement('span');
+      name.textContent = `${layer.name} (${layer.paths.length})`;
+      name.title = layer.name;
+      label.appendChild(box);
+      label.appendChild(name);
+      list.appendChild(label);
+    }
+  }
+
+  function loadDxfText(text, filename) {
+    try {
+      const flat = flattenDxf(parseDxf(text));
+      const units = guessDxfUnits(flat);
+      installVector(flat, units);
+      state.selectedId = null;
+      buildLayerList();
+      render();
+      fitToContent();
+      const runs = flat.layers.reduce((sum, layer) => sum + layer.paths.length, 0);
+      showHint(`${filename}: ${runs} runs of linework on ${flat.layers.length} layers, read in ${units}. ` +
+        'The scale is exact from the file; check the units if the extent looks wrong.', true, 6000);
+    } catch (error) {
+      showHint(error.message || 'That DXF could not be read', true, 5000);
+    }
+  }
+
+  el('vector-units').addEventListener('change', (e) => {
+    if (!state.vector) return;
+    applyVectorUnits(e.target.value);
+    render();
   });
 
   /* Output --------------------------------------------------------------- */
@@ -2701,8 +3433,11 @@
   function buildExportSvg() {
     const clone = svg.cloneNode(true);
     clone.setAttribute('xmlns', SVG_NS);
-    clone.setAttribute('width', state.content.width);
-    clone.setAttribute('height', state.content.height);
+    // Physical dimensions when the scale is known, so the file opens at true
+    // size in Illustrator, Inkscape or a CAD import and prints at the stated ratio.
+    const plot = outputPlot();
+    clone.setAttribute('width', plot ? `${plot.widthMm.toFixed(2)}mm` : state.content.width);
+    clone.setAttribute('height', plot ? `${plot.heightMm.toFixed(2)}mm` : state.content.height);
     clone.setAttribute('viewBox', `0 0 ${state.content.width} ${state.content.height}`);
     clone.removeAttribute('style');
     clone.querySelector('#viewport').removeAttribute('transform');
@@ -2759,7 +3494,38 @@
     image.src = url;
   });
 
-  el('action-print').addEventListener('click', () => window.print());
+  function preparePrintSheet() {
+    const sheet = el('print-sheet');
+    sheet.innerHTML = buildExportSvg();
+    const plot = outputPlot();
+    el('print-page').textContent = plot
+      ? `@page { size: ${plot.paper} ${plot.landscape ? 'landscape' : 'portrait'}; margin: ${PRINT_MARGIN_MM}mm; }`
+      : `@page { size: auto; margin: ${PRINT_MARGIN_MM}mm; }`;
+    if (!plot) {
+      // Without a trusted scale there is nothing to be true to, so the sheet
+      // simply fills the page width.
+      const node = sheet.querySelector('svg');
+      node.setAttribute('width', '100%');
+      node.removeAttribute('height');
+    }
+    sheet.hidden = false;
+  }
+
+  window.addEventListener('beforeprint', preparePrintSheet);
+  window.addEventListener('afterprint', () => {
+    const sheet = el('print-sheet');
+    sheet.hidden = true;
+    sheet.textContent = '';
+  });
+
+  el('action-print').addEventListener('click', () => {
+    const plot = outputPlot();
+    if (plot && !plot.fits) {
+      showHint(`The sheet overflows ${plot.paper} at 1:${plot.ratio}. Print anyway, or pick a smaller scale.`, true, 5000);
+    }
+    preparePrintSheet();
+    window.print();
+  });
 
   el('action-copy-list').addEventListener('click', async () => {
     const header = ['No', 'Position', 'Camera', 'Control', 'Lens', 'Mount', 'Viewfinder',
@@ -2792,9 +3558,17 @@
     }
   });
 
-  el('action-save-project').addEventListener('click', () => {
-    download(new Blob([JSON.stringify({
-      format: 'camera-plan/4',
+  /* Project files ---------------------------------------------------------
+     The file is the source of truth: it holds the venue drawing the production
+     supplied, and that drawing belongs in the production's own storage, not
+     on a server of ours. Around the file sit three conveniences that never
+     replace it: an autosave in this browser for crash recovery, a save that
+     writes back to the same file where the browser allows it, and a share
+     link that carries positions and title block but never the drawing. */
+
+  function buildProject() {
+    return {
+      format: 'camera-plan/5',
       meta: {
         production: el('meta-production').value,
         venue: el('meta-venue').value,
@@ -2802,17 +3576,19 @@
         revision: el('meta-revision').value,
         author: el('meta-author').value
       },
+      sheet: { ...state.sheet },
       content: state.content,
       pxPerMetre: state.pxPerMetre,
       calibrated: state.calibrated,
+      plotRatio: state.plotRatio,
       background: state.background,
+      vector: state.vector,
+      logo: state.logo,
       cameras: state.cameras,
       dimensions: state.dimensions,
       nextNumber: state.nextNumber
-    }, null, 2)], { type: 'application/json' }), planFilename('json'));
-  });
-
-  el('action-open-project').addEventListener('click', () => el('file-project').click());
+    };
+  }
 
   // Earlier project files used a single type axis and had no equipment fields, so
   // legacy identifiers are mapped forward and missing values filled from defaults.
@@ -2821,86 +3597,310 @@
     hand: 'handheld', robo: 'robo', pov: 'pov', spec: 'special'
   };
 
-  el('file-project').addEventListener('change', (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+  function applyProject(project) {
+    if (!String(project.format || '').startsWith('camera-plan/')) {
+      throw new Error('Unrecognised project format');
+    }
+    // A project saved without a base plan carries positions that are only
+    // meaningful in metres. Opening it must not discard a drawing already
+    // loaded in this session, so the sheet is kept and the coordinates are
+    // rescaled to preserve the spacing between positions.
+    const carriesPlan = Boolean(project.background || project.vector);
+    const sourceScale = project.pxPerMetre || state.pxPerMetre;
+
+    if (carriesPlan) {
+      state.content = project.content;
+      state.background = project.background || null;
+      state.vector = project.vector || null;
+      state.pxPerMetre = project.pxPerMetre;
+      state.calibrated = Boolean(project.calibrated);
+      state.plotRatio = project.plotRatio || null;
+    } else if (project.calibrated && !state.calibrated) {
+      state.content = project.content;
+      state.pxPerMetre = project.pxPerMetre;
+      state.calibrated = true;
+    }
+
+    const factor = state.pxPerMetre / sourceScale;
+    const remap = (point) => ({ x: point.x * factor, y: point.y * factor });
+
+    // Files before version 4 stored the front element as the position. Moving
+    // the anchor back onto the pan axis keeps the glass where it was drawn.
+    const legacyAnchor = Number(String(project.format).split('/')[1]) < 4;
+    state.cameras = (project.cameras || []).map((camera) => {
+      const mount = camera.mount || LEGACY_MOUNTS[camera.type] || 'special';
+      const merged = {
+        ...defaultsFor(mount), ...camera, mount,
+        x: camera.x * factor,
+        y: camera.y * factor,
+        path: (camera.path || []).map(remap)
+      };
+      if (legacyAnchor && !isArm(merged)) {
+        const seat = pointOnCircle(merged.x, merged.y,
+          -pivotOffset(merged) * state.pxPerMetre, merged.heading);
+        merged.x = seat.x;
+        merged.y = seat.y;
+      }
+      return merged;
+    });
+    state.dimensions = (project.dimensions || []).map((dimension) => ({
+      a: remap(dimension.a), b: remap(dimension.b)
+    }));
+    state.measure.a = null;
+    state.nextNumber = project.nextNumber || state.cameras.length + 1;
+    state.selectedId = null;
+    if ('logo' in project) state.logo = project.logo || null;
+    if (project.sheet) {
+      state.sheet = { paper: project.sheet.paper || 'A3', ratio: String(project.sheet.ratio || 'fit') };
+      el('sheet-paper').value = state.sheet.paper;
+      el('sheet-ratio').value = state.sheet.ratio;
+    }
+    const meta = project.meta || {};
+    el('meta-production').value = meta.production || '';
+    el('meta-venue').value = meta.venue || '';
+    el('meta-date').value = meta.date || '';
+    el('meta-revision').value = meta.revision || '';
+    el('meta-author').value = meta.author || '';
+    if (state.vector) el('vector-units').value = state.vector.units;
+    buildLayerList();
+    render();
+    fitToContent();
+  }
+
+  let projectHandle = null;
+  const PICKER_TYPES = [{ description: 'Camera plan project', accept: { 'application/json': ['.json'] } }];
+  const hasFilePicker = typeof window.showSaveFilePicker === 'function' && window.isSecureContext;
+
+  async function saveProject(chooseFile) {
+    const json = JSON.stringify(buildProject(), null, 2);
+    if (hasFilePicker) {
+      try {
+        if (chooseFile || !projectHandle) {
+          projectHandle = await window.showSaveFilePicker({
+            suggestedName: planFilename('json'), types: PICKER_TYPES
+          });
+        }
+        const writable = await projectHandle.createWritable();
+        await writable.write(json);
+        await writable.close();
+        showHint(`Saved ${projectHandle.name}`, true);
+        return;
+      } catch (error) {
+        if (error && error.name === 'AbortError') return;
+        // Permission withdrawn or the file gone: fall back to a download rather
+        // than lose the save.
+        projectHandle = null;
+      }
+    }
+    download(new Blob([json], { type: 'application/json' }), planFilename('json'));
+  }
+
+  function readProjectFile(file, handle) {
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const project = JSON.parse(reader.result);
-        if (!String(project.format || '').startsWith('camera-plan/')) {
-          throw new Error('Unrecognised project format');
-        }
-        // A project saved without a base plan carries positions that are only
-        // meaningful in metres. Opening it must not discard a drawing already
-        // loaded in this session, so the sheet is kept and the coordinates are
-        // rescaled to preserve the spacing between positions.
-        const carriesPlan = Boolean(project.background);
-        const sourceScale = project.pxPerMetre || state.pxPerMetre;
-
-        if (carriesPlan) {
-          state.content = project.content;
-          state.background = project.background;
-          state.pxPerMetre = project.pxPerMetre;
-          state.calibrated = Boolean(project.calibrated);
-          state.plotRatio = project.plotRatio || null;
-        } else if (project.calibrated && !state.calibrated) {
-          state.content = project.content;
-          state.pxPerMetre = project.pxPerMetre;
-          state.calibrated = true;
-        }
-
-        const factor = state.pxPerMetre / sourceScale;
-        const remap = (point) => ({ x: point.x * factor, y: point.y * factor });
-
-        // Files before version 4 stored the front element as the position. Moving
-        // the anchor back onto the pan axis keeps the glass where it was drawn.
-        const legacyAnchor = Number(String(project.format).split('/')[1]) < 4;
-        state.cameras = project.cameras.map((camera) => {
-          const mount = camera.mount || LEGACY_MOUNTS[camera.type] || 'special';
-          const merged = {
-            ...defaultsFor(mount), ...camera, mount,
-            x: camera.x * factor,
-            y: camera.y * factor,
-            path: (camera.path || []).map(remap)
-          };
-          if (legacyAnchor && !isArm(merged)) {
-            const seat = pointOnCircle(merged.x, merged.y,
-              -pivotOffset(merged) * state.pxPerMetre, merged.heading);
-            merged.x = seat.x;
-            merged.y = seat.y;
-          }
-          return merged;
-        });
-        state.dimensions = (project.dimensions || []).map((dimension) => ({
-          a: remap(dimension.a), b: remap(dimension.b)
-        }));
-        state.measure.a = null;
-        state.nextNumber = project.nextNumber || state.cameras.length + 1;
-        state.selectedId = null;
-        el('meta-production').value = project.meta.production || '';
-        el('meta-venue').value = project.meta.venue || '';
-        el('meta-date').value = project.meta.date || '';
-        el('meta-revision').value = project.meta.revision || '';
-        el('meta-author').value = project.meta.author || '';
-        render();
-        fitToContent();
+        applyProject(JSON.parse(reader.result));
+        projectHandle = handle || null;
+        showHint(`Opened ${file.name}`, true);
       } catch (error) {
         showHint('That file is not a camera plan project', true);
       }
     };
     reader.readAsText(file);
+  }
+
+  async function openProjectFile() {
+    if (hasFilePicker && typeof window.showOpenFilePicker === 'function') {
+      try {
+        const [handle] = await window.showOpenFilePicker({ types: PICKER_TYPES, multiple: false });
+        readProjectFile(await handle.getFile(), handle);
+      } catch (error) {
+        if (!(error && error.name === 'AbortError')) el('file-project').click();
+      }
+      return;
+    }
+    el('file-project').click();
+  }
+
+  el('action-save-project').addEventListener('click', () => saveProject(false));
+  el('action-save-as').addEventListener('click', () => saveProject(true));
+  el('action-open-project').addEventListener('click', openProjectFile);
+
+  el('file-project').addEventListener('change', (event) => {
+    const file = event.target.files[0];
     event.target.value = '';
+    if (file) readProjectFile(file, null);
   });
+
+  window.addEventListener('keydown', (event) => {
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 's') {
+      event.preventDefault();
+      saveProject(event.shiftKey);
+    }
+  });
+
+  /* Autosave --------------------------------------------------------------- */
+
+  const AUTOSAVE_KEY = 'tsg-sightline/autosave';
+  let autosaveTimer = null;
+  let autosaveArmed = false;
+
+  function writeAutosave() {
+    if (!autosaveArmed) return;
+    const project = buildProject();
+    project.savedAt = new Date().toISOString();
+    try {
+      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(project));
+    } catch (error) {
+      // Storage quota is a few megabytes and an embedded venue plan can exceed
+      // it. The positions are the work; the plan can be loaded again.
+      try {
+        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({
+          ...project, background: null, vector: null, logo: null, planOmitted: true
+        }));
+      } catch (inner) {
+        // Storage unavailable altogether. The file model still stands.
+      }
+    }
+    el('restore-bar').hidden = true;
+  }
+
+  function scheduleAutosave() {
+    if (!autosaveArmed) return;
+    window.clearTimeout(autosaveTimer);
+    autosaveTimer = window.setTimeout(writeAutosave, 800);
+  }
+
+  function readAutosave() {
+    try {
+      const raw = localStorage.getItem(AUTOSAVE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function offerRestore() {
+    const saved = readAutosave();
+    const positions = (saved && saved.cameras ? saved.cameras : []).length;
+    if (!saved || !(positions || saved.background || saved.vector)) return;
+    const when = saved.savedAt ? new Date(saved.savedAt) : null;
+    const stamp = when && !Number.isNaN(when.getTime())
+      ? when.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
+      : 'earlier';
+    el('restore-text').textContent =
+      `Unsaved work from ${stamp}: ${positions} position${positions === 1 ? '' : 's'}` +
+      (saved.planOmitted ? ', plan not kept' : '') + '.';
+    el('restore-bar').hidden = false;
+  }
+
+  el('restore-apply').addEventListener('click', () => {
+    const saved = readAutosave();
+    el('restore-bar').hidden = true;
+    if (!saved) return;
+    try {
+      applyProject(saved);
+      if (saved.planOmitted) showHint('Positions restored. Load the plan again to see them on it.', true, 5000);
+    } catch (error) {
+      showHint('The saved work could not be restored', true);
+    }
+  });
+
+  el('restore-discard').addEventListener('click', () => {
+    try {
+      localStorage.removeItem(AUTOSAVE_KEY);
+    } catch (error) {
+      // Nothing to discard if storage is unavailable.
+    }
+    el('restore-bar').hidden = true;
+  });
+
+  window.addEventListener('beforeunload', () => {
+    window.clearTimeout(autosaveTimer);
+    writeAutosave();
+  });
+
+  /* Share link --------------------------------------------------------------
+     Positions are meaningful in metres without a drawing, so a plan can travel
+     in the URL fragment: nothing is stored anywhere, nothing leaves the
+     browser but the link itself, and the venue drawing stays where it was. */
+
+  const toBase64Url = (bytes) => {
+    let binary = '';
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  };
+
+  const fromBase64Url = (text) =>
+    Uint8Array.from(atob(text.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+
+  async function packShare(text) {
+    const bytes = new TextEncoder().encode(text);
+    if (typeof CompressionStream !== 'function') return `j.${toBase64Url(bytes)}`;
+    const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    return `d.${toBase64Url(new Uint8Array(await new Response(stream).arrayBuffer()))}`;
+  }
+
+  async function unpackShare(payload) {
+    const dot = payload.indexOf('.');
+    const kind = payload.slice(0, dot);
+    const bytes = fromBase64Url(payload.slice(dot + 1));
+    if (kind === 'j') return new TextDecoder().decode(bytes);
+    if (kind !== 'd' || typeof DecompressionStream !== 'function') {
+      throw new Error('This browser cannot open the link');
+    }
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Response(stream).text();
+  }
+
+  el('action-share').addEventListener('click', async () => {
+    const project = buildProject();
+    delete project.background;
+    delete project.vector;
+    delete project.logo;
+    const url = `${location.href.split('#')[0]}#plan=${await packShare(JSON.stringify(project))}`;
+    if (url.length > 32000) {
+      showHint('Too much for a link. Save the project file instead.', true);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      showHint(`Link copied, ${Math.ceil(url.length / 1024)} KB. ` +
+        'Positions and title block travel; the drawing does not.', true, 5000);
+    } catch (error) {
+      showHint('Clipboard blocked. Save the project file instead.', true);
+    }
+  });
+
+  async function openSharedPlan(payload) {
+    try {
+      applyProject(JSON.parse(await unpackShare(payload)));
+      showHint('Shared plan opened: positions and title block, no drawing. ' +
+        'Load the venue plan to see them on it.', true, 6000);
+    } catch (error) {
+      showHint('That link does not carry a readable plan', true);
+    } finally {
+      history.replaceState(null, '', location.pathname + location.search);
+    }
+  }
 
   /* Start-up ------------------------------------------------------------- */
 
   window.addEventListener('resize', applyView);
 
   el('meta-date').value = new Date().toISOString().slice(0, 10);
+  el('action-save-as').hidden = !hasFilePicker;
   buildPalette();
+  buildLayerList();
   render();
   fitToContent();
+
+  // A shared link wins over the autosave prompt: the visitor came for the plan
+  // in the link. The autosave stays in storage until the next write.
+  const shared = location.hash.match(/^#plan=([A-Za-z0-9._-]+)$/);
+  if (shared) openSharedPlan(shared[1]);
+  else offerRestore();
+  autosaveArmed = true;
 })();
 </script>
 </body>

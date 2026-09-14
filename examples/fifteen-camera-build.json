@@ -1,9 +1,9 @@
 {
-  "format": "camera-plan/4",
+  "format": "camera-plan/5",
   "meta": {
     "production": "15 camera build",
     "venue": "Venue to be confirmed",
-    "date": "2026-09-13",
+    "date": "2026-09-14",
     "revision": "A",
     "author": ""
   },
@@ -15,6 +15,12 @@
   "calibrated": false,
   "plotRatio": null,
   "background": null,
+  "vector": null,
+  "logo": null,
+  "sheet": {
+    "paper": "A3",
+    "ratio": "fit"
+  },
   "cameras": [
     {
       "id": "cam-plan-01",

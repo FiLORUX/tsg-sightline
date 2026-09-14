@@ -97,7 +97,7 @@ const cameras = POSITIONS.map((position, index) => {
 });
 
 const plan = {
-  format: 'camera-plan/4',
+  format: 'camera-plan/5',
   meta: {
     production: '15 camera build',
     venue: 'Venue to be confirmed',
@@ -110,6 +110,9 @@ const plan = {
   calibrated: false,
   plotRatio: null,
   background: null,
+  vector: null,
+  logo: null,
+  sheet: { paper: 'A3', ratio: 'fit' },
   cameras,
   dimensions: [],
   nextNumber: cameras.length + 1
