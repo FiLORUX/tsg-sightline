@@ -113,7 +113,7 @@ be checked against the supplier rigging data before a position is committed.
 ## Hosting
 
 The tool is one static file and runs from disk; hosting only adds an address.
-The published address is `https://thåst.se/tsg/sightline/`, where the TSG
+The published address is `https://tsg.thast.live/sightline/`, where the TSG
 proxy in the `thast.se` repository mounts it beside the other TSG tools.
 
 The origin behind that address is a Cloudflare Worker defined by

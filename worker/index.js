@@ -1,8 +1,8 @@
 // File: worker/index.js
 // Origin discipline for the tsg-sightline Worker.
 //
-// The tool is served to the public by the tsg-proxy Worker under
-// /tsg/sightline on the apex; this Worker's own *.workers.dev hostname is an
+// The tool is served to the public by the tsg-proxy Worker at
+// tsg.thast.live/sightline; this Worker's own *.workers.dev hostname is an
 // origin, never a surface. A request that reaches the origin name directly
 // answers 308 to the canonical path, path and query preserved, so no search
 // engine indexes a duplicate. The proxy marks its own fetches with
@@ -11,7 +11,7 @@
 // Rule: one canonical, the rest redirect (thast.se doctrine §2.4). The origin
 // list per surface lives in thast.se/internal/data/surfaces.json and the
 // nightly loop asserts that no origin is ever indexable.
-const CANONICAL = 'https://xn--thst-roa.se/tsg/sightline';
+const CANONICAL = 'https://tsg.thast.live/sightline';
 const ORIGIN_SUFFIX = '.workers.dev';
 const REDIRECT_STATUSES = new Set([301, 302, 307, 308]);
 
