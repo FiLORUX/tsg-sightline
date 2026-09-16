@@ -2,7 +2,7 @@
 // Origin for TSG Sightline: a Worker that serves the repository's static
 // assets and enforces origin discipline (see worker/index.js).
 //
-// The public address is https://thåst.se/tsg/sightline/, mounted by the
+// The public address is https://tsg.thast.live/sightline/, mounted by the
 // tsg-proxy Worker in the thast.se repository. This Worker's own
 // *.workers.dev name is an origin, never a surface, so no custom domain is
 // bound here on purpose. Deploy with `npx wrangler deploy`.
