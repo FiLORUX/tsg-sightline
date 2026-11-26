@@ -1,0 +1,33 @@
+import {createEquipment} from './equipment-core.mjs';
+const equipmentTests=function equipmentTests(E){
+  let n=0;const check=(v,s)=>{if(!v)throw Error(s);n++},near=(a,b,t=1e-6)=>Math.abs(a-b)<t;
+  const c={wide:8.2,tele:1000,imagerWidth:9.6,imagerHeight:5.4,aspect:16/9,cameraMount:'B4',lensMount:'B4',lensPresetId:'uj122'};
+  const p=E.frame(c,1000);
+  check(p.valid&&near(p.hfov,2*Math.atan(9.6/2000)*180/Math.PI),'native focal length');
+  check(p.hfov<.6,'no artificial minimum angle');
+  check(near(E.frame({...c,extender:2},1000).effectiveFocal,2000),'extender applied once');
+  check(near(E.frame({...c,extender:2},1000).tanH,p.tanH/2),'extender field width');
+  check(near(E.frame({...c,cropFactor:2},1000).tanH,p.tanH/2),'digital crop field width');
+  check(!E.frame({...c,cameraMount:'PL'},1000).valid,'mount mismatch');
+  check(!E.frame({...c,extender:1.4},1000).valid,'unsupported extender');
+  check(!E.frame({...c,imagerWidth:28,imagerHeight:15.7},1000).valid,'image circle mismatch');
+  check(!E.frame({...c,imagerWidth:28,imagerHeight:15.7,extender:2},1000).valid,'internal B4 extender does not establish larger circle');
+  const arri=E.cameraDefaults('arri-alexa-35-live','46-169'),arri4=E.cameraDefaults('arri-alexa-35-live','4k-169');
+  check(arri.imagerWidth===28&&arri.imagerHeight===15.7,'ALEXA 35 mode');
+  check(arri4.imagerWidth===24.9&&arri4.imagerHeight===14,'ALEXA 35 crop');
+  check(E.frame({...arri,...E.lensDefaults('cabrio20')},20).hfov>E.frame({...arri4,...E.lensDefaults('cabrio20')},20).hfov,'active aperture affects FOV');
+  check(E.cameraDefaults('blackmagicdesign-ursa-broadcast-g2','b4-169').imagerWidth===9.6,'URSA relay');
+  check(E.cameraDefaults('blackmagicdesign-ursa-broadcast-g2','ef-6k').imagerWidth===23.1,'URSA EF');
+  const ptz=E.cameraDefaults('panasonic-aw-ue160');check(near(E.frame(ptz,8.8).hfov,75.1)&&near(E.frame(ptz,176).hfov,4),'PTZ endpoints');
+  check(E.frame(ptz,40).hfov>4&&E.frame(ptz,40).hfov<75.1,'PTZ interpolation');
+  const tail=E.cameraDefaults('obsbot-tail-2');check(near(E.frame(tail,4.6).hfov,81)&&near(E.frame(tail,23).hfov,18),'OBSBOT endpoints');
+  check(!E.frame({...tail,extender:2},23).valid,'fixed-lens extender rejected');
+  const adv=E.cameraDefaults('obsbot-tail-2-adv');check(near(E.frame(adv,5.3).hfov,55)&&E.frame(adv,5.3).vfov<42,'explicit output crop');
+  check(!E.frame(E.cameraDefaults('panasonic-aw-un70'),4.08).valid,'unknown aperture');
+  check(E.cameras.every(c=>E.sources[c.source]&&c.modes.every(m=>E.sources[m.source])),'camera sources');
+  check(E.lenses.every(l=>E.sources[l.source]&&l.wide>0&&l.tele>=l.wide),'lens sources');
+  check(new Set(E.cameras.map(c=>c.id)).size===E.cameras.length&&new Set(E.lenses.map(l=>l.id)).size===E.lenses.length,'unique identities');
+  check(E.lensById('cj45wide').kind==='field'&&E.lensById('ua27').kind==='box','lens form factor');
+  return n
+};
+console.log(equipmentTests(createEquipment())+' equipment assertions passed');
