@@ -253,6 +253,9 @@
   .previs-top span { flex:1; color:var(--ink-dim); text-align:right; }
   #previs-canvas { width:100%; aspect-ratio:16/9; max-height:34vh; display:block; background:#111821; flex-shrink:0; }
   .previs-controls { padding:10px; overflow-y:auto; }
+  #chain-issues { white-space:pre-wrap; }
+  .chain-details { border-top:1px solid var(--line); margin:8px 0;padding:8px 0; }
+  .chain-details summary { cursor:pointer;font-weight:600;margin-bottom:8px; }
   .previs-controls details { border-top:1px solid var(--line); margin-top:8px; padding-top:6px; }
   .previs-controls summary { cursor:pointer; padding:6px 0; font-weight:600; }
   .previs-readout { padding:7px 10px; font:11px var(--font-data); color:var(--ink-dim); white-space:pre-wrap; }
@@ -476,7 +479,7 @@
       <div id="camera-editor" hidden>
         <div class="row">
           <div class="field">
-            <label for="cam-number">Number</label>
+            <label for="cam-number">Director camera number</label>
             <input type="text" id="cam-number">
           </div>
           <div class="field">
@@ -485,7 +488,7 @@
           </div>
         </div>
         <div class="field">
-          <label for="cam-label">Description</label>
+          <label for="cam-label">Position / coverage call</label>
           <input type="text" id="cam-label">
         </div>
         <div class="row">
@@ -587,8 +590,25 @@
         <div class="field">
           <div class="readout" id="readout-coverage"></div>
         </div>
+        <details class="chain-details">
+          <summary>Camera chain &amp; interfaces</summary>
+          <div class="field"><div id="chain-position" class="readout"></div><label for="chain-role">Position role</label><select id="chain-role"><option value="primary">Primary</option><option value="alternate">Alternate</option></select></div>
+          <div class="button-row"><button id="action-alternate">Create linked alternate position</button><button id="action-detach-chain">Detach as new chain</button></div>
+          <div class="field"><label for="chain-umd">UMD / source label</label><input id="chain-umd" type="text" maxlength="200" autocomplete="off"></div>
+          <div class="field"><label for="chain-sourceId">Source ID</label><input id="chain-sourceId" type="text" maxlength="200" autocomplete="off"></div>
+          <div class="field"><label for="chain-ccu">CCU / base station</label><input id="chain-ccu" type="text" maxlength="200" autocomplete="off"></div>
+          <div class="field"><label for="chain-rcp">RCP / paint allocation</label><input id="chain-rcp" type="text" maxlength="200" autocomplete="off"></div>
+          <div class="field"><label for="chain-rfLink">RF link / TX-RX assignment</label><input id="chain-rfLink" type="text" maxlength="200" autocomplete="off"></div>
+          <div class="field"><label for="chain-handoverFormat">Handover format</label><input id="chain-handoverFormat" type="text" maxlength="200" autocomplete="off"></div>
+          <div class="field"><label for="chain-patch">Router input / patch</label><input id="chain-patch" type="text" maxlength="200" autocomplete="off"></div>
+          <div class="field"><label for="chain-tally">Tally interface</label><input id="chain-tally" type="text" maxlength="200" autocomplete="off"></div>
+          <div class="field"><label for="chain-returnVideo">Return video</label><input id="chain-returnVideo" type="text" maxlength="200" autocomplete="off"></div>
+          <div class="field"><label for="chain-intercom">Camera intercom</label><input id="chain-intercom" type="text" maxlength="200" autocomplete="off"></div>
+          <div class="field"><label for="chain-notes">Open confirmations</label><input id="chain-notes" type="text" maxlength="200" autocomplete="off"></div>
+          <div class="readout">Shared fields apply to every linked position. Alternate positions are not extra concurrent sources.</div>
+        </details>
         <div class="button-row">
-          <button id="action-duplicate">Duplicate</button>
+          <button id="action-duplicate">Duplicate as new chain</button>
           <button id="action-delete" class="danger">Delete</button>
         </div>
       </div>
@@ -596,7 +616,9 @@
     </section>
 
     <section class="group">
-      <h2>Camera list</h2>
+      <h2>Camera positions</h2>
+      <div id="chain-summary" class="readout" role="status"></div>
+      <div id="chain-issues" class="readout"></div>
       <table class="camera-list">
         <thead>
           <tr><th></th><th>No</th><th>Position</th><th>HFOV</th></tr>
@@ -605,8 +627,10 @@
       </table>
       <p class="empty" id="list-empty">The list builds itself as positions are placed.</p>
       <div class="button-row" style="margin-top:12px">
-        <button id="action-copy-list">Copy list</button>
-        <button id="action-renumber">Renumber</button>
+        <button id="action-copy-list">Copy position list</button>
+        <button id="action-renumber">Renumber chains</button>
+      </div>
+      <div class="button-row"><button id="action-export-chains">Export chain schedule TSV</button><button id="action-copy-chains">Copy chain schedule</button>
       </div>
     </section>
 
@@ -652,7 +676,7 @@
         <button id="action-save-project" title="Ctrl+S">Save project</button>
         <button id="action-save-as" title="Ctrl+Shift+S" hidden>Save as</button>
         <button id="action-open-project">Open project</button>
-        <button id="action-share" title="Positions and title block travel in the link; the drawing does not">Copy share link</button>
+        <button id="action-share" title="Position geometry and title block travel; venue drawing, 3D model and chain interface details do not">Copy share link</button>
       </div>
       <input type="file" id="file-project" accept="application/json,.json">
     </section>
@@ -1590,7 +1614,13 @@
     return { x: (x - bounds.minX + margin) * pxPerUnit, y: (bounds.maxY - y + margin) * pxPerUnit };
   }
 
+  // Geometry is immutable between base-plan imports. Camera movement does not
+  // rebuild the tens of thousands of CAD segments or their SVG path strings.
+  let vectorCachePlan=null,vectorCacheKey='';
   function renderVector() {
+    const signature=state.vector?JSON.stringify([state.monochrome,state.vector.layers.map(x=>x.visible)]):'';
+    if(state.vector===vectorCachePlan&&signature===vectorCacheKey)return;
+    vectorCachePlan=state.vector;vectorCacheKey=signature;
     clear(layers.vector);
     if (!state.vector) return;
     // One path per layer keeps the DOM small on a plan with tens of thousands of
@@ -2156,7 +2186,7 @@
     const target = candidates.find((metres) => metres * state.pxPerMetre * state.view.k > 90)
       || candidates[candidates.length - 1];
     el('scale-rule').style.width = `${target * state.pxPerMetre * state.view.k}px`;
-    el('scale-label').textContent = `${target} m`;
+    el('scale-label').textContent = `${Spatial.trusted(state.scaleEvidence,state.pxPerMetre)?'':'~'}${target} m`;
   }
 
   function updateReadouts() {
@@ -2175,12 +2205,12 @@
 
     if (state.vector) {
       const { bounds, units, layers: vectorLayers } = state.vector;
-      const factor = VECTOR_UNITS[units] || 1;
+      const factor = state.vector.pxPerUnit / state.pxPerMetre;
       el('readout-vector').textContent =
         `${vectorLayers.length} layers. Drawing extent ` +
         `${format((bounds.maxX - bounds.minX) * factor, 1)} by ` +
         `${format((bounds.maxY - bounds.minY) * factor, 1)} m. ` +
-        'If that is ten or a thousand times off, the units above are wrong.';
+        'Check the extent against the source drawing; an inferred unit is not evidence.';
     }
 
     const plot = outputPlot();
@@ -2213,6 +2243,11 @@
     el('cam-tele').value = camera.tele;
     el('cam-throw').value = camera.throwMetres;
     el('cam-rf').checked = camera.rf;
+    el('chain-role').value = Chains.role(camera);
+    const members = state.cameras.filter(p => Chains.identity(p) === Chains.identity(camera));
+    el('chain-position').textContent = 'Cam ' + camera.number + ' · ' + members.length + ' linked position(s) · ' + (Chains.role(camera) === 'alternate' ? 'ALTERNATE' : 'PRIMARY');
+    el('action-detach-chain').disabled = members.length <= 1 && Chains.role(camera) === 'primary';
+    for (const [key] of Chains.fields) if(document.activeElement !== el('chain-'+key)) el('chain-'+key).value = camera.chainDetails?.[key] || '';
 
     el('arm-fields').hidden = !isArm(camera);
     el('roam-fields').hidden = !isRoaming(camera);
@@ -2269,7 +2304,7 @@
       row.appendChild(glyphCell);
 
       const cells = [
-        { text: camera.number },
+        { text: camera.number + (Chains.role(camera) === 'alternate' ? ' ALT' : '') },
         { text: camera.label || mountById(camera.mount).short, truncate: true },
         { text: `${format(wideAov, 0)}-${format(teleAov, teleAov < 10 ? 1 : 0)}\u00b0` }
       ];
@@ -2281,6 +2316,9 @@
       }
       body.appendChild(row);
     }
+    const summary = Chains.analyse(state.cameras);
+    el('chain-summary').textContent = summary.chainCount + ' unique chains · ' + summary.positionCount + ' positions · ' + summary.alternateCount + ' alternate(s)';
+    el('chain-issues').textContent = summary.issues.length ? summary.issues.slice(0,8).map(x=>'Cam '+(x.number||'?')+': '+x.message).join('\n')+(summary.issues.length>8?'\nAdditional conflicts in chain schedule.':'') : 'No chain identity conflicts detected. Technical approval remains separate.';
   }
 
   function buildPalette() {
@@ -2321,6 +2359,7 @@
     renderHandles();
     renderCalibration();
     updateReadouts();
+    updateScaleBar();
     updateEditor();
     updateList();
     invalidatePoint();
@@ -2337,6 +2376,7 @@
       id: 'preview',
       number: '1',
       label: '',
+      chainId: null, positionRole: 'primary', chainDetails: {},
       mount: mountId,
       body: '',
       control: '',
@@ -2363,7 +2403,7 @@
       ...(previous ? { ...previous, path: [] } : defaultsFor(mountId)),
       id: `cam-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
       number: String(state.nextNumber),
-      label: '',
+      label: '', chainId: null, positionRole: 'primary', chainDetails: {},
       x: point.x,
       y: point.y
     };
@@ -2378,6 +2418,8 @@
     const camera = selected();
     if (!camera) return;
     Object.assign(camera, changes);
+    const common = Chains.sharedChanges(changes);
+    if (Object.keys(common).length) for (const peer of state.cameras) if (peer !== camera && Chains.identity(peer) === Chains.identity(camera)) Object.assign(peer, common);
     if (isArm(camera)) camera.reach = clamp(camera.reach, camera.reachMin, camera.reachMax);
     render();
   }
@@ -2911,6 +2953,7 @@
       ...source,
       id: `cam-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
       number: String(state.nextNumber),
+      chainId: null, positionRole: 'primary', chainDetails: {},
       x: source.x + 60,
       y: source.y + 60,
       path: source.path.map((point) => ({ x: point.x + 60, y: point.y + 60 }))
@@ -2922,8 +2965,8 @@
   });
 
   el('action-renumber').addEventListener('click', () => {
-    state.cameras.forEach((camera, index) => { camera.number = String(index + 1); });
-    state.nextNumber = state.cameras.length + 1;
+    state.cameras = Chains.renumber(state.cameras);
+    state.nextNumber = Chains.analyse(state.cameras).chainCount + 1;
     render();
   });
 
@@ -3601,8 +3644,8 @@
   });
 
   el('action-copy-list').addEventListener('click', async () => {
-    const header = ['No', 'Position', 'Camera', 'Control', 'Lens', 'Mount', 'Viewfinder',
-      'HFOV wide', 'HFOV tele', 'Distance', 'Frame tele', 'Height', 'Reach', 'Link'];
+    const header = ['Director number', 'Position / coverage call', 'Camera', 'Control', 'Lens', 'Mount', 'Viewfinder',
+      'HFOV wide', 'HFOV tele', 'Distance', 'Frame tele', 'Lens height above mount', 'Horizontal reach', 'Link', 'Chain ID', 'Position role', 'Mount datum Z', 'Head tilt', 'Head roll', 'Scale status'];
     const rows = state.cameras.map((camera) => {
       const wideAov = angleOfView(camera.wide, camera.imagerWidth);
       const teleAov = angleOfView(camera.tele, camera.imagerWidth);
@@ -3620,8 +3663,8 @@
         `${format(frameWidth(camera.throwMetres, teleAov), 2)} m`,
         `${format(camera.height, 2)} m`,
         isArm(camera) ? `${format(camera.reachMin, 1)}-${format(camera.reachMax, 1)} m` : '',
-        camera.rf ? 'RF' : 'Cabled'
-      ].join('\t');
+        camera.rf ? 'RF' : 'Cabled', Chains.identity(camera), Chains.role(camera), camera.floorZ||0, camera.tilt||0, camera.roll||0, Spatial.scaleStatus(state.scaleEvidence,state.pxPerMetre)
+      ].map(Chains.cell).join('\t');
     });
     try {
       await navigator.clipboard.writeText([header.join('\t'), ...rows].join('\n'));
@@ -3940,6 +3983,7 @@
     delete project.logo;
     delete project.previs;
     delete project.scaleEvidence;
+    project.cameras = project.cameras.map(({chainDetails,...position})=>position);
     const url = `${location.href.split('#')[0]}#plan=${await packShare(JSON.stringify(project))}`;
     if (url.length > 32000) {
       showHint('Too much for a link. Save the project file instead.', true);
@@ -3966,8 +4010,56 @@
     }
   }
 
+  // #region chain-core
+  const Chains = (function createChainCore(){
+  const fields=[
+    ['umd','UMD / source label'],['sourceId','Source ID'],['ccu','CCU / base station'],['rcp','RCP / paint allocation'],['rfLink','RF link / TX-RX assignment'],
+    ['handoverFormat','Handover format'],['patch','Router input / patch'],['tally','Tally interface'],['returnVideo','Return video'],
+    ['intercom','Camera intercom'],['notes','Open confirmations']
+  ];
+  const identity=c=>String(c.chainId||c.id);
+  const role=c=>c.positionRole==='alternate'?'alternate':'primary';
+  const value=(c,key)=>String(c.chainDetails?.[key]??'').trim();
+  const details=c=>Object.fromEntries(fields.map(([k])=>[k,value(c,k)]));
+  const text=v=>String(v??'').trim();
+  // Protect spreadsheet exports from formula injection and embedded delimiters.
+  const cell=v=>{const s=String(v??'').replace(/[\t\r\n]+/g,' ').trim();return /^[=+\-@]/.test(s)?"'"+s:s};
+  function analyse(positions){
+    const map=new Map(),issues=[],numbers=new Map(),sources=new Map();
+    for(const p of positions){
+      const id=identity(p);if(!map.has(id))map.set(id,[]);map.get(id).push(p);
+    }
+    const chains=[];
+    for(const [id,members] of map){
+      const primary=members.filter(p=>role(p)==='primary'),alternates=members.filter(p=>role(p)==='alternate'),lead=primary[0]||members[0],number=text(lead.number),src=value(lead,'sourceId');
+      const errors=[];
+      if(primary.length!==1)errors.push(primary.length?'More than one primary position':'No primary position');
+      if(!number)errors.push('Director number missing');
+      for(const [key,label] of [['number','Director number'],['body','Camera body'],['lensName','Lens'],['control','Camera control'],['imagerId','Imager format'],['imagerWidth','Active imager width'],['wide','Wide focal length'],['tele','Tele focal length'],['rf','Link type'],['viewfinder','Viewfinder']]){
+        if(members.some(p=>text(p[key])!==text(lead[key])))errors.push(`${label} differs between linked positions`);
+      }
+      for(const [k,label] of fields){if(members.some(p=>value(p,k)!==value(lead,k)))errors.push(`${label} differs between linked positions`)}
+      const chain={id,number,lead,primary,alternates,errors,details:details(lead)};
+      chains.push(chain);
+      for(const [key,bucket] of [[number,numbers],[src,sources]])if(key){const a=bucket.get(key)||[];a.push(chain);bucket.set(key,a)}
+    }
+    for(const [key,list] of numbers)if(list.length>1)for(const c of list)c.errors.push(`Director number ${key} is assigned to multiple chains`);
+    for(const [key,list] of sources)if(list.length>1)for(const c of list)c.errors.push(`Source ID ${key} is assigned to multiple chains`);
+    for(const c of chains)for(const msg of c.errors)issues.push({chainId:c.id,number:c.number,message:msg});
+    return {chains,issues,positionCount:positions.length,alternateCount:positions.filter(p=>role(p)==='alternate').length,chainCount:chains.length,primaryCount:positions.filter(p=>role(p)==='primary').length}
+  }
+  function schedule(positions){
+    const a=analyse(positions),header=['Director number','Chain ID','UMD / source label','Source ID','Primary coverage call','Alternate positions','Camera body','Lens','Mount','Viewfinder','Camera control','Transport','CCU / base station','RCP / paint','RF link / TX-RX','Handover format','Router input / patch','Tally interface','Return video','Camera intercom','Open confirmations','Validation'];
+    const rows=a.chains.map(c=>{const p=c.lead,d=c.details;return [c.number,c.id,d.umd,d.sourceId,c.primary.map(x=>x.label||x.mount).join(' | '),c.alternates.map(x=>x.label||x.mount).join(' | '),p.body,p.lensName||`${p.wide??''}-${p.tele??''} mm`,p.mount,p.viewfinder,p.control,p.rf?'RF':'Cabled',d.ccu,d.rcp,d.rfLink,d.handoverFormat,d.patch,d.tally,d.returnVideo,d.intercom,d.notes,c.errors.join('; ')||'No identity conflicts detected; not approved']});
+    return [header,...rows].map(row=>row.map(cell).join('\t')).join('\r\n')
+  }
+  function renumber(positions){const groups=new Map();let next=1;return positions.map(p=>{const id=identity(p);if(!groups.has(id))groups.set(id,String(next++));return {...p,number:groups.get(id)}})}
+  function sharedChanges(changes){const keys=['number','body','lensName','control','viewfinder','wide','tele','imagerId','imagerWidth','rf','chainDetails'];return Object.fromEntries(keys.filter(k=>Object.hasOwn(changes,k)).map(k=>[k,changes[k]]))}
+  return {fields,identity,role,details,cell,analyse,schedule,renumber,sharedChanges}
+})();
+  // #endregion chain-core
   // #region spatial-core
-  const Spatial = (function createSpatialCore(){
+  const SpatialFactory = (function createSpatialCore(){
   'use strict';
   // Local production coordinates: +X sheet right, +Y sheet up, +Z elevation.
   const rad=x=>x*Math.PI/180,deg=x=>x*180/Math.PI;
@@ -4067,9 +4159,10 @@
   const scaleStatus=(e,ppm)=>e&&Number.isFinite(ppm)&&ppm>0&&Math.abs(e.pxPerMetre-ppm)<=1e-8*Math.max(1,ppm)&&['estimated','confirmed','verified'].includes(e.status)?e.status:'uncalibrated';
   const trusted=(e,ppm)=>['confirmed','verified'].includes(scaleStatus(e,ppm));
   return {rad,deg,add,sub,mul,dot,cross,norm,planPoint,axes,optics,project,register,inverseRegister,fitRegistration,parseGlb,firstHit,scaleStatus,trusted}
-})();
+});
+  const Spatial = SpatialFactory();
   // #endregion spatial-core
-  const previs = { registration:{x:0,y:0,z:0,rotation:0,confirmed:false}, target:[0,0,1.5], model:null, name:'', frame:0, loadToken:0, paint:null, clearGpu:null };
+  const previs = { registration:{x:0,y:0,z:0,rotation:0,confirmed:false}, target:[0,0,1.5], model:null, name:'', frame:0, loadToken:0, paint:null, clearGpu:null, cancelLoad:null, loading:false };
   let scaleSourceDirty=false;
   function invalidatePoint(){ el('previs-hit').textContent='No current result. Check the point again after any change.'; }
   function queuePrevis(){
@@ -4085,6 +4178,8 @@
   }
   function resetPrevis(saved){
     ++previs.loadToken;
+    if(previs.cancelLoad)previs.cancelLoad();
+    previs.loading=false;
     if(previs.clearGpu)previs.clearGpu();
     previs.model=null;previs.name='';
     const r=saved?.registration||{};
@@ -4094,6 +4189,23 @@
     invalidatePoint();
   }
   el('scale-source').addEventListener('input',()=>{scaleSourceDirty=true;});
+  el('chain-role').addEventListener('change',e=>updateSelected({positionRole:e.target.value}));
+  for(const [key] of Chains.fields) el('chain-'+key).addEventListener('input',e=>{
+    const c=selected();if(c)updateSelected({chainDetails:{...(c.chainDetails||{}),[key]:e.target.value}});
+  });
+  el('action-alternate').addEventListener('click',()=>{
+    const source=selected();if(!source)return;
+    const id=Chains.identity(source);source.chainId=id;
+    const shift=state.pxPerMetre*2;
+    const copy={...source,id:'cam-'+Date.now()+'-'+Math.round(Math.random()*1e6),chainId:id,positionRole:'alternate',label:(source.label||'Position')+' (alternate)',x:source.x+shift,y:source.y+shift,path:source.path.map(p=>({x:p.x+shift,y:p.y+shift}))};
+    state.cameras.push(copy);state.selectedId=copy.id;render();
+  });
+  el('action-detach-chain').addEventListener('click',()=>{
+    const c=selected();if(!c)return;
+    c.chainId='chain-'+Date.now()+'-'+Math.round(Math.random()*1e6);c.positionRole='primary';c.number=String(state.nextNumber++);c.chainDetails={};render();
+  });
+  el('action-export-chains').addEventListener('click',()=>download(new Blob([Chains.schedule(state.cameras)],{type:'text/tab-separated-values;charset=utf-8'}),planFilename('chains.tsv')));
+  el('action-copy-chains').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(Chains.schedule(state.cameras));showHint('Chain schedule copied',true)}catch{showHint('Clipboard unavailable. Export the TSV file instead.',true)}});
   el('action-confirm-scale').addEventListener('click',()=>{
     const source=el('scale-source').value.trim();
     if(!source){showHint('Record the drawing reference or independent check first.',true);return;}
@@ -4183,7 +4295,7 @@ void main(){float shade=1.0;if(lit){vec3 n=cross(dFdx(world),dFdy(world));float 
     const registered=!!P.model&&Spatial.trusted(state.scaleEvidence,state.pxPerMetre)&&!!P.registration.confirmed;
     el('previs-registration').disabled=!P.model||!Spatial.trusted(state.scaleEvidence,state.pxPerMetre);el('previs-registration').checked=registered;
     el('previs-status').textContent=registered?'Operator-registered · model only':'Unverified geometry / scale';
-    el('previs-model').textContent=P.model?`${P.name} · ${P.model.count.toLocaleString('en-GB')} triangles · ${P.model.nonOpaque} non-opaque triangles omitted. Geometry only; no textures.`:'No mesh loaded. Model stays in this browser.';
+    el('previs-model').textContent=P.loading?'Reading local geometry in worker…':P.model?`${P.name} · ${P.model.count.toLocaleString('en-GB')} triangles · ${P.model.nonOpaque} non-opaque triangles omitted. Geometry only; no textures.`:'No mesh loaded. Model stays in this browser.';
   }
   P.paint=()=>{
     updateControls();const c=selectedCamera();let info='Local XYZ in metres · sheet +Y towards top · +Z up';
@@ -4199,14 +4311,34 @@ void main(){float shade=1.0;if(lit){vec3 n=cross(dFdx(world),dFdy(world));float 
   for(const [id,key,min,max] of [['previs-floor','floorZ',-1000,1000],['previs-tilt','tilt',-89,89],['previs-roll','roll',-180,180],['previs-pan','headPan',-180,180],['previs-focal','focalMm',.1,10000],['previs-aspect','aspect',1,4]])el(id).addEventListener('change',()=>{const c=selectedCamera();if(!c)return;state.selectedId=c.id;const value=readNumber(id,c[key]??(key==='focalMm'?c.wide:0));updateSelected({[key]:key==='focalMm'?clamp(value,Math.min(c.wide,c.tele),Math.max(c.wide,c.tele)):clamp(value,min,max)})});
   for(const [id,end] of [['previs-wide','wide'],['previs-tele','tele']])el(id).addEventListener('click',()=>{const c=selectedCamera();if(c){state.selectedId=c.id;updateSelected({focalMm:c[end]})}});
   el('previs-load').addEventListener('click',()=>el('previs-file').click());
+  function readLocalModel(file,token){
+    if(typeof Worker!=='function')return file.arrayBuffer().then(bytes=>S.parseGlb(bytes));
+    return new Promise((resolve,reject)=>{
+      const workerCode='const S=('+SpatialFactory.toString()+')();self.onmessage=async e=>{try{const model=S.parseGlb(await e.data.arrayBuffer());self.postMessage({model},model.chunks.map(c=>c.xyz.buffer))}catch(err){self.postMessage({error:err.message||String(err)})}};';
+      const url=URL.createObjectURL(new Blob([workerCode],{type:'text/javascript'}));
+      let worker;
+      try{worker=new Worker(url)}catch(e){URL.revokeObjectURL(url);reject(new Error('Local parser worker unavailable: '+e.message));return}
+      URL.revokeObjectURL(url);
+      const finish=()=>{worker.terminate();if(P.cancelLoad===cancel)P.cancelLoad=null};
+      const cancel=()=>{finish();reject(new Error('Model import cancelled'))};
+      P.cancelLoad=cancel;
+      worker.onmessage=e=>{finish();if(e.data.error)reject(new Error(e.data.error));else resolve(e.data.model)};
+      worker.onerror=e=>{finish();reject(new Error(e.message||'Model parser worker failed'))};
+      worker.postMessage(file);
+    });
+  }
   el('previs-file').addEventListener('change',async e=>{
     const file=e.target.files[0];e.target.value='';if(!file)return;
     if(file.size>160*1024*1024){showHint('GLB exceeds 160 MiB; export a simplified model.',true);return}
-    const token=++P.loadToken;el('previs-model').textContent='Reading local geometry…';
-    try{const bytes=await file.arrayBuffer();if(token!==P.loadToken)return;const model=S.parseGlb(bytes);clearBuffers();P.model=model;P.name=file.name;P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();queuePrevis()}
-    catch(err){if(token===P.loadToken){showHint(err.message,true,7000);queuePrevis()}}
+    const token=++P.loadToken;if(P.cancelLoad)P.cancelLoad();P.loading=true;
+    el('previs-model').textContent='Reading local geometry…';
+    try{
+      const model=await readLocalModel(file,token);if(token!==P.loadToken)return;
+      clearBuffers();P.model=model;P.name=file.name;P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();
+    }catch(err){if(token===P.loadToken)showHint(err.message,true,7000)}
+    finally{if(token===P.loadToken){P.loading=false;queuePrevis()}}
   });
-  el('previs-remove').addEventListener('click',()=>{++P.loadToken;clearBuffers();P.model=null;P.name='';P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();queuePrevis()});
+  el('previs-remove').addEventListener('click',()=>{++P.loadToken;if(P.cancelLoad)P.cancelLoad();P.loading=false;clearBuffers();P.model=null;P.name='';P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();queuePrevis()});
   for(const [id,key] of Object.entries({'previs-rx':'x','previs-ry':'y','previs-rz':'z','previs-rotation':'rotation'}))el(id).addEventListener('change',()=>{P.registration[key]=clamp(readNumber(id,P.registration[key]),-1e6,1e6);P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();scheduleAutosave();queuePrevis()});
   el('previs-fit').addEventListener('click',()=>{try{const xy=id=>{const parts=el(id).value.split(',');if(parts.length!==2||parts.some(p=>!p.trim()))throw Error('Enter X,Y in metres');return parts.map(Number)};const fit=S.fitRegistration(xy('previs-ma'),xy('previs-mb'),xy('previs-pa'),xy('previs-pb'),P.registration.z);P.registration={x:fit.x,y:fit.y,z:fit.z,rotation:fit.rotation,confirmed:false};el('previs-residual').textContent=`Endpoint residual ${fit.residual.toFixed(3)} m · model span ${fit.modelSpan.toFixed(3)} m / plan ${fit.planSpan.toFixed(3)} m. Check independent point and datum.`;invalidatePoint();scheduleAutosave();queuePrevis()}catch(e){el('previs-residual').textContent=e.message}});
   el('previs-registration').addEventListener('change',e=>{P.registration.confirmed=e.target.checked&&!!P.model&&Spatial.trusted(state.scaleEvidence,state.pxPerMetre);invalidatePoint();queuePrevis()});

@@ -128,6 +128,12 @@ Open **3D previs** in the plan toolbar. The venue overview and selected camera f
 
 The project file keeps registration parameters but not the 3D model or its confirmation. Reattach the local model after opening a project. Native DWG/SKP conversion is an authorised external workflow. See [ROADMAP.md](ROADMAP.md) for production scope and release gates.
 
+## Camera-chain schedule
+
+A plotted position is not necessarily a distinct source. Use **Create linked alternate position** for an alternative position of the same chain; its director number and chain metadata remain shared. **Duplicate as new chain** creates an independent source. Chain renumbering operates on chain identity, not physical positions. The position TSV has one row per position; the chain schedule TSV has one row per chain and reports identity conflicts, missing or multiple primary positions and inconsistent common fields. Shared links omit interface details. A conflict-free chain schedule is not a technical or director approval.
+
+The GLB parser uses an isolated local worker with cancellation when Worker is available. The native drawing and model are not transmitted. CAD linework is cached independently of camera movement.
+
 ## Testing
 
 The DXF reader is written without DOM references so it can run in Node:
@@ -135,6 +141,7 @@ The DXF reader is written without DOM references so it can run in Node:
 ```bash
 node tools/test-dxf-parser.mjs
 node tools/test-spatial.mjs
+node tools/test-chain.mjs
 node tools/check-spatial-embed.mjs
 ```
 
