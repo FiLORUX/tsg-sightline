@@ -36,7 +36,7 @@ before anyone unloads a truck.
   the way CAD software records itself on a sheet; the heading names the document.
 - **CAD plans read directly.** A DXF straight from AutoCAD, BricsCAD or
   Vectorworks loads as vector linework with its scale taken from the file, so
-  the calibration step disappears and the plan plots sharp at any ratio. Layers
+  the drawing plots sharply; declared or inferred units need confirmation before dimensioned export. Layers
   can be shown or hidden; text, hatches and dimensions are left out on purpose.
 - **True-scale output.** Choose a paper size and a ratio, or let the sheet pick
   the largest standard ratio that fits, and the title block states it. Print at
@@ -84,8 +84,7 @@ Handling shortcuts are listed at the bottom of the side panel.
 
 ## Project files
 
-Format identifier `camera-plan/5`, which adds the vector plan, the production
-logo and the output sheet settings. Earlier versions open and are migrated:
+Format identifier `camera-plan/6` adds calibration evidence and optical pose/registration parameters. Version 5 added vector plans, production logos and output sheet settings. Legacy scale claims are estimated until confirmed. Earlier versions open and are migrated:
 version 4 lacks those three fields, version 3 anchored positions on the front
 element and is moved back onto the pan axis, single-axis type files are mapped
 onto the mount and lens model.
@@ -123,12 +122,40 @@ off the edge, and a request that reaches the Worker's own `*.workers.dev`
 name answers 308 to the canonical address so no duplicate is ever indexed.
 Deploy with `npx wrangler deploy`; there is still no build step.
 
+## Spatial previsualisation (engineering preview)
+
+Open **3D previs** in the plan toolbar. The venue overview and selected camera frame share the 2D camera state. Set mount datum, lens height, tilt, roll, focal length and relative head pan on arm positions. Load an uncompressed, self-contained, static GLB 2.0 export locally; nothing is uploaded. The viewport renders opaque triangle geometry with WebGL 2; it does not sample textures. Set model origin and yaw manually or fit two paired XY control points, then check an independent control point and the vertical datum before confirming registration. Reported endpoint residual is half the baseline length discrepancy, not an independent validation. Point checks distinguish frame inclusion from finite-ray intersection with loaded opaque triangles; they are not rigging or clearance approvals.
+
+The project file keeps registration parameters but not the 3D model or its confirmation. Reattach the local model after opening a project. Native DWG/SKP conversion is an authorised external workflow. See [ROADMAP.md](ROADMAP.md) for production scope and release gates.
+
+## Camera-chain schedule
+
+A plotted position is not necessarily a distinct source. Use **Create linked alternate position** for an alternative position of the same chain; its director number and chain metadata remain shared. **Duplicate as new chain** creates an independent source. Chain renumbering operates on chain identity, not physical positions. The position TSV has one row per position; the chain schedule TSV has one row per chain and reports identity conflicts, missing or multiple primary positions and inconsistent common fields. Shared links omit interface details. A conflict-free chain schedule is not a technical or director approval.
+
+The GLB parser uses an isolated local worker with cancellation when Worker is available. The native drawing and model are not transmitted. CAD linework is cached independently of camera movement.
+
+## Equipment and optical frame
+
+The registry separates the camera body, acquisition mode, lens, active lens-side aperture, native focal length, optical extender, optical adapter and digital/window crop. It includes 82 camera entries and 86 lens entries, with manufacturer references and explicit nominal or variant-confirmation status. It does not represent an exhaustive or individually measured rental inventory.
+
+The optical kernel supplies the XY projection of the frustum, camera-frame projection and position TSV from the same active aperture. Published integrated-lens horizontal endpoints anchor the PTZ model; intermediate focal positions and vertical output crop are estimates. Unknown apertures and incompatible lens interfaces block the coverage result. The glyph is a nominal planning footprint unless a specific manufacturer dimension is recorded; verify the actual lens support, head and build. Lens distortion, focus breathing and exact optical-centre offset require separate measurement.
+
+Legacy portable links retain the URL fragment and stored optical configuration. A link does not carry CAD, a 3D mesh, interface metadata or verified registration. Reattach authorised venue files locally.
+
+## Release
+
+Keep the canonical URL and Worker name unchanged. The public proxy allows the same-origin geometry-worker.js. Run all regressions, install the pinned browser test dependency and run tools/render-og.mjs before Wrangler deployment to produce the generic 1200 × 630 PNG social card. The author link names the estate's canonical Person page; rel=me remains confined to that page. See [ROADMAP.md](ROADMAP.md) for unimplemented production gates.
+
 ## Testing
 
 The DXF reader is written without DOM references so it can run in Node:
 
 ```bash
 node tools/test-dxf-parser.mjs
+node tools/test-spatial.mjs
+node tools/test-chain.mjs
+node tools/test-equipment.mjs
+node tools/check-spatial-embed.mjs
 ```
 
 The rest of the tool is exercised in a browser. There is no build step to break.

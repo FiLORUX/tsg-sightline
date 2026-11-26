@@ -1,0 +1,32 @@
+name: Sightline regression
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Geometry, camera-chain and source integration tests
+        run: |
+          node tools/test-dxf-parser.mjs
+          node tools/test-spatial.mjs
+          node tools/test-chain.mjs
+          node tools/test-equipment.mjs
+          node tools/check-spatial-embed.mjs
+      - name: Install browser test dependency
+        run: |
+          npm install --no-save --package-lock=false --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Browser regression (synthetic geometry)
+        run: |
+          node tools/test-browser.mjs
+          node tools/render-og.mjs

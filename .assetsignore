@@ -11,3 +11,11 @@ wrangler.jsonc
 .gitattributes
 .gitignore
 .assetsignore
+
+ROADMAP.md
+
+# Source of generated social image, not needed on the edge.
+og.svg
+node_modules
+package-lock.json
+package.json
