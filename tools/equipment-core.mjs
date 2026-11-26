@@ -3,6 +3,9 @@ export function createEquipment(){
   // Native focal length in mm; lens-side active aperture may differ from the
   // physical sensor where a camera contains an optical relay.
   const sources={
+    canon2023:'https://www.usa.canon.com/bin/canon/downloadasset?path=%2Fcontent%2Fdam%2Fcanon-assets%2Fbrochures%2Fpro%2FBroadcast-Cinema-Lens-Catalog_2023.pdf',
+    sonyCurrent:'https://pro.sony/en_BE/products/4k-and-hd-camera-systems',
+    sonyDiscontinued:'https://pro.sony/ue_US/products/4k-and-hd-camera-systems?discontinued=true',
     canonBox:'https://gdlp01.c-wss.com/gds/1/0300044131/02/boxls-omls-d004b-eng.pdf',
     canonUhd:'https://www.usa.canon.com/content/dam/canon-assets/brochures/pro/Broadcast-and-Cinema-Lens-Catalog-2021.pdf',
     canonHd:'https://downloads.canon.com/bctv/BT1-B070-F_web.pdf',
@@ -51,12 +54,12 @@ export function createEquipment(){
   const cid=(brand,name)=>brand.toLowerCase().replace(/[^a-z0-9]/g,'')+'-'+name.toLowerCase().replace(/[^a-z0-9]+/g,'-');
   function camera(brand,name,kind,modes,source,extra={}){cameras.push({id:cid(brand,name),brand,name,kind,modes,source,...extra})}
   function group(brand,names,kind,modes,source){for(const name of names)camera(brand,name,kind,modes,source)}
-  group('Sony',['HDC-5500','HDC-5500V','HDC-5500R','HDC-5500RV','HDC-3500','HDC-3100','HDC-3170'],'system',b4('sonyLive'),'sonyLive');
+  group('Sony',['HDC-5500','HDC-5500V','HDC-3500','HDC-3500V','HDC-3500R','HDC-3500RV','HDC-3200','HDC-3200R','HDC-3100','HDC-3170','HXC-FZ90'],'system',b4('sonyCurrent'),'sonyCurrent');
   group('Sony',['HDC-2500','HDC-2400','HDC-2570'],'system',b4('sony2500'),'sony2500');
-  group('Sony',['HDC-1700','HSC-100RT','HSC-300RT'],'system',b4('sonyLegacy'),'sonyLegacy');
+  group('Sony',['HDC-1700','HSC-100R','HSC-100RF','HSC-300R','HSC-300RF','HXC-FB80','HDC-2000B','HDC-2000W'],'system',b4('sonyDiscontinued'),'sonyDiscontinued');
   group('Sony',['HDC-4300'],'system-hfr',b4('sony2018'),'sony2018');
   group('Sony',['HDC-P1','HDC-P1/A'],'compact-b4',b4('sonyP1'),'sonyP1');
-  group('Sony',['HDC-P31','HDC-P50'],'compact-b4',b4('sonyHdc'),'sonyHdc');
+  group('Sony',['HDC-P31','HDC-P50','HDC-P50A','HXC-P70'],'compact-b4',b4('sonyCurrent'),'sonyCurrent');
   camera('Sony','HDC-P43','compact-b4',b4('sonyP43'),'sonyP43',{dimensions:{width:119,height:140,depth:212}});
   group('Sony',['HDC-F5500','HDC-F5500V'],'large-sensor-system',s35('PL','sonyCine'),'sonyCine');
   camera('Sony','HDC-4800','system-hfr',s35('PL','sony2018'),'sony2018');
@@ -145,6 +148,15 @@ export function createEquipment(){
   lens('Angénieux','optimo25','Optimo 25-250 (S35)',25,250,'PL','field','sonyCine',[1],null);
   lens('Marshall','m12-36','Stock 3.6 mm M12',3.6,3.6,'M12','mini','marshallMini',[1],null);
   lens('Marshall','m12-44','Stock 4.4 mm M12',4.4,4.4,'M12','mini','cv568',[1],null);
+  // A family/catalogue link is not evidence of an individually checked
+  // suffix, aperture, mechanical dimension or extender.
+  const confirmedCanon=['uj122','uj111','uj90','uj86','uj66','uj27'];
+  const confirmedFuji=['ua125','ua107','ua107af','ua80-12','ua70','ua27','xa99','xa77','xa55','ha27','xa22box','ua46','ua46long','ua24','ua22','ua13','duvo25','duvo24','duvo14','za12','za17','za22'];
+  for(const l of lenses){
+    if(confirmedCanon.includes(l.id)){l.confidence='published';l.source='canon2023';if(l.id!=='uj27')l.mod=3;}
+    else if(confirmedFuji.includes(l.id)){l.confidence='published';l.source='fuji';if(l.id==='ua125'){l.dimensions={width:264,height:258,length:635};l.mod=3;}}
+    else l.confidence=l.confidence||'catalogue / confirm exact variant';
+  }
   const cameraById=id=>cameras.find(c=>c.id===id),lensById=id=>lenses.find(l=>l.id===id);
   const lensName=l=>l.brand+' '+l.name;
   function cameraDefaults(id,modeId){
@@ -161,6 +173,8 @@ export function createEquipment(){
     const focal=Number(f),aspect=Number(c.aspect||16/9),wide=Number(c.wide),tele=Number(c.tele),crop=Number(c.cropFactor??1),ext=Number(c.extender??1),adapter=Number(c.adapterFactor??1);
     if(![focal,aspect,wide,tele,crop,ext,adapter].every(Number.isFinite)||Math.min(focal,aspect,wide,tele,adapter)<=0||crop<1||ext<1||wide>tele||focal<wide-1e-6||focal>tele+1e-6)return fail('Invalid optical configuration or focal range.');
     const l=lensById(c.lensPresetId),i=c.integratedOptics;
+    if(i&&(![i.wide,i.tele,i.hWide,i.hTele,i.aspect].every(Number.isFinite)||i.wide<=0||i.tele<i.wide||i.hWide<=0||i.hWide>=180||i.hTele<=0||i.hTele>=180||i.aspect<=0||wide!==i.wide||tele!==i.tele))return fail('Invalid integrated optical profile.');
+    if(l&&c.lensMount&&c.lensMount!==l.mount)return fail('Lens mount differs from catalogue profile.');
     if(l&&!l.extenders.includes(ext))return fail('Extender not listed for this lens variant.');
     if(c.cameraMount&&c.lensMount&&c.cameraMount!==c.lensMount&&!String(c.adapterNote||'').trim())return fail('Lens mount mismatch; select compatible optics or document the adapter.');
     if(c.cameraMount==='integrated'&&l)return fail('Fixed-lens camera cannot accept a separate interchangeable lens.');
@@ -176,7 +190,7 @@ export function createEquipment(){
     if(!(hh>0))hh=w/aspect;
     if(w/hh>aspect)w=hh*aspect;else hh=w/aspect;
     w/=crop;hh/=crop;
-    const effectiveFocal=focal*ext*adapter,coverage=l?.coverage?l.coverage*(l.expandsCoverage?ext:1)*adapter:null;
+    const effectiveFocal=focal*ext*adapter,coverage=l?.coverage?(l.expandsCoverage&&ext===1.5?41.3:l.coverage)*adapter:null;
     if(coverage&&Math.hypot(w,hh)>coverage+0.15)return fail('Active aperture exceeds listed image circle; verify optical adapter or crop.');
     const tanH=w/(2*effectiveFocal),tanV=hh/(2*effectiveFocal);
     return {valid:true,tanH,tanV,hfov:2*Math.atan(tanH)*deg,vfov:2*Math.atan(tanV)*deg,dfov:2*Math.atan(Math.hypot(tanH,tanV))*deg,aspect,width:w,height:hh,effectiveFocal,focal,status,lensStatus:l?.confidence||(l?'published':'custom/legacy'),coverage}
