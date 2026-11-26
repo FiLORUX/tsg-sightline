@@ -2,8 +2,22 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { createServer } from 'node:http';
+import { deflateRawSync } from 'node:zlib';
 
-const url = new URL('../index.html', import.meta.url).href;
+const assets = { '/sightline/': ['index.html','text/html'], '/sightline/geometry-worker.js':['geometry-worker.js','text/javascript'] };
+const server=createServer(async(req,res)=>{
+  const path=new URL(req.url,'http://localhost').pathname;
+  const asset=assets[path];
+  if(!asset){res.writeHead(404);res.end();return}
+  try{
+    const bytes=await readFile(new URL('../'+asset[0],import.meta.url));
+    res.writeHead(200,{'Content-Type':asset[1],'Content-Security-Policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'"});
+    res.end(bytes);
+  }catch{res.writeHead(500);res.end()}
+});
+await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+const url='http://127.0.0.1:'+server.address().port+'/sightline/';
 const fixture = fileURLToPath(new URL('../examples/fifteen-camera-build.json', import.meta.url));
 const browser = await chromium.launch({args:['--enable-webgl','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 const errors = [];
@@ -41,7 +55,7 @@ try{
   await text('readout-calibration','User-confirmed');
   svg=await download('action-export-svg');assert.match(svg,/SCALE 1:/);assert.match(svg,/USER CONF\./);
   await page.locator('#camera-rows tr').first().click();
-  await page.locator('.chain-details summary').click();
+  await page.locator('.chain-details').filter({has:page.locator('#chain-role')}).locator('summary').click();
   await page.locator('#action-alternate').click();
   await text('chain-summary','15 unique chains · 16 positions · 1 alternate(s)');
   await change('cam-number',77);
@@ -60,14 +74,42 @@ try{
     return JSON.parse(json);
   });
   assert.equal(share.cameras.length,16);assert(!JSON.stringify(share).includes('PRIVATE_TEST_INTERFACE'));assert(!('background' in share));assert(!('previs' in share));
+  // Old v5 URLs must reopen without the original asset and preserve the fragment.
+  const old=JSON.parse(await readFile(fixture,'utf8'));
+  const legacy=deflateRawSync(Buffer.from(JSON.stringify(old))).toString('base64url');
+  await page.goto(url+'?case=legacy#plan=d.'+legacy);
+  await text('chain-summary','15 unique chains');
+  assert.match(page.url(),/#plan=d\./);
   await page.reload();
+  await text('chain-summary','15 unique chains');
+  assert.match(page.url(),/#plan=d\./);
+  await page.locator('#camera-rows tr').first().click();
+  await page.locator('#cam-body-preset').selectOption('sony-hdc-p1');
+  await page.locator('#cam-lens').selectOption('ua125');
+  await change('cam-current-focal',1000);
+  await text('equipment-optics-info','HFOV 0.550°');
+  await page.locator('#cam-extender').selectOption('2');
+  await text('equipment-optics-info','HFOV 0.275°');
+  await page.locator('#cam-extender').selectOption('1');
+  await change('cam-crop-factor',2);
+  await text('equipment-optics-info','HFOV 0.275°');
+  await page.locator('#cam-body-preset').selectOption('arri-alexa-35-live');
+  await text('equipment-optics-info','Lens mount mismatch');
+  await page.locator('#cam-lens').selectOption('cabrio20');
+  await page.locator('#cam-sensor-mode').selectOption('46-169');
+  await change('cam-current-focal',20);
+  await text('equipment-optics-info','HFOV 69.');
+  await page.locator('#cam-sensor-mode').selectOption('4k-169');
+  await text('equipment-optics-info','HFOV 63.');
   await load({format:'camera-plan/5',content:{width:2000,height:2000},pxPerMetre:20,calibrated:true,cameras:[{id:'synthetic-1',number:'1',label:'Synthetic camera',mount:'tripodHeavy',x:200,y:1800,heading:0,height:1.5,wide:8.4,tele:100,imagerWidth:9.59,throwMetres:10,path:[]}],dimensions:[]});
   await text('chain-summary','1 unique chains');
   await page.locator('#scale-source').fill('Synthetic plan control distance');
   await page.locator('#action-confirm-scale').click();
   await text('readout-calibration','User-confirmed');
   await page.locator('#action-previs').click();
+  const workerResponse=page.waitForResponse(r=>r.url().endsWith('/geometry-worker.js')&&r.status()===200);
   await page.locator('#previs-file').setInputFiles({name:'wall.glb',mimeType:'model/gltf-binary',buffer:wallGlb()});
+  await workerResponse;
   await text('previs-model','1 triangles');
   await page.locator('#previs-registration').check();
   await change('previs-tx',10);await change('previs-ty',20);await change('previs-tz',1.5);
@@ -76,6 +118,7 @@ try{
   await text('previs-info','HFOV');
   assert(await page.locator('#previs-canvas').evaluate(c=>Boolean(c.getContext('webgl2'))),'WebGL2 renderer');
   await change('scale-direct',25);
+  await page.waitForFunction(()=>document.getElementById('previs-registration').disabled);
   assert(await page.locator('#previs-registration').isDisabled(),'scale change invalidates registration');
   await page.locator('#previs-check').click();await text('previs-hit','Occlusion not evaluated');
   await page.locator('#previs-remove').click();await text('previs-model','No mesh loaded');
@@ -85,4 +128,4 @@ try{
   assert(await page.locator('#previs-pane').isVisible());
   assert.deepEqual(errors,[]);
   console.log('Browser integration smoke passed (synthetic geometry; not venue acceptance).');
-}finally{await browser.close();}
+}finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

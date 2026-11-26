@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+<defs><pattern id="g" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#344550" stroke-width="1"/></pattern></defs>
+<rect width="1200" height="630" fill="#151a1f"/><rect x="585" y="72" width="557" height="486" rx="10" fill="#202a32" stroke="#425562"/><rect x="585" y="72" width="557" height="486" fill="url(#g)"/>
+<g fill="none" stroke="#99abb6" stroke-width="2"><rect x="710" y="116" width="315" height="140" rx="5"/><path d="M750 256V290H985V256M625 320H1105M625 518H1105"/><rect x="811" y="145" width="115" height="72" rx="2"/></g>
+<g fill="#69bfff" stroke="#69bfff"><path d="M700 490L792 203L948 203Z" fill-opacity=".14" stroke-opacity=".6"/><path d="M1027 490L792 203L948 203Z" fill-opacity=".14" stroke-opacity=".6"/><path d="M870 462L850 192L890 192Z" fill-opacity=".2"/><circle cx="700" cy="490" r="11"/><circle cx="1027" cy="490" r="11"/><circle cx="870" cy="462" r="11"/></g>
+<g fill="#dfe6ec" font-family="system-ui, sans-serif"><text x="64" y="114" font-size="22" font-weight="600" letter-spacing="4">TSG SUITE</text><text x="64" y="220" font-size="78" font-weight="700">Sightline</text><text x="68" y="284" font-size="29">Broadcast camera planning</text><text x="68" y="328" font-size="29">&amp; spatial previsualisation</text><text x="68" y="430" fill="#69bfff" font-size="21" letter-spacing="1.4">CAD / OPTICS / 3D PREVIS</text><text x="68" y="550" font-size="20" fill="#99abb6">tsg.thast.live/sightline/</text></g>
+</svg>

@@ -134,6 +134,18 @@ A plotted position is not necessarily a distinct source. Use **Create linked alt
 
 The GLB parser uses an isolated local worker with cancellation when Worker is available. The native drawing and model are not transmitted. CAD linework is cached independently of camera movement.
 
+## Equipment and optical frame
+
+The registry separates the camera body, acquisition mode, lens, active lens-side aperture, native focal length, optical extender, optical adapter and digital/window crop. It includes 82 camera entries and 86 lens entries, with manufacturer references and explicit nominal or variant-confirmation status. It does not represent an exhaustive or individually measured rental inventory.
+
+The optical kernel supplies the XY projection of the frustum, camera-frame projection and position TSV from the same active aperture. Published integrated-lens horizontal endpoints anchor the PTZ model; intermediate focal positions and vertical output crop are estimates. Unknown apertures and incompatible lens interfaces block the coverage result. The glyph is a nominal planning footprint unless a specific manufacturer dimension is recorded; verify the actual lens support, head and build. Lens distortion, focus breathing and exact optical-centre offset require separate measurement.
+
+Legacy portable links retain the URL fragment and stored optical configuration. A link does not carry CAD, a 3D mesh, interface metadata or verified registration. Reattach authorised venue files locally.
+
+## Release
+
+Keep the canonical URL and Worker name unchanged. The public proxy allows the same-origin geometry-worker.js. Run all regressions, install the pinned browser test dependency and run tools/render-og.mjs before Wrangler deployment to produce the generic 1200 × 630 PNG social card. The author link names the estate's canonical Person page; rel=me remains confined to that page. See [ROADMAP.md](ROADMAP.md) for unimplemented production gates.
+
 ## Testing
 
 The DXF reader is written without DOM references so it can run in Node:
@@ -142,6 +154,7 @@ The DXF reader is written without DOM references so it can run in Node:
 node tools/test-dxf-parser.mjs
 node tools/test-spatial.mjs
 node tools/test-chain.mjs
+node tools/test-equipment.mjs
 node tools/check-spatial-embed.mjs
 ```
 

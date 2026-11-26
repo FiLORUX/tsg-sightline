@@ -22,7 +22,12 @@
 <meta property="og:title" content="TSG Sightline">
 <meta property="og:description" content="Broadcast camera planning and spatial previsualisation. Active-aperture lens coverage, camera-chain schedules, scaled CAD plots and local 3D geometry.">
 <meta property="og:url" content="https://tsg.thast.live/sightline/">
-<meta name="twitter:card" content="summary">
+<meta name="twitter:card" content="summary_large_image">
+<meta property="og:image" content="https://tsg.thast.live/sightline/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="TSG Sightline: generic broadcast camera planning diagram">
+<meta name="twitter:image" content="https://tsg.thast.live/sightline/og.png">
 <meta name="twitter:title" content="TSG Sightline">
 <meta name="twitter:description" content="Broadcast camera planning and spatial previsualisation. Active-aperture lens coverage, camera-chain schedules, scaled CAD plots and local 3D geometry.">
 <script type="application/ld+json">
@@ -2494,9 +2499,9 @@
     const wideAov=angles.wide.hfov,teleAov=angles.tele.hfov;
     el('readout-coverage').innerHTML =
       `HFOV <strong>${format(wideAov, 1)}&deg;</strong> to <strong>${format(teleAov, 2)}&deg;</strong><br>` +
-      `Frame width at ${format(camera.throwMetres, 0)} m: ` +
-      `<strong>${format(frameWidth(camera.throwMetres, wideAov), 1)} m</strong> to ` +
-      `<strong>${format(frameWidth(camera.throwMetres, teleAov), 2)} m</strong>` +
+      `Frame width at ${format(axialDistance(camera), 1)} m axial distance: ` +
+      `<strong>${format(frameWidth(axialDistance(camera), wideAov), 2)} m</strong> to ` +
+      `<strong>${format(frameWidth(axialDistance(camera), teleAov), 3)} m</strong>` +
       (isArm(camera) ? `<br>Head at <strong>${format(camera.reach, 1)} m</strong> from pivot` : '');
   }
 
@@ -3979,11 +3984,11 @@
       state.calibrated = Boolean(project.calibrated);
       state.scaleEvidence = Spatial.scaleStatus(project.scaleEvidence, sourceScale) !== 'uncalibrated' && state.calibrated ? project.scaleEvidence : { status: state.calibrated ? 'estimated' : 'uncalibrated', method: 'Legacy project', pxPerMetre: sourceScale, source: '' };
       state.plotRatio = project.plotRatio || null;
-    } else if (project.calibrated && !state.calibrated) {
+    } else if (!state.background && !state.vector) {
       state.content = project.content;
       state.pxPerMetre = sourceScale;
-      state.calibrated = true;
-      state.scaleEvidence = { status: 'estimated', method: 'Project without base plan', pxPerMetre: sourceScale, source: '' };
+      state.calibrated = Boolean(project.calibrated);
+      state.scaleEvidence = { status: state.calibrated?'estimated':'uncalibrated', method: 'Project without base plan', pxPerMetre: sourceScale, source: '' };
     }
 
     const factor = state.pxPerMetre / sourceScale;
@@ -4244,7 +4249,12 @@
 
   async function openSharedPlan(payload) {
     try {
-      applyProject(JSON.parse(await unpackShare(payload)));
+      const project=JSON.parse(await unpackShare(payload));
+      // A portable URL is positions only. Never trust embedded venue assets,
+      // external drawing URLs, model registration or interface metadata.
+      delete project.background;delete project.vector;delete project.logo;delete project.previs;delete project.scaleEvidence;
+      if(Array.isArray(project.cameras))project.cameras=project.cameras.map(({chainDetails,...position})=>position);
+      applyProject(project);
       showHint('Shared plan opened: positions and title block, no drawing. ' +
         'Load the venue plan to see them on it.', true, 6000);
     } catch (error) {
