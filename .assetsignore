@@ -11,3 +11,5 @@ wrangler.jsonc
 .gitattributes
 .gitignore
 .assetsignore
+
+ROADMAP.md

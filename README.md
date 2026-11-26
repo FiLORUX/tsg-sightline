@@ -36,7 +36,7 @@ before anyone unloads a truck.
   the way CAD software records itself on a sheet; the heading names the document.
 - **CAD plans read directly.** A DXF straight from AutoCAD, BricsCAD or
   Vectorworks loads as vector linework with its scale taken from the file, so
-  the calibration step disappears and the plan plots sharp at any ratio. Layers
+  the drawing plots sharply; declared or inferred units need confirmation before dimensioned export. Layers
   can be shown or hidden; text, hatches and dimensions are left out on purpose.
 - **True-scale output.** Choose a paper size and a ratio, or let the sheet pick
   the largest standard ratio that fits, and the title block states it. Print at
@@ -84,8 +84,7 @@ Handling shortcuts are listed at the bottom of the side panel.
 
 ## Project files
 
-Format identifier `camera-plan/5`, which adds the vector plan, the production
-logo and the output sheet settings. Earlier versions open and are migrated:
+Format identifier `camera-plan/6` adds calibration evidence and optical pose/registration parameters. Version 5 added vector plans, production logos and output sheet settings. Legacy scale claims are estimated until confirmed. Earlier versions open and are migrated:
 version 4 lacks those three fields, version 3 anchored positions on the front
 element and is moved back onto the pan axis, single-axis type files are mapped
 onto the mount and lens model.
@@ -123,12 +122,20 @@ off the edge, and a request that reaches the Worker's own `*.workers.dev`
 name answers 308 to the canonical address so no duplicate is ever indexed.
 Deploy with `npx wrangler deploy`; there is still no build step.
 
+## Spatial previsualisation (engineering preview)
+
+Open **3D previs** in the plan toolbar. The venue overview and selected camera frame share the 2D camera state. Set mount datum, lens height, tilt, roll, focal length and relative head pan on arm positions. Load an uncompressed, self-contained, static GLB 2.0 export locally; nothing is uploaded. The viewport renders opaque triangle geometry with WebGL 2; it does not sample textures. Set model origin and yaw manually or fit two paired XY control points, then check an independent control point and the vertical datum before confirming registration. Reported endpoint residual is half the baseline length discrepancy, not an independent validation. Point checks distinguish frame inclusion from finite-ray intersection with loaded opaque triangles; they are not rigging or clearance approvals.
+
+The project file keeps registration parameters but not the 3D model or its confirmation. Reattach the local model after opening a project. Native DWG/SKP conversion is an authorised external workflow. See [ROADMAP.md](ROADMAP.md) for production scope and release gates.
+
 ## Testing
 
 The DXF reader is written without DOM references so it can run in Node:
 
 ```bash
 node tools/test-dxf-parser.mjs
+node tools/test-spatial.mjs
+node tools/check-spatial-embed.mjs
 ```
 
 The rest of the tool is exercised in a browser. There is no build step to break.
