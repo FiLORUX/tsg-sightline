@@ -4556,14 +4556,14 @@ void main(){float shade=1.0;if(lit){vec3 n=cross(dFdx(world),dFdy(world));float 
   for(const [id,key,min,max] of [['previs-floor','floorZ',-1000,1000],['previs-tilt','tilt',-89,89],['previs-roll','roll',-180,180],['previs-pan','headPan',-180,180],['previs-focal','focalMm',.1,10000],['previs-aspect','aspect',1,4]])el(id).addEventListener('change',()=>{const c=selectedCamera();if(!c)return;state.selectedId=c.id;const value=readNumber(id,c[key]??(key==='focalMm'?c.wide:0));updateSelected({[key]:key==='focalMm'?clamp(value,Math.min(c.wide,c.tele),Math.max(c.wide,c.tele)):clamp(value,min,max)})});
   for(const [id,end] of [['previs-wide','wide'],['previs-tele','tele']])el(id).addEventListener('click',()=>{const c=selectedCamera();if(c){state.selectedId=c.id;updateSelected({focalMm:c[end]})}});
   el('previs-load').addEventListener('click',()=>el('previs-file').click());
+  // Hosted geometry parsing uses a same-origin worker: the public proxy's
+  // CSP deliberately disallows blob: scripts. Direct file use stays offline.
   function readLocalModel(file){
-    if(typeof Worker!=='function')return file.arrayBuffer().then(bytes=>S.parseGlb(bytes));
+    if(typeof Worker!=='function'||location.protocol==='file:')return file.arrayBuffer().then(bytes=>S.parseGlb(bytes));
     return new Promise((resolve,reject)=>{
-      const workerCode='const S=('+SpatialFactory.toString()+')();self.onmessage=async e=>{try{const model=S.parseGlb(await e.data.arrayBuffer());self.postMessage({model},model.chunks.map(c=>c.xyz.buffer))}catch(err){self.postMessage({error:err.message||String(err)})}};';
-      const url=URL.createObjectURL(new Blob([workerCode],{type:'text/javascript'}));
       let worker;
-      try{worker=new Worker(url)}catch(e){URL.revokeObjectURL(url);reject(new Error('Local parser worker unavailable: '+e.message));return}
-      URL.revokeObjectURL(url);
+      try{worker=new Worker(new URL('./geometry-worker.js',location.href.split('#')[0]))}
+      catch(err){reject(new Error('Geometry worker unavailable: '+err.message));return}
       const finish=()=>{worker.terminate();if(P.cancelLoad===cancel)P.cancelLoad=null};
       const cancel=()=>{finish();reject(new Error('Model import cancelled'))};
       P.cancelLoad=cancel;
