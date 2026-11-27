@@ -124,13 +124,16 @@ Deploy with `npx wrangler deploy`; there is still no build step.
 
 ## Spatial previsualisation (engineering preview)
 
-Open **3D previs** in the plan toolbar. The venue overview and selected camera frame share the 2D camera state. Set mount datum, lens height, tilt, roll, focal length and relative head pan on arm positions. Load an uncompressed, self-contained, static GLB 2.0 export locally; nothing is uploaded. The viewport renders opaque triangle geometry with WebGL 2; it does not sample textures. Set model origin and yaw manually or fit two paired XY control points, then check an independent control point and the vertical datum before confirming registration. Reported endpoint residual is half the baseline length discrepancy, not an independent validation. Point checks distinguish frame inclusion from finite-ray intersection with loaded opaque triangles; they are not rigging or clearance approvals.
+Open **3D previs** in the plan toolbar. The venue overview and selected camera frame share the 2D camera state. Drag to orbit, Shift-drag or right-drag to pan, scroll to zoom, or use the labelled controls; on touch screens, drag to orbit and pinch to zoom and pan. **Expand** enlarges the viewport, **Focus camera** frames the selected position and **Fit view** returns to an overview. The raster plan, if present, appears as a flat reference at the plan datum, not as venue geometry; a vector-only plan is not currently shown in 3D. Set mount datum, lens height, tilt, roll, focal length and relative head pan on arm positions. Load an uncompressed, self-contained, static GLB 2.0 export locally; nothing is uploaded. The viewport renders opaque triangle geometry with WebGL 2; model textures are not rendered. Set model origin and yaw manually or fit two paired XY control points, then check an independent control point and the vertical datum before confirming registration. Reported endpoint residual is half the baseline length discrepancy, not an independent validation. Point checks distinguish frame inclusion from finite-ray intersection with loaded opaque triangles; they are not rigging or clearance approvals.
 
 The project file keeps registration parameters but not the 3D model or its confirmation. Reattach the local model after opening a project. Native DWG/SKP conversion is an authorised external workflow. See [ROADMAP.md](ROADMAP.md) for production scope and release gates.
 
 ## Camera-chain schedule
 
 A plotted position is not necessarily a distinct source. Use **Create linked alternate position** for an alternative position of the same chain; its director number and chain metadata remain shared. **Duplicate as new chain** creates an independent source. Chain renumbering operates on chain identity, not physical positions. The position TSV has one row per position; the chain schedule TSV has one row per chain and reports identity conflicts, missing or multiple primary positions and inconsistent common fields. Shared links omit interface details. A conflict-free chain schedule is not a technical or director approval.
+
+For source mapping, independent scale, position and pose checks, site survey
+and issue controls, see [Camera placement review](docs/PLACEMENT-REVIEW.md).
 
 The GLB parser uses an isolated local worker with cancellation when Worker is available. The native drawing and model are not transmitted. CAD linework is cached independently of camera movement.
 
