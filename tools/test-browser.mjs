@@ -120,14 +120,14 @@ try{
     const g=c.getContext('2d');g.fillStyle='#eee';g.fillRect(0,0,width,height);g.strokeStyle='#555';g.strokeRect(30,30,width-60,height-60);return c.toDataURL('image/png');
   },old.content);
   const privateProject={format:old.format,meta:old.meta,content:old.content,pxPerMetre:old.pxPerMetre,background:{href:bg,...old.content}};
-  await page.route('**/context/'+key+'.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(privateProject)}));
+  await page.route('**/view/alias/'+key+'.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(privateProject)}));
   await page.reload();
   await page.waitForFunction(()=>document.getElementById('context-banner').hidden);
   assert.match(await page.locator('#layer-background').getAttribute('href'),/^data:image\/png;base64,/);
   await text('chain-summary','15 unique chains');
   await text('readout-calibration','Uncalibrated');
   assert.match(page.url(),/#plan=d\./);
-  await page.unroute('**/context/'+key+'.json');
+  await page.unroute('**/view/alias/'+key+'.json');
   // Synthetic authorised revision migration: the later revision has another
   // frame and scale and one alternate position, and the original link must
   // keep working unchanged.
@@ -138,7 +138,7 @@ try{
   const r04={format:'sightline-context/2',
     migration:{from:{revision:old.meta.revision,content:old.content,pxPerMetre:old.pxPerMetre},to:{revision:'R04',pxPerMetre:R04_SCALE}},
     project:{format:old.format,meta:{...old.meta,revision:'R04'},content:{width:2000,height:1300},pxPerMetre:R04_SCALE,calibrated:false,background:{href:r04bg,width:2000,height:1300},cameras:r04cameras,dimensions:[]}};
-  await page.route('**/context/'+key+'.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(r04)}));
+  await page.route('**/view/alias/'+key+'.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(r04)}));
   await page.reload();
   await page.waitForFunction(()=>document.getElementById('context-banner').hidden);
   assert.equal(await page.locator('#meta-revision').inputValue(),'R04');
@@ -151,12 +151,12 @@ try{
   assert.equal(await page.locator('#meta-revision').inputValue(),'R04');
   // Fail closed: a record that names another source frame must not apply.
   r04.migration.from.revision='R99';
-  await page.unroute('**/context/'+key+'.json');
-  await page.route('**/context/'+key+'.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(r04)}));
+  await page.unroute('**/view/alias/'+key+'.json');
+  await page.route('**/view/alias/'+key+'.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(r04)}));
   await page.reload();
   await text('context-message','could not be verified');
   assert.equal(await page.locator('#meta-revision').inputValue(),old.meta.revision);
-  await page.unroute('**/context/'+key+'.json');
+  await page.unroute('**/view/alias/'+key+'.json');
   // Reset to the position-only link before testing the optical editor.
   await page.reload();
   await text('chain-summary','15 unique chains');
@@ -205,5 +205,160 @@ try{
   await page.setViewportSize({width:390,height:844});
   assert(await page.locator('#previs-pane').isVisible());
   assert.deepEqual(errors,[]);
+  // Exercise actual multi-contact input, rather than only resizing a desktop.
+  const mobile=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,isMobile:true,hasTouch:true,acceptDownloads:true});
+  try{
+    const mp=await mobile.newPage();
+    const mobileErrors=[];mp.on('pageerror',e=>mobileErrors.push(e.message));
+    let authenticated=false;
+    await mp.route('**/view/alias/'+key+'.json*',route=>{
+      if(new URL(route.request().url()).searchParams.get('view')==='authorise')return route.fulfill({status:200,contentType:'text/html',body:'<h1>Venue access confirmed</h1>'});
+      return authenticated?route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(privateProject)}):route.fulfill({status:401,contentType:'application/json',body:'{}'});
+    });
+    await mp.goto(url+'?case=touch#plan=d.'+legacy);
+    await mp.waitForFunction(()=>document.getElementById('context-heading').textContent==='Sign in to view venue drawing');
+    assert.equal(await mp.locator('#context-message').isVisible(),false);
+    const banner=await mp.locator('#context-banner').boundingBox(),canvas=await mp.locator('#plan').boundingBox();
+    assert(banner.y+banner.height<=canvas.y+1,'warning does not obscure plan');
+    assert(canvas.height>180,'usable canvas');
+    await mp.locator('#context-detail-toggle').tap();
+    assert(await mp.locator('#context-message').isVisible());
+    assert.match(await mp.locator('#context-authorise').getAttribute('href'),/view=authorise/);
+    authenticated=true;
+    await mp.locator('#context-retry').tap();
+    await mp.waitForFunction(()=>document.getElementById('context-banner').hidden&&document.getElementById('layer-background').getAttribute('href')?.startsWith('data:image/'));
+    assert.equal(mp.url().split('#plan=')[1],'d.'+legacy);
+    await mp.locator('#action-fit').tap();
+    const matrix=()=>mp.locator('#viewport').evaluate(g=>{const m=g.transform.baseVal.consolidate().matrix;return {k:m.a,x:m.e,y:m.f}});
+    const approx=(a,b,t=.025)=>assert.ok(Math.abs(a-b)<=t,a+' differs from '+b);
+    let v=await matrix();
+    await mp.locator('#action-zoom-in').tap();approx((await matrix()).k,v.k*1.5);
+    await mp.locator('#action-zoom-out').tap();approx((await matrix()).k,v.k);
+    const short=await mp.locator('#plan').boundingBox();
+    await mp.locator('#action-plan-only').tap();
+    await mp.waitForFunction(()=>document.querySelector('.panel').getBoundingClientRect().height===0);
+    const tall=await mp.locator('#plan').boundingBox();
+    assert(tall.height>short.height+100,'plan-only expands drawing surface');
+    await mp.locator('#action-fit').tap();
+    const cdp=await mobile.newCDPSession(mp);
+    const touch=(type,points)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints:points.map(([x,y,id])=>({x,y,id,radiusX:2,radiusY:2,force:1}))});
+    const r=await mp.locator('#plan').boundingBox(),cx=r.x+r.width*.5,cy=r.y+r.height*.42;
+    v=await matrix();
+    const world={x:(cx-r.x-v.x)/v.k,y:(cy-r.y-v.y)/v.k};
+    const count=await mp.locator('#layer-symbols > g').count();
+    await touch('touchStart',[[cx-40,cy,1],[cx+40,cy,2]]);
+    await touch('touchMove',[[cx-72+12,cy+16,1],[cx+72+12,cy+16,2]]);
+    await touch('touchEnd',[]);
+    const after=await matrix();
+    approx(after.k,v.k*1.8);
+    approx(after.x+world.x*after.k,cx-r.x+12,2);
+    approx(after.y+world.y*after.k,cy-r.y+16,2);
+    assert.equal(await mp.locator('#layer-symbols > g').count(),count);
+    await mp.locator('#action-plan-only').tap();
+    await mp.locator('[data-mount="jib"]').tap();
+    const pb=await mp.locator('#plan').boundingBox(),mx=pb.x+pb.width/2,my=pb.y+pb.height*.32;
+    await touch('touchStart',[[mx-30,my,3],[mx+30,my,4]]);
+    await touch('touchMove',[[mx-55,my,3],[mx+55,my,4]]);
+    await touch('touchEnd',[]);
+    assert.equal(await mp.locator('#layer-symbols > g').count(),count,'pinch must not place camera');
+    await mp.locator('#mode-select').tap();
+    assert.deepEqual(mobileErrors,[]);
+    console.log('Touch input: anchored pinch, midpoint translation, placement safety, explicit zoom, expanded plan and context retry passed.');
+  }finally{await mobile.close()}
+  // Two independent sessions using the same current publication. Simulate
+  // an edge origin; use the real browser code, not an in-page state mock.
+  const id='f'.repeat(32),projectUrl=url+'#project='+id,liveKey='/view/project/'+id+'.json',adminKey='/context/admin/project/'+id+'.json';
+  const binary=Buffer.from(r04bg.split(',')[1],'base64'),assetName=createHash('sha256').update(binary).digest('hex')+'.png';
+  let publication={format:'sightline-live/1',projectId:id,sequence:10,publishedAt:new Date().toISOString(),project:{...r04.project,background:null},assets:{background:{name:assetName,bytes:binary.length,width:2000,height:1300}}};
+  let assetGets=0,saves=0,viewerGets=0;const sockets=new Set();let invalidations=0;
+  const activeTag=()=>'"publication-'+publication.sequence+'"';
+  async function origin(route,role){
+    const req=route.request(),u=new URL(req.url());
+    if(u.pathname.endsWith('/asset/'+assetName)){assetGets++;return route.fulfill({status:200,contentType:'image/png',body:binary})}
+    const headers={'ETag':activeTag(),'X-Sightline-Role':role,'Cache-Control':'private, no-store'};
+    if(req.method()==='PUT'){
+      if(role!=='editor')return route.fulfill({status:403,headers,body:'{}'});
+      if(req.headers()['if-match']!==activeTag())return route.fulfill({status:412,headers,body:'{}'});
+      const edit=req.postDataJSON();publication={...publication,sequence:publication.sequence+1,publishedAt:new Date().toISOString(),project:{...publication.project,...edit}};saves++;
+      for(const socket of sockets){socket.send('changed');invalidations++}
+      return route.fulfill({status:200,headers:{...headers,ETag:activeTag()},contentType:'application/json',body:JSON.stringify({sequence:publication.sequence,publishedAt:publication.publishedAt})});
+    }
+    if(role==='viewer')viewerGets++;
+    if(req.headers()['if-none-match']===activeTag())return route.fulfill({status:304,headers});
+    return route.fulfill({status:200,headers,contentType:'application/json',body:JSON.stringify(publication)});
+  }
+  const [editorA,editorB,viewer]=await Promise.all([browser.newContext({viewport:{width:1440,height:900}}),browser.newContext({viewport:{width:1440,height:900}}),browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true})]);
+  try{
+    const [a,b,v]=await Promise.all([editorA.newPage(),editorB.newPage(),viewer.newPage()]);
+    const errs=[];for(const [p,role] of [[a,'editor'],[b,'editor'],[v,'viewer']]){
+      p.on('pageerror',e=>errs.push(e.message));
+      await p.route('**/context/admin/session',route=>route.fulfill({status:role==='editor'?200:403,contentType:'application/json',body:JSON.stringify({role})}));
+      if(role==='editor')await p.addInitScript(()=>sessionStorage.setItem('sightline.owner-intent','1'));
+      await p.route('**'+adminKey,route=>origin(route,role));
+      if(role==='editor')await p.routeWebSocket('**/view/project/'+id+'/events',socket=>{sockets.add(socket);socket.onClose(()=>sockets.delete(socket))});
+      await p.route('**/view/project/'+id+'/**',route=>origin(route,role));
+      await p.route('**'+liveKey,route=>origin(route,role));
+      await p.route('**/view/alias/'+key+'.json',route=>origin(route,role));
+    }
+    await Promise.all([a.goto(projectUrl),b.goto(projectUrl),v.goto(url+'#plan=d.'+legacy)]);
+    const live=async(p,txt)=>p.waitForFunction(t=>document.getElementById('live-indicator')?.textContent.includes(t),txt);
+    await Promise.all([live(a,'10 · Current'),live(b,'10 · Current'),live(v,'10 · Current')]);
+    await a.waitForFunction(()=>!document.getElementById('live-save').hidden);await b.waitForFunction(()=>!document.getElementById('live-save').hidden);
+    assert.equal(assetGets,3);assert.equal(await v.locator('#meta-revision').inputValue(),'R04');
+    assert(await v.locator('#live-save').isHidden());assert(await v.locator('#live-owner').isVisible());assert(await v.locator('#meta-revision').isDisabled());
+    await v.locator('#action-zoom-in').tap();
+    const transform=await v.locator('#viewport').getAttribute('transform');
+    await a.locator('#camera-rows tr').first().click();await a.locator('#cam-number').fill('101');await a.locator('#cam-number').blur();
+    await live(a,'Unsaved changes');await a.locator('#live-save').click();
+    await live(a,'11 · Current');await Promise.all([live(b,'11 · Current'),live(v,'11 · Current')]);
+    assert.match(await v.locator('#camera-rows tr').first().textContent(),/101/);
+    assert.equal(await v.locator('#viewport').getAttribute('transform'),transform);
+    assert.equal(assetGets,3,'unchanged background downloaded once per session');
+    assert.equal(saves,1);
+    // Both editors change a position; B must not lose its local draft.
+    await b.locator('#camera-rows tr').first().click();await b.locator('#cam-number').fill('202');await b.locator('#cam-number').blur();await live(b,'Unsaved changes');
+    await a.locator('#camera-rows tr').first().click();await a.locator('#cam-number').fill('303');await a.locator('#cam-number').blur();await live(a,'Unsaved changes');await a.locator('#live-save').click();
+    await live(a,'12 · Current');await live(b,'Local draft · update available');
+    assert.equal(await b.locator('#cam-number').inputValue(),'202');
+    assert(await b.locator('#live-save').isDisabled());assert(await b.locator('#live-copy').isVisible());
+    b.once('dialog',d=>d.accept());await b.locator('#live-latest').click();await live(b,'12 · Current');
+    await b.locator('#camera-rows tr').first().click();assert.equal(await b.locator('#cam-number').inputValue(),'303');
+    await live(v,'12 · Current');
+    assert.equal(assetGets,3);assert.equal(saves,2);assert(viewerGets>=2);assert(invalidations>=2,'push invalidations sent');
+    assert.equal(await v.evaluate(()=>localStorage.getItem('tsg-sightline/autosave')),null,'private project not persisted to autosave');
+    assert.deepEqual(errs,[]);
+    console.log('Shared publication: two editors, mobile viewer, live save propagation, retained view, no repeated raster fetch and conflict resolution passed.');
+  }finally{await editorA.close();await editorB.close();await viewer.close()}
+  // Publish a local project without uploading its native source. The real UI
+  // handles the public-consent step, verification and local file download.
+  const creator=await browser.newContext({viewport:{width:1280,height:900},acceptDownloads:true});
+  try{
+    const cp=await creator.newPage(),errs=[];cp.on('pageerror',e=>errs.push(e.message));
+    await cp.addInitScript(()=>{
+      Object.defineProperty(window,'showSaveFilePicker',{value:undefined,configurable:true});
+      window.turnstile={render:(sel,opts)=>{queueMicrotask(()=>opts.callback('fixture-token'));return 'fixture-widget'},remove(){},reset(){}};
+    });
+    await cp.route('**/view/config',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({sitekey:'fixture-sitekey'})}));
+    let posted=null;const newId='e'.repeat(32);
+    await cp.route('**/view/create',route=>{posted=route.request().postDataJSON();return route.fulfill({status:201,contentType:'application/json',body:JSON.stringify({projectId:newId,sequence:1})})});
+    await cp.goto(url);
+    const localProject={...old,background:{href:bg,...old.content},cameras:old.cameras.map((c,i)=>i===0?{...c,chainDetails:{notes:'LOCAL_SECRET'}}:c)};
+    await cp.locator('#file-project').setInputFiles({name:'local-project.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(localProject))});
+    await cp.waitForFunction(()=>document.getElementById('chain-summary').textContent.includes('15 unique chains'));
+    await cp.locator('#action-publish').click();
+    await cp.waitForFunction(()=>document.getElementById('publish-status').textContent.includes('Confirm the public'));
+    assert(await cp.locator('#publish-confirm').isDisabled());
+    await cp.locator('#publish-consent').check();
+    const [d]=await Promise.all([cp.waitForEvent('download'),cp.locator('#publish-confirm').click()]);
+    const local=JSON.parse(await readFile(await d.path(),'utf8'));
+    assert(posted.consent);assert.equal(posted.token,'fixture-token');
+    assert.match(posted.raster,/^data:image\/png;base64,/);
+    assert(!('background' in posted.project));assert(!('vector' in posted.project));
+    assert(!JSON.stringify(posted.project).includes('LOCAL_SECRET'));
+    assert.match(JSON.stringify(local),/LOCAL_SECRET/);assert.equal(local.publication.projectId,newId);
+    await cp.waitForFunction(()=>document.getElementById('publish-link').value.endsWith('#project='+'e'.repeat(32)));
+    assert.deepEqual(errs,[]);
+    console.log('Public consent, anonymous publish, local-file retention and safe payload regression passed.');
+  }finally{await creator.close()}
   console.log('Browser integration smoke passed (synthetic geometry; not venue acceptance).');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

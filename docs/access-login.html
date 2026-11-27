@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sightline · Editor access</title><style>
+body{margin:0;background:#151a1f;color:#e0e9ed;font:16px system-ui,sans-serif;display:grid;min-height:100vh;place-items:center}
+main{box-sizing:border-box;width:min(420px,calc(100% - 32px));padding:30px;background:#202a32;border:1px solid #394b56;border-radius:12px}
+.kicker{font-size:11px;letter-spacing:.24em;color:#93c9ee;font-weight:700}h1{font-size:25px;letter-spacing:-.04em;margin:10px 0}p{font-size:14px;line-height:1.5;color:#aebdc6}
+</style></head><body><main><div class="kicker">TSG / SIGHTLINE</div><h1>Editor access</h1><p>Sign in to manage the current published project. Viewing does not require an account.</p>{% if message.text.size > 0 %}<p role="status">{{ message.text }}</p>{% endif %}<cf-access-authbox></cf-access-authbox></main></body></html>
