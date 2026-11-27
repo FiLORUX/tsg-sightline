@@ -4292,7 +4292,7 @@
   function attachVenueContext(source,ctx){
     if(state.sharedContext!==ctx||state.background||state.vector)throw Error('Plan changed before context arrived');
     const p=source?.format==='sightline-context/1'?source.project:source;
-    if(!p||!/^camera-plan\/[1-6]$/.test(p.format)||p.content?.width!==state.content.width||p.content?.height!==state.content.height||Math.abs(Number(p.pxPerMetre)-state.pxPerMetre)>1e-8)throw Error('Drawing coordinate frame differs');
+    if(!p||!/^camera-plan\/[1-6]$/.test(p.format)||p.content?.width!==state.content.width||p.content?.height!==state.content.height||!Number.isFinite(Number(p.pxPerMetre))||Number(p.pxPerMetre)<=0||Math.abs(Number(p.pxPerMetre)-state.pxPerMetre)>1e-8)throw Error('Drawing coordinate frame differs');
     for(const [k,id] of [['production','meta-production'],['venue','meta-venue'],['revision','meta-revision']])if(String(p.meta?.[k]||'')!==String(el(id).value||''))throw Error('Drawing revision differs');
     const bg=p.background;
     if(!bg||bg.width!==state.content.width||bg.height!==state.content.height||typeof bg.href!=='string'||!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(bg.href)||bg.href.length>20*1024*1024)throw Error('Invalid embedded raster context');
@@ -4309,6 +4309,7 @@
       if(res.type==='opaqueredirect'||res.status===401||res.status===403){ctx.status='auth';return}
       if(res.status===404){ctx.status='missing';return}
       if(!res.ok||!(res.headers.get('content-type')||'').includes('application/json'))throw Error('Unexpected context response');
+      const declared=Number(res.headers.get('content-length'));if(declared>24*1024*1024)throw Error('Context too large');
       const bytes=await res.arrayBuffer();if(bytes.byteLength>24*1024*1024)throw Error('Context too large');
       attachVenueContext(JSON.parse(new TextDecoder().decode(bytes)),ctx);
     }catch(err){if(state.sharedContext===ctx)ctx.status='error'}
@@ -4316,7 +4317,7 @@
   }
   async function resolveVenueContext(payload){
     const ctx={status:'missing',url:null};state.sharedContext=ctx;updateContextBanner();
-    if(location.protocol!=='https:'||!globalThis.crypto?.subtle)return;
+    if(!window.isSecureContext||!globalThis.crypto?.subtle)return;
     try{
       const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(payload));
       const key=Array.from(new Uint8Array(hash),x=>x.toString(16).padStart(2,'0')).join('');
