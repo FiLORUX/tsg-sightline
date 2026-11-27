@@ -35,6 +35,22 @@ export function publicProject(p){
     ...publicEdit({...p,dimensions:p.dimensions||[],nextNumber:p.nextNumber||p.cameras?.length+1,sheet:p.sheet||{paper:'A3',ratio:'fit'}}),
     previs:{registration:{...pick(p.previs?.registration,'x y z rotation'),confirmed:false},target:Array.isArray(p.previs?.target)&&p.previs.target.length===3&&p.previs.target.every(v=>number(v,-1e6,1e6))?p.previs.target:[0,0,1.5]},background:null,vector:null,logo:null};
 }
+// Stable public codes only. A declaration is not a completeness guarantee.
+export const GEOMETRY_LIMITATION_CODES=Object.freeze([
+  'approximated-seating','omitted-seating','omitted-rigging','omitted-lighting',
+  'omitted-pa','omitted-roof','omitted-people','omitted-materials',
+  'omitted-video-screens','omitted-stage','omitted-architecture','omitted-fixtures',
+  'preliminary-alignment','unverified-vertical-datum'
+]);
+export function geometryLimitations(value,{strict=false}={}){
+  if(value==null)return {status:'unknown',items:[]};
+  const validObject=typeof value==='object'&&!Array.isArray(value);
+  const items=validObject&&Array.isArray(value.items)?value.items:[];
+  const valid=validObject&&['unknown','declared'].includes(value.status)&&Array.isArray(value.items)&&items.length<=GEOMETRY_LIMITATION_CODES.length&&items.every(x=>GEOMETRY_LIMITATION_CODES.includes(x))&&new Set(items).size===items.length&&Object.keys(value).every(k=>['status','items'].includes(k))&&(value.status!=='declared'||items.length>0);
+  if(strict&&!valid)throw Error('Invalid geometry limitations');
+  const safe=[...new Set(items.slice(0,GEOMETRY_LIMITATION_CODES.length).filter(x=>GEOMETRY_LIMITATION_CODES.includes(x)))];
+  return {status:valid&&value.status==='declared'?'declared':'unknown',items:safe};
+}
 function derivative(a,kind){
   if(!a||!ASSET.test(a.name)||!Number.isSafeInteger(a.bytes)||a.bytes<1||a.bytes>(kind==='geometry'?160:20)*1024*1024)throw Error('Invalid derivative');
   if(kind==='geometry'){
@@ -42,8 +58,12 @@ function derivative(a,kind){
     // Completeness is a deliberately small public vocabulary: never expose
     // unreviewed source descriptions or private model metadata here. Missing
     // and unknown values remain conservative for older publications.
-    const scope=['partial','complete'].includes(a.scope)?a.scope:'unknown';
-    return {name:a.name,bytes:a.bytes,scope};
+    let scope=['partial','complete'].includes(a.scope)?a.scope:'unknown';
+    const limitations=geometryLimitations(a.limitations);
+    // Explicit omissions or approximations contradict a completeness claim.
+    if(scope==='complete'&&limitations.items.length)scope='partial';
+    else if(scope==='complete'&&a.limitations!=null){try{geometryLimitations(a.limitations,{strict:true})}catch{scope='unknown'}}
+    return {name:a.name,bytes:a.bytes,scope,limitations};
   }
   if(!/\.(png|jpg|webp)$/.test(a.name)||!Number.isSafeInteger(a.width)||!Number.isSafeInteger(a.height)||!number(a.width,1,16384)||!number(a.height,1,16384))throw Error('Invalid raster');
   return {name:a.name,bytes:a.bytes,width:a.width,height:a.height};

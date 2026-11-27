@@ -22,11 +22,25 @@ const safe=publicRecord(rec,id);assert(!JSON.stringify(safe).includes('PRIVATE')
 // private source notes or an implicit claim that an older asset is complete.
 const geometryName='4'.repeat(64)+'.glb';
 const geometryRecord=scope=>publicRecord({...rec,assets:{...rec.assets,geometry:{name:geometryName,bytes:123,scope,notes:'PRIVATE SOURCE'}}},id);
-assert.deepEqual(geometryRecord('partial').assets.geometry,{name:geometryName,bytes:123,scope:'partial'});
+assert.deepEqual(geometryRecord('partial').assets.geometry,{name:geometryName,bytes:123,scope:'partial',limitations:{status:'unknown',items:[]}});
 assert.equal(geometryRecord('complete').assets.geometry.scope,'complete');
 assert.equal(geometryRecord(undefined).assets.geometry.scope,'unknown');
 assert.equal(geometryRecord('PRIVATE SOURCE').assets.geometry.scope,'unknown');
 assert(!JSON.stringify(geometryRecord('partial')).includes('PRIVATE SOURCE'));
+const withLimitations=limitations=>publicRecord({...rec,assets:{...rec.assets,geometry:{name:geometryName,bytes:123,scope:'partial',limitations}}},id).assets.geometry.limitations;
+assert.deepEqual(withLimitations({status:'declared',items:['approximated-seating','omitted-rigging','omitted-pa']}),{status:'declared',items:['approximated-seating','omitted-rigging','omitted-pa']});
+assert.deepEqual(withLimitations({status:'declared',items:['omitted-roof','PRIVATE SOURCE'],notes:'PRIVATE'}),{status:'unknown',items:['omitted-roof']});
+assert.deepEqual(withLimitations({status:'declared',items:[]}),{status:'unknown',items:[]});
+assert.deepEqual(withLimitations({status:'declared',items:['omitted-roof','omitted-roof']}),{status:'unknown',items:['omitted-roof']});
+assert.deepEqual(withLimitations('PRIVATE'),{status:'unknown',items:[]});
+assert(!JSON.stringify(withLimitations({status:'declared',items:['PRIVATE SOURCE'],source:'PRIVATE'})).includes('PRIVATE'));
+const projected=(scope,limitations)=>publicRecord({...rec,assets:{...rec.assets,geometry:{name:geometryName,bytes:123,scope,limitations}}},id).assets.geometry;
+assert.equal(projected('complete',{status:'declared',items:['omitted-roof']}).scope,'partial');
+assert.equal(projected('complete',{status:'declared',items:['preliminary-alignment','unverified-vertical-datum']}).scope,'partial');
+assert.deepEqual(withLimitations({status:'declared',items:['preliminary-alignment','unverified-vertical-datum']}),{status:'declared',items:['preliminary-alignment','unverified-vertical-datum']});
+assert.equal(projected('complete',{status:'declared',items:['PRIVATE SOURCE']}).scope,'unknown');
+assert.equal(projected('complete',{status:'declared',items:['omitted-roof','PRIVATE SOURCE']}).scope,'partial');
+assert.equal(projected('complete',undefined).scope,'complete');
 store('projects/'+id+'/latest.json',JSON.stringify(rec),{visibility:'public',assets:JSON.stringify([img])},'initial');
 store('context/'+alias+'.json','{}',{projectId:id});store('projects/'+id+'/assets/'+img,'abc',{publicDerivative:'1'});
 const request=(path,method='GET',token='',body,headers={})=>new Request(base+path,{method,headers:{Origin:'https://tsg.thast.live',...(token?{'CF-Access-Jwt-Assertion':token}:{}),...(body?{'Content-Type':'application/json'}:{}),...headers},...(body?{body:JSON.stringify(body)}:{})});

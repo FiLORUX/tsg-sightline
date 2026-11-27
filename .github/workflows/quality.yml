@@ -36,4 +36,5 @@ jobs:
           node tools/test-browser.mjs
           node tools/test-previs-navigation.mjs
           node tools/test-previs-geometry-ui.mjs
+          node tools/test-public-geometry-limitations-ui.mjs
           node tools/render-og.mjs

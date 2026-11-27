@@ -2,17 +2,21 @@ import {createHash} from 'node:crypto';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import {resolve,relative,isAbsolute,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {publicRecord} from '../worker/public-projects.mjs';
+import {publicRecord,geometryLimitations} from '../worker/public-projects.mjs';
 import {createSpatialCore} from './spatial-core.mjs';
 
 const args=process.argv.slice(2);
 const opt=k=>{const i=args.indexOf(k);return i<0?null:args.splice(i,2)[1]};
-const id=opt('--project'),sequence=Number(opt('--sequence')),geometry=opt('--glb'),geometryScope=opt('--geometry-scope'),revision=opt('--revision');
+const hasGeometryLimitations=args.includes('--geometry-limitations');
+const id=opt('--project'),sequence=Number(opt('--sequence')),geometry=opt('--glb'),geometryScope=opt('--geometry-scope'),geometryLimitationsArg=opt('--geometry-limitations'),revision=opt('--revision');
 const publicIndex=args.indexOf('--public-approved'),publicApproved=publicIndex>=0;if(publicApproved)args.splice(publicIndex,1);
 const [input,out,...links]=args;
 const fail=s=>{throw Error(s)};
-if(!input||!out||!/^[a-f0-9]{32}$/.test(id||'')||!Number.isSafeInteger(sequence)||sequence<1)fail('Usage: build-live-project.mjs <project.json> <private-output-dir> --project <32 hex> --sequence <integer> [--revision R04] [--glb file --geometry-scope partial|complete|unknown] [legacy links or digests ...]');
+if(!input||!out||!/^[a-f0-9]{32}$/.test(id||'')||!Number.isSafeInteger(sequence)||sequence<1)fail('Usage: build-live-project.mjs <project.json> <private-output-dir> --project <32 hex> --sequence <integer> [--revision R04] [--glb file --geometry-scope partial|complete|unknown --geometry-limitations code,code] [legacy links or digests ...]');
 if(geometryScope&&(!geometry||!['partial','complete','unknown'].includes(geometryScope)))fail('Geometry scope requires a GLB and must be partial, complete or unknown');
+if(hasGeometryLimitations&&(!geometry||typeof geometryLimitationsArg!=='string'||!geometryLimitationsArg))fail('Geometry limitations require a GLB and a comma-separated code list');
+const limitations=hasGeometryLimitations?geometryLimitations({status:'declared',items:geometryLimitationsArg.split(',')},{strict:true}):geometryLimitations();
+if(geometryScope==='complete'&&limitations.items.length)fail('A complete scope contradicts declared limitations');
 const root=fileURLToPath(new URL('../',import.meta.url)),target=resolve(out),rel=relative(root,target);
 if(rel===''||(!rel.startsWith('..')&&!isAbsolute(rel)))fail('Output must be outside the public repository');
 const raw=JSON.parse(await readFile(input,'utf8')),p=structuredClone(raw.project||raw);
@@ -40,7 +44,7 @@ if(geometry){
   // Publication must not advertise geometry that the production parser will
   // reject, including files exceeding its triangle and primitive limits.
   createSpatialCore().parseGlb(b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength));
-  assets.geometry=await store(b,'glb',160*1024*1024,{scope:geometryScope||'unknown'});
+  assets.geometry=await store(b,'glb',160*1024*1024,{scope:geometryScope||'unknown',limitations});
 }
 if(p.previs?.registration)p.previs.registration.confirmed=false;
 let manifest={format:'sightline-live/1',projectId:id,sequence,publishedAt:new Date().toISOString(),project:p,assets};
