@@ -1,0 +1,114 @@
+{
+  "tripodHeavy": {
+    "label": "OB tripod",
+    "category": "Ground support",
+    "mechanism": "Heavy-duty tripod · pan/tilt head",
+    "legacy": true,
+    "svg": "<g transform=\"translate(8 3) scale(0.94)\"><path d=\"M0 4H10V1H16V4H20V0H42L48 3V15L42 18H20V15H0Z M23 3V15H25V3Z M41 3V15H43V3Z\" fill-rule=\"evenodd\"/></g><g transform=\"translate(30 20) scale(1)\"><path d=\"M-6 0H6V3H2.5V6H-2.5V3H-6Z\"/></g><path d=\"M27 25H33L53 41H46L33 32V41H28V32L15 41H8Z\"/><path d=\"M18 35H43V38H18Z M7 41H17V44H7Z M44 41H54V44H44Z M25 41H36V44H25Z\"/>"
+  },
+  "ped": {
+    "label": "Pedestal",
+    "category": "Ground support",
+    "mechanism": "Balanced column · wheeled base",
+    "legacy": true,
+    "svg": "<g transform=\"translate(10 3) scale(0.9)\"><path d=\"M0 4H10V1H16V4H20V0H42L48 3V15L42 18H20V15H0Z M23 3V15H25V3Z M41 3V15H43V3Z\" fill-rule=\"evenodd\"/></g><g transform=\"translate(32 20) scale(1)\"><path d=\"M-6 0H6V3H2.5V6H-2.5V3H-6Z\"/></g><path d=\"M28 26H36V34H39V37H25V34H28Z M19 28H45V31H19Z M21 38H43L49 41V42H15V41Z\"/><path d=\"M18 43a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z M19.8 43a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M40 43a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z M41.8 43a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/>"
+  },
+  "tripodDolly": {
+    "label": "Tripod dolly",
+    "category": "Ground support",
+    "mechanism": "Tripod · steerable caster base",
+    "legacy": true,
+    "svg": "<g transform=\"translate(13 3) scale(1.04)\"><path d=\"M0 3H6V0H16V3H22V5H29L34 8V13L29 16H22V18H0Z M23 8V13H25V8Z\" fill-rule=\"evenodd\"/></g><g transform=\"translate(31 22) scale(1)\"><path d=\"M-6 0H6V3H2.5V6H-2.5V3H-6Z\"/></g><path d=\"M28 27H34L47 37H42L34 32V37H29V32L20 37H15Z M12 37H50V40H12Z\"/><path d=\"M11.8 42a3.2 3.2 0 1 0 6.4 0a3.2 3.2 0 1 0 -6.4 0Z M13.8 42a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M27.8 42a3.2 3.2 0 1 0 6.4 0a3.2 3.2 0 1 0 -6.4 0Z M29.8 42a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M43.8 42a3.2 3.2 0 1 0 6.4 0a3.2 3.2 0 1 0 -6.4 0Z M45.8 42a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/>"
+  },
+  "tripodEng": {
+    "label": "ENG tripod",
+    "category": "Ground support",
+    "mechanism": "Lightweight tripod · fluid head",
+    "legacy": true,
+    "svg": "<g transform=\"translate(16 3) scale(0.88)\"><path d=\"M0 3H6V0H16V3H22V5H29L34 8V13L29 16H22V18H0Z M23 8V13H25V8Z\" fill-rule=\"evenodd\"/></g><g transform=\"translate(29 19) scale(1)\"><path d=\"M-6 0H6V3H2.5V6H-2.5V3H-6Z\"/></g><path d=\"M29 25L15 42 M29 25L43 42 M29 25V43 M21 34H37\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M12 41H18V44H12Z M40 41H46V44H40Z M26 42H32V44H26Z\"/>"
+  },
+  "crane": {
+    "label": "Telescopic crane",
+    "category": "Boom support",
+    "mechanism": "Extending boom · remote head",
+    "legacy": true,
+    "svg": "<path d=\"M12 36H32V41H12Z M16 31H27V36H16Z\"/><path d=\"M13 43a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z M14.8 43a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M25 43a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z M26.8 43a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M5 28H12V38H5Z M11 30L21 26L23 30L11 34Z\"/><path d=\"M18 27L35 14L40 20L22 33Z M37 14L46 7L49.5 11.5L40 19Z M47.5 7L53 2L55 5L50 9.5Z\"/><circle cx=\"21\" cy=\"30\" r=\"3.1\"/><path d=\"M54 5V12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><g transform=\"translate(47 12) scale(0.52)\"><path d=\"M0 1H17V4H26V14H17V17H0Z M17 7V11H19V7Z\" fill-rule=\"evenodd\"/></g>"
+  },
+  "jib": {
+    "label": "Fixed jib",
+    "category": "Boom support",
+    "mechanism": "Modular fixed boom · counterweight",
+    "legacy": true,
+    "svg": "<path d=\"M20 31H24L10 42H6Z M22 31H26L39 42H34Z M21 31H25V44H21Z M6 42H14V45H6Z M32 42H41V45H32Z\"/><path d=\"M6 30L50 3L53 7L9 34Z M11 37L54 10L56 13L13 41Z\"/><path d=\"M13 31L21 33L24 24L32 26L35 17L43 19L46 10L53 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.35\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M4 30H10V40H4Z\"/><circle cx=\"22\" cy=\"32\" r=\"3.3\"/><path d=\"M54 11V16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><g transform=\"translate(47 16) scale(0.52)\"><path d=\"M0 1H17V4H26V14H17V17H0Z M17 7V11H19V7Z\" fill-rule=\"evenodd\"/></g>"
+  },
+  "steadicam": {
+    "label": "Steadicam",
+    "category": "Operator support",
+    "mechanism": "Vest · articulated arm · balanced sled",
+    "legacy": true,
+    "svg": "<circle cx=\"13\" cy=\"8\" r=\"5.6\"/><path d=\"M6 17Q12 14 19 17L22 30H18V45H12L10 34L7 45H3V30Z\"/><path d=\"M8 18H18V30H8Z M11 20V28H15V20Z\" fill-rule=\"evenodd\"/><path d=\"M19 23L29 30L39 23 M18 28L29 35L39 28\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.0\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><circle cx=\"29\" cy=\"32.5\" r=\"2.5\"/><path d=\"M40 16V39\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.0\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><g transform=\"translate(33 3) scale(0.77)\"><path d=\"M0 3H6V0H16V3H22V5H29L34 8V13L29 16H22V18H0Z M23 8V13H25V8Z\" fill-rule=\"evenodd\"/></g><path d=\"M35 36H47V39H35Z M34 40H48V44H34Z\"/><path d=\"M34 24H40V28H34Z\"/>"
+  },
+  "handheld": {
+    "label": "Shoulder camera",
+    "category": "Operator support",
+    "mechanism": "Shoulder pad · operator-borne camera",
+    "legacy": true,
+    "svg": "<circle cx=\"18\" cy=\"8\" r=\"5.6\"/><path d=\"M10 16Q16 14 23 18L29 24L21 29L17 26V44H11L8 32L7 44H3V26Z\"/><g transform=\"translate(21 9) scale(1.02)\"><path d=\"M0 3H6V0H16V3H22V5H29L34 8V13L29 16H22V18H0Z M23 8V13H25V8Z\" fill-rule=\"evenodd\"/></g><path d=\"M22 27H35V30H22Z\"/><path d=\"M20 23L29 34L43 27 M25 20L35 27L47 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
+  },
+  "robo": {
+    "label": "Remote head / PTZ",
+    "category": "Fixed support",
+    "mechanism": "Pan base · tilting yoke",
+    "legacy": true,
+    "svg": "<path d=\"M20 8Q20 4 25 4H39Q45 4 45 10V12H52V23H45V25Q45 29 39 29H25Q20 29 20 24Z M26 16a3.2 3.2 0 1 0 6.4 0a3.2 3.2 0 1 0 -6.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M12 13H17V23Q17 33 28 33H37Q48 33 48 25H53Q53 38 37 38H35V40H29V38H28Q12 38 12 23Z M12 40H53V44H12Z\"/>"
+  },
+  "pov": {
+    "label": "Fixed bracket",
+    "category": "Fixed support",
+    "mechanism": "Compact payload · rigid mounting interface",
+    "legacy": true,
+    "svg": "<g transform=\"translate(18 7) scale(1.14)\"><path d=\"M0 1H17V4H26V14H17V17H0Z M17 7V11H19V7Z\" fill-rule=\"evenodd\"/></g><path d=\"M13 8H16V28H13Z M13 30H16V37H46V41H12V30Z M27 27H32V37H27Z\"/><circle cx=\"11\" cy=\"13\" r=\"2\"/><circle cx=\"11\" cy=\"34\" r=\"2\"/>"
+  },
+  "rail": {
+    "label": "Track dolly",
+    "category": "Mobile support",
+    "mechanism": "Carriage · constrained rail travel",
+    "legacy": true,
+    "svg": "<g transform=\"translate(15 2) scale(0.98)\"><path d=\"M0 3H6V0H16V3H22V5H29L34 8V13L29 16H22V18H0Z M23 8V13H25V8Z\" fill-rule=\"evenodd\"/></g><g transform=\"translate(31 20) scale(1)\"><path d=\"M-6 0H6V3H2.5V6H-2.5V3H-6Z\"/></g><path d=\"M27 26H35V33H48V37H14V33H27Z\"/><path d=\"M14.5 40a3.5 3.5 0 1 0 7.0 0a3.5 3.5 0 1 0 -7.0 0Z M16.8 40a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M40.5 40a3.5 3.5 0 1 0 7.0 0a3.5 3.5 0 1 0 -7.0 0Z M42.8 40a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M5 42.5H59V45H5Z M9 45H14V46.5H9Z M24 45H29V46.5H24Z M39 45H44V46.5H39Z M54 45H59V46.5H54Z\"/>"
+  },
+  "special": {
+    "label": "Custom support",
+    "category": "Unspecified",
+    "mechanism": "Unspecified support · mounting datum",
+    "legacy": true,
+    "svg": "<path d=\"M9 4H22V7H12V17H9Z M42 4H55V17H52V7H42Z M9 31H12V41H22V44H9Z M52 31H55V44H42V41H52Z\"/><path d=\"M23 14H41V34H23Z M27 18H37V30H27Z\" fill-rule=\"evenodd\"/><circle cx=\"32\" cy=\"24\" r=\"3\"/><path d=\"M30 8H34V12H30Z M30 36H34V40H30Z M17 22H21V26H17Z M43 22H47V26H43Z\"/>"
+  },
+  "gimbal": {
+    "label": "Motorised gimbal",
+    "category": "Operator support",
+    "mechanism": "Active three-axis stabilisation · handgrip",
+    "legacy": false,
+    "svg": "<g transform=\"translate(18 4) scale(0.82)\"><path d=\"M0 3H6V0H16V3H22V5H29L34 8V13L29 16H22V18H0Z M23 8V13H25V8Z\" fill-rule=\"evenodd\"/></g><path d=\"M12 10a5 5 0 1 0 10 0a5 5 0 1 0 -10 0Z M15 10a2 2 0 1 0 4 0a2 2 0 1 0 -4 0Z\" fill-rule=\"evenodd\"/><path d=\"M12 15H17V24L31 29V34L12 27Z M31 28H37V44H31Z\"/><circle cx=\"34\" cy=\"26\" r=\"4.3\"/><path d=\"M42 22H47V28H37V23H42Z\"/>"
+  },
+  "roboticDolly": {
+    "label": "Robotic dolly",
+    "category": "Mobile support",
+    "mechanism": "Steerable chassis · remote head",
+    "legacy": false,
+    "svg": "<g transform=\"translate(22 5) scale(0.8)\"><path d=\"M0 1H17V4H26V14H17V17H0Z M17 7V11H19V7Z\" fill-rule=\"evenodd\"/></g><path d=\"M30 18H35V25H38V34H26V25H30Z M10 31H24V35H42V31H54V39H10Z\"/><path d=\"M11 40a5 5 0 1 0 10 0a5 5 0 1 0 -10 0Z M14.8 40a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M43 40a5 5 0 1 0 10 0a5 5 0 1 0 -10 0Z M46.8 40a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M23 41H41V44H23Z\"/>"
+  },
+  "cablecam": {
+    "label": "Cable camera",
+    "category": "Suspended support",
+    "mechanism": "Cable-suspended carrier · remote head",
+    "legacy": false,
+    "svg": "<path d=\"M4 4L32 18L60 4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M23 16H41L45 21L41 25H23L19 21Z M29 25H35V30H29Z\"/><circle cx=\"32\" cy=\"29\" r=\"4\"/><g transform=\"translate(25 30) scale(0.88)\"><path d=\"M0 1H17V4H26V14H17V17H0Z M17 7V11H19V7Z\" fill-rule=\"evenodd\"/></g>"
+  },
+  "lift": {
+    "label": "Vertical lift",
+    "category": "Vertical support",
+    "mechanism": "Guided vertical travel · remote head",
+    "legacy": false,
+    "svg": "<g transform=\"translate(23 3) scale(0.8)\"><path d=\"M0 1H17V4H26V14H17V17H0Z M17 7V11H19V7Z\" fill-rule=\"evenodd\"/></g><path d=\"M29 16H35V23H38V30H42V39H22V30H26V23H29Z M16 39H48V44H16Z\"/><path d=\"M12 13V34 M8 17L12 12L16 17 M8 30L12 35L16 30\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
+  }
+}

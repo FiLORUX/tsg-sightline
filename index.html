@@ -195,15 +195,23 @@
   .readout { font-family: var(--font-data); font-size: 12px; color: var(--ink-dim); line-height: 1.6; }
   .readout strong { color: var(--ink); font-weight: 600; }
 
-  .palette { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .palette { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
   .palette button {
-    display: flex; flex-direction: column; align-items: center; gap: 3px;
-    padding: 8px 2px 6px; line-height: 1.1; font-size: 9px;
-    letter-spacing: 0.03em; text-transform: uppercase; color: var(--ink-dim);
+    display:flex; flex-direction:column; justify-content:center; align-items:center;
+    gap:6px; min-width:0; min-height:90px; padding:7px 3px 8px;
+    background:#263237; color:#eaf0f0; border:1px solid #3a494e;
+    border-radius:5px; font:550 11px/1.15 var(--font-ui); text-align:center;
   }
-  .palette button svg { width: 36px; height: 36px; }
-  .palette button.is-active { color: #191307; }
-
+  .palette button svg { display:block; width:64px; height:48px; max-width:100%; flex-shrink:0; color:inherit; }
+  .palette button span { min-height:24px; max-width:100%; display:flex; align-items:center; justify-content:center; }
+  .palette button:hover { background:#314047; border-color:#788b92; }
+  .palette button.is-active { background:#e5edf0; color:#17232b; border:2px solid #e5edf0; padding:6px 2px 7px; font-weight:600; }
+  .palette button:focus-visible { outline:2px solid #e3eaf0; outline-offset:2px; }
+  #grip-preview { display:flex; align-items:center; gap:10px; min-height:40px; color:var(--ink); margin:4px 0; }
+  #grip-preview svg { width:56px; height:42px; flex-shrink:0; }
+  #grip-preview span { font-size:11px; line-height:1.4; color:var(--ink-dim); }
+  @media(forced-colors:active){.palette button.is-active{background:Highlight;color:HighlightText;border:2px solid Highlight}}
+  
   table.camera-list { width: 100%; border-collapse: collapse; font-family: var(--font-data); font-size: 11.5px; }
   table.camera-list th {
     text-align: left; font-weight: 600; color: var(--ink-dim);
@@ -212,7 +220,7 @@
   table.camera-list td { padding: 5px 6px 5px 0; border-top: 1px solid var(--line); white-space: nowrap; }
   table.camera-list tr.is-selected td { background: rgba(232, 179, 60, 0.12); }
   table.camera-list tbody tr { cursor: pointer; }
-  table.camera-list td svg { width: 22px; height: 22px; vertical-align: middle; }
+  table.camera-list td svg { width:28px; height:21px; vertical-align:middle; color:var(--ink); }
   table.camera-list td.truncate { max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
 
   .empty { font-size: 12px; color: var(--ink-dim); line-height: 1.5; }
@@ -505,7 +513,7 @@
             <input type="text" id="cam-number">
           </div>
           <div class="field">
-            <label for="cam-mount">Mount</label>
+            <label for="cam-mount">Rig template</label>
             <select id="cam-mount"></select>
           </div>
         </div>
@@ -540,18 +548,27 @@
           </div>
         </div>
 
+        <details class="chain-details" open>
+          <summary>Grip / support assembly</summary>
+          <div class="field"><label for="grip-system">Support system</label><select id="grip-system"></select></div>
+          <div class="field"><label for="grip-head">Pan/tilt or stabilised head</label><select id="grip-head"></select></div>
+          <div class="field"><label for="grip-reference">Installed configuration / supplier reference</label><input id="grip-reference" maxlength="200"></div>
+          <div id="grip-preview"></div>
+          <div id="grip-info" class="readout" role="status"></div>
+          <a id="grip-source" hidden target="_blank" rel="noopener noreferrer">Manufacturer specification</a>
+        </details>
         <div id="arm-fields" hidden>
           <div class="field">
-            <label for="cam-crane">Arm</label>
+            <label for="cam-crane">Legacy nominal arm template</label>
             <select id="cam-crane"></select>
           </div>
           <div class="row-3">
             <div class="field">
-              <label for="cam-reach-min">Retracted (m)</label>
+              <label for="cam-reach-min">Plan reach min (m)</label>
               <input type="number" id="cam-reach-min" step="0.1" min="0.5">
             </div>
             <div class="field">
-              <label for="cam-reach-max">Extended (m)</label>
+              <label for="cam-reach-max">Plan reach max (m)</label>
               <input type="number" id="cam-reach-max" step="0.1" min="0.5">
             </div>
             <div class="field">
@@ -561,7 +578,7 @@
           </div>
           <div class="row">
             <div class="field">
-              <label for="cam-reach">Arm at (m)</label>
+              <label for="cam-reach">Plan reach (m)</label>
               <input type="number" id="cam-reach" step="0.1" min="0.5">
             </div>
             <div class="field">
@@ -571,6 +588,16 @@
           </div>
         </div>
 
+        <details id="grip-boom" class="chain-details" hidden>
+          <summary>Spatial boom configuration</summary>
+          <label class="check"><input id="grip-spatial" type="checkbox"> Use entered pivot-to-head geometry</label>
+          <div class="readout">These are installed configuration measurements, not nominal model names or certified working limits.</div>
+          <div class="row"><div class="field"><label for="grip-length">Pivot to head (m)</label><input type="number" id="grip-length" step=".01" min=".01"></div><div class="field"><label for="grip-angle">Boom elevation (°)</label><input type="number" id="grip-angle" step=".1" min="-89" max="89"></div></div>
+          <div class="row"><div class="field"><label for="grip-pivot-z">Pivot height above base (m)</label><input type="number" id="grip-pivot-z" step=".01"></div><div class="field"><label for="grip-offset-z">Vertical head / lens offset (m)</label><input type="number" id="grip-offset-z" step=".01"></div></div>
+          <div class="row"><div class="field"><label for="grip-min">Min pivot-head length (m)</label><input type="number" id="grip-min" step=".01" min=".01"></div><div class="field"><label for="grip-max">Max pivot-head length (m)</label><input type="number" id="grip-max" step=".01" min=".01"></div></div>
+          <div class="field"><label for="grip-rear">Rear boom length (m)</label><input type="number" id="grip-rear" step=".01" min="0"></div>
+          <div id="grip-boom-info" class="readout" role="status"></div>
+        </details>
         <div id="roam-fields" hidden>
           <div class="field">
             <label for="cam-roam">Working radius (m)</label>
@@ -752,19 +779,83 @@
      tells a box-lens hard camera from a portable position at a glance and why
      the drawing stays readable after a monochrome plot. */
 
+  // #region grip-core
+  const Grip = (function createGrip(){
+  // Legacy mount identifiers are placement templates, NOT equipment IDs.
+  // Do not infer payload, head, optical aperture, RF or certified limits.
+  const templates={
+    tripodHeavy:{family:'tripod',mobility:'fixed',geometry:'nominal tripod footprint'},
+    tripodEng:{family:'tripod',mobility:'fixed',geometry:'nominal tripod footprint'},
+    tripodDolly:{family:'tripod-dolly',mobility:'free-planar',geometry:'nominal caster footprint'},
+    ped:{family:'pedestal',mobility:'planar-and-lift',geometry:'nominal pedestal footprint'},
+    crane:{family:'telescopic-boom',mobility:'pivot-boom',geometry:'nominal horizontal boom'},
+    jib:{family:'fixed-boom',mobility:'pivot-boom',geometry:'nominal horizontal boom'},
+    steadicam:{family:'body-mounted-sled',mobility:'operator-path',geometry:'nominal operator and sled'},
+    handheld:{family:'shoulder',mobility:'operator-path',geometry:'nominal operator footprint'},
+    robo:{family:'remote-fixed',mobility:'fixed',geometry:'nominal mounting point'},
+    pov:{family:'fixed-bracket',mobility:'fixed',geometry:'nominal mounting point'},
+    rail:{family:'rail',mobility:'track-constrained',geometry:'nominal carriage and route'},
+    special:{family:'custom',mobility:'unknown',geometry:'schematic point only'}
+  };
+  const systems=[
+    {id:'',name:'Unspecified / custom'},
+    {id:'vinten-hdt2',name:'Vinten HDT-2 tripod',families:['tripod','tripod-dolly'],source:'https://www.vinten.com/en/product/hdt-2-heavy-duty-tripod/',note:'Two-stage legs; flat four-bolt / Quickfix interface; 120 kg tripod rating, not an assembled system rating.'},
+    {id:'sachtler-ob2000',name:'Sachtler OB 2000 tripod',families:['tripod','tripod-dolly'],source:'https://www.sachtler.com/en/product/tripod-ob-2000/',note:'Flat-base tripod; 140 kg tripod rating. Head, dolly and centre of gravity are independent.'},
+    {id:'sachtler-ob-dolly',name:'Sachtler OB 2000 + Dolly XL',families:['tripod-dolly'],source:'https://www.sachtler.com/en/product/system-video-75-ob-2000/',note:'Caster-supported tripod. A floor dolly does not imply a rail-constrained movement.'},
+    {id:'vinten-osprey',name:'Vinten Osprey Plus pedestal',families:['pedestal'],source:'https://www.vinten.com/wp-content/uploads/2023/08/v4170-0001-osprey-plus-user-guide.pdf',note:'Balanced vertical column and wheeled base; distinguish studio and OB versions.'},
+    {id:'scorpio45',name:"Servicevision Scorpio 45′",families:['telescopic-boom'],source:'https://scorpio.servicevision.es/en/product/grips-en/telescopic-cranes/scorpio-45-en/scorpio-45/',note:'Published length 2.41–14 m; column extension 0.65 m; maximum optic-axis height 14.1 m. Published overall length is not automatically pivot-to-head distance. Use the configured boom and head offsets.'},
+    {id:'jimmy-jib',name:'Stanton Jimmy Jib Triangle',families:['fixed-boom'],source:'https://www.jimmyjib.com/docs/manuals/Triangle_Pro_Standard_4C.pdf',note:'Modular fixed-length boom; identify installed sections, pivot and rear arm from the supplier drawing.'},
+    {id:'steadicam',name:'Steadicam vest / arm / sled',families:['body-mounted-sled'],source:'https://flysteadicam.tiffen.com/products/steadicam-g-50x-arm',note:'Iso-elastic arm supports the balanced sled; sled mass is part of arm payload.'},
+    {id:'glidecam-v25',name:'Glidecam V-25',families:['body-mounted-sled'],note:'Vest, spring arm and balanced sled. Confirm installed arm and sled configuration; not an electronic gimbal.'},
+    {id:'agito-trax',name:'AGITO Trax',families:['rail','custom'],source:'https://motion-impossible.com/products/agito/agito-trax/',note:'Rail-constrained carriage; published chassis and gauge depend on configuration. Independent column and remote head.'},
+    {id:'agito-sports',name:'AGITO Sports',families:['custom'],source:'https://motion-impossible.com/products/agito/agito-sports/',note:'Free-roaming steerable chassis; not a circular roaming envelope or a rail.'},
+    {id:'cablecam',name:'Cable-suspended camera / Spidercam-type',families:['custom'],note:'Suspended translation within a configured cable volume; anchors, cable sag, tension and load cases require vendor model. No generic clearance.'},
+    {id:'vertical',name:'Vertical lift / tower',families:['custom'],note:'Constrained vertical travel; enter base and upper/lower optical datum independently.'},
+    {id:'motor-gimbal',name:'Handheld motorised gimbal',families:['custom','shoulder'],source:'https://www.dji.com/rs-4-pro/specs',note:'Motorised pan/tilt/roll; not an iso-elastic support arm. Payload balance and angular limits depend on actual build.'},
+    {id:'fixed-clamp',name:'Fixed bracket / clamp',families:['fixed-bracket','remote-fixed','custom'],note:'Mounting structure, elevation, secondary retention and allowable load require local rigging approval.'}
+  ];
+  const heads=[
+    {id:'',name:'Unspecified / custom'},
+    {id:'vector900',name:'Vinten Vector 900 — manual pan/tilt head',source:'https://www.vinten.com/wp-content/uploads/2023/06/1_vector-950.pdf'},
+    {id:'video75',name:'Sachtler Video 75 Plus Studio — fluid head',source:'https://www.sachtler.com/en/product/system-video-75-ob-2000-2/'},
+    {id:'video90',name:'Sachtler Video 90 — fluid head',source:'https://www.sachtler.com/en/product/system-video-90-ob-2000/'},
+    {id:'remote2',name:'Remote pan/tilt head — two axis'},
+    {id:'srh3',name:'ARRI SRH-3 — stabilised three-axis remote head',source:'https://www.arri.com/en/cine-systems/camera-stabilizer-systems/legacy/stabilized-remote-heads/srh-3'},
+    {id:'remote3',name:'Stabilised remote head — three axis'},
+    {id:'integratedptz',name:'Integrated PTZ / PTZR camera'},
+    {id:'none',name:'Rigid bracket / no pan-tilt head'},
+    {id:'sled',name:'Mechanical sled / gimbal bearing'}
+  ];
+  const template=c=>templates[c.mount]||templates.special;
+  const profile=(c)=>{const p=c.grip||{};return {system:typeof p.system==='string'?p.system:'',head:typeof p.head==='string'?p.head:'',reference:typeof p.reference==='string'?p.reference:'',...p}};
+  // Only explicit user-entered pivot-to-head length and elevation are used.
+  // Legacy reach is a horizontal projection. Existing coordinates stay intact.
+  function boom(c){
+    const p=profile(c),legacy={explicit:false,valid:true,reach:Number(c.reach)||0,min:Number(c.reachMin)||0,max:Number(c.reachMax)||0,tail:Number(c.tail)||0,z:Number(c.height)||0};
+    if(p.boomMode!=='spatial')return legacy;
+    const values=[p.boomLength,p.boomElevation,p.pivotHeight,p.headOffsetZ,p.boomMin,p.boomMax,p.rearLength];
+    if(!values.every(Number.isFinite)||p.boomLength<=0||p.boomMin<=0||p.boomMax<p.boomMin||p.boomLength<p.boomMin-1e-8||p.boomLength>p.boomMax+1e-8||Math.abs(p.boomElevation)>=90||p.rearLength<0)return {...legacy,valid:false};
+    if(c.mount==='jib'&&(Math.abs(p.boomMax-p.boomMin)>1e-8||Math.abs(p.boomLength-p.boomMin)>1e-8))return {...legacy,valid:false};
+    const a=p.boomElevation*Math.PI/180,co=Math.cos(a);
+    return {explicit:true,valid:true,reach:p.boomLength*co,min:p.boomMin*co,max:p.boomMax*co,tail:p.rearLength*co,z:p.pivotHeight+p.boomLength*Math.sin(a)+p.headOffsetZ};
+  }
+  const compatible=c=>{const s=systems.find(x=>x.id===profile(c).system);return !s||!s.families||s.families.includes(template(c).family)};
+  return {templates,systems,heads,template,profile,boom,compatible};
+})();
+  // #endregion grip-core
   const MOUNTS = [
-    { id: 'tripodHeavy', short: 'Heavy',  name: 'Heavy tripod',            colour: '#14508c', spread: 0.72 },
-    { id: 'ped',         short: 'Ped',    name: 'Studio pedestal',         colour: '#1f6fb8' },
-    { id: 'tripodDolly', short: 'Dolly',  name: 'Tripod on pulley',        colour: '#2f8f8a', spread: 0.58 },
+    { id: 'tripodHeavy', short: 'OB tripod',  name: 'Heavy-duty OB tripod',            colour: '#14508c', spread: 0.72 },
+    { id: 'ped',         short: 'Pedestal',    name: 'Studio / OB pedestal',         colour: '#1f6fb8' },
+    { id: 'tripodDolly', short: 'Dolly',  name: 'Tripod on wheeled dolly',        colour: '#2f8f8a', spread: 0.58 },
     { id: 'tripodEng',   short: 'ENG',    name: 'ENG tripod',              colour: '#4a9fd8', spread: 0.52 },
     { id: 'crane',       short: 'Crane',  name: 'Telescopic crane',        colour: '#a05fc4' },
     { id: 'jib',         short: 'Jib',    name: 'Jib arm',                 colour: '#7a52c0' },
     { id: 'steadicam',   short: 'Stead',  name: 'Steadicam',               colour: '#e8a53c' },
-    { id: 'handheld',    short: 'Hand',   name: 'Handheld',                colour: '#dd5f42' },
-    { id: 'robo',        short: 'Robo',   name: 'Robotic head',            colour: '#3aa06f' },
-    { id: 'pov',         short: 'POV',    name: 'POV / minicam',           colour: '#37a8b8' },
+    { id: 'handheld',    short: 'Hand',   name: 'Handheld / shoulder',                colour: '#dd5f42' },
+    { id: 'robo',        short: 'Remote',   name: 'Fixed remote head / PTZ',            colour: '#3aa06f' },
+    { id: 'pov',         short: 'Bracket',    name: 'Fixed camera bracket (POV / box)',           colour: '#37a8b8' },
     { id: 'rail',        short: 'Rail',   name: 'Rail or track dolly',     colour: '#c46a9a' },
-    { id: 'special',     short: 'Spec',   name: 'Specialty',               colour: '#7f8c99' }
+    { id: 'special',     short: 'Custom',   name: 'Custom / specialty support',               colour: '#7f8c99' }
   ];
 
   // #region equipment-core
@@ -998,10 +1089,8 @@
     { id: 'jib6',   name: 'Jib arm, fixed (6.0 m)',    min: 6.00, max: 6.00,  base: 1.40, tail: 1.60 }
   ];
 
-  // Measured kit that the plan glyphs are drawn from. Only figures published by
-  // the manufacturer or hire house are used, so a footprint on the sheet is the
-  // footprint on the floor.
-  const PEDESTAL = { track: 1.07, ring: 0.74, wheel: 0.16 };
+  // Nominal drawing profiles. The selected model does not establish the installed footprint.
+  const PEDESTAL = { track: 1.07, ring: 0.74, wheel: 0.16 }; // Nominal glyph dimensions; not a verified installed pedestal.
 
   // Head silhouettes keyed to lens class. The break points follow how the glass
   // is actually built: long box lenses above 400 mm, field zooms above 120 mm,
@@ -1171,7 +1260,7 @@
   // Ground mounts carry the glass ahead of the pan axis, arms carry it out to the
   // head, and coverage has to be projected from wherever the front element ends up.
   function lensOrigin(camera) {
-    const forward = isArm(camera) ? camera.reach : pivotOffset(camera);
+    const forward = isArm(camera) ? Grip.boom(camera).reach : pivotOffset(camera);
     return pointOnCircle(camera.x, camera.y, forward * state.pxPerMetre, camera.heading);
   }
 
@@ -1419,7 +1508,7 @@
 
   function armSymbol(group, camera, colours) {
     const telescopic = isTelescopic(camera);
-    const tail = camera.tail || camera.baseSize * 1.4;
+    const tail = Grip.boom(camera).explicit?Grip.boom(camera).tail:(camera.tail || camera.baseSize * 1.4);
     const chassisLength = camera.baseSize;
     const chassisWidth = chassisLength * 0.94;
 
@@ -1462,7 +1551,7 @@
 
     // Telescopic sections drawn as nested stages so the arm reads as extending
     // rather than as a single fixed boom.
-    const tip = -camera.reach;
+    const tip = -Grip.boom(camera).reach;
     const stages = telescopic ? 3 : 1;
     for (let i = 0; i < stages; i += 1) {
       const from = (tip / stages) * i;
@@ -1495,8 +1584,8 @@
       'vector-effect': 'non-scaling-stroke'
     }));
 
-    const head = create('g', { transform: `translate(0 ${tip})` });
-    cameraHead(head, colours, HEAD_PROFILES[camera.tele >= 120 ? 'field' : 'portable']);
+    const head = create('g', { transform: `translate(0 ${tip}) rotate(${Number(camera.headPan)||0})` });
+    cameraHead(head, colours, headProfile(camera));
     // Remote head yoke: the arm carries a stabilised head, not an operator.
     head.appendChild(create('path', {
       d: 'M -0.22 0.62 L -0.22 0.42 M 0.22 0.62 L 0.22 0.42',
@@ -1735,10 +1824,10 @@
   function rigGlyph(c,ink){
   // 68-unit schematic icon. It is not the metre-scaled rig footprint.
   const g=create('g',{'stroke-linecap':'round','stroke-linejoin':'round','fill':'none'});
-  const l=(x1,y1,x2,y2,w=2.3)=>g.appendChild(create('line',{x1,y1,x2,y2,stroke:ink.line,'stroke-width':w}));
-  const r=(x,y,w,h,rx=2,fill='#fff',sw=2)=>g.appendChild(create('rect',{x,y,width:w,height:h,rx,fill,stroke:ink.line,'stroke-width':sw}));
-  const o=(cx,cy,rr,fill='#fff',sw=2)=>g.appendChild(create('circle',{cx,cy,r:rr,fill,stroke:ink.line,'stroke-width':sw}));
-  const p=(d,fill='none',sw=2)=>g.appendChild(create('path',{d,fill,stroke:ink.line,'stroke-width':sw}));
+  const l=(x1,y1,x2,y2,w=2.3)=>g.appendChild(create('line',{x1,y1,x2,y2,stroke:ink.line,'stroke-width':Math.max(2.5,w)}));
+  const r=(x,y,w,h,rx=2,fill='#fff',sw=2)=>g.appendChild(create('rect',{x,y,width:w,height:h,rx,fill,stroke:ink.line,'stroke-width':Math.max(2.3,sw)}));
+  const o=(cx,cy,rr,fill='#fff',sw=2)=>g.appendChild(create('circle',{cx,cy,r:rr,fill,stroke:ink.line,'stroke-width':Math.max(2.3,sw)}));
+  const p=(d,fill='none',sw=2)=>g.appendChild(create('path',{d,fill,stroke:ink.line,'stroke-width':Math.max(2.3,sw)}));
   const kind=Equipment.cameraById(c.cameraPresetId)?.kind||'';
   const optics=Equipment.lensById(c.lensPresetId)?.kind||(c.tele>=400?'box':c.tele>=120?'field':'portable');
   function head(x,y,profile=optics,compact=false){
@@ -1949,7 +2038,7 @@
       const colours = palette(camera);
       const origin = lensOrigin(camera);
       const radius = camera.throwMetres * state.pxPerMetre;
-      const optics=validAngles(camera);if(!optics||!(Number(camera.throwMetres)>0))continue;
+      const optics=validAngles(camera);if(!optics||!(Number(camera.throwMetres)>0)||(isArm(camera)&&!Grip.boom(camera).valid))continue;
       const selected = camera.id === state.selectedId;
       const group = create('g', {});
       const opticalHeading = camera.heading + (isArm(camera) ? Number(camera.headPan || 0) : 0);
@@ -1987,7 +2076,9 @@
       const group = create('g', {});
 
       if (isArm(camera)) {
-        const tail = (camera.tail || camera.baseSize * 1.4) * state.pxPerMetre;
+        const b=Grip.boom(camera);
+        if(!b.valid)continue;
+        const tail = (b.explicit?b.tail:(camera.tail || camera.baseSize * 1.4)) * state.pxPerMetre;
         // The counterweight trolley sweeps its own circle behind the post. It is
         // the clearance that gets missed, because nobody looks behind a crane.
         group.appendChild(create('circle', {
@@ -2001,7 +2092,7 @@
       if (isTelescopic(camera)) {
         group.appendChild(create('path', {
           d: annulusPath(camera.x, camera.y,
-            camera.reachMin * state.pxPerMetre, camera.reachMax * state.pxPerMetre,
+            Grip.boom(camera).min * state.pxPerMetre, Grip.boom(camera).max * state.pxPerMetre,
             camera.heading, camera.swing),
           fill: colours.tint, 'fill-opacity': state.monochrome ? 0.06 : 0.10,
           stroke: colours.tint, 'stroke-width': 1.2, 'stroke-dasharray': '7 5',
@@ -2011,7 +2102,7 @@
         // A fixed arm sweeps an arc rather than an annulus, so the envelope is the
         // line the head travels along.
         group.appendChild(create('path', {
-          d: arcPath(camera.x, camera.y, camera.reach * state.pxPerMetre, camera.heading, camera.swing),
+          d: arcPath(camera.x, camera.y, Grip.boom(camera).reach * state.pxPerMetre, camera.heading, camera.swing),
           fill: 'none', stroke: colours.tint, 'stroke-width': 1.6,
           'stroke-dasharray': '7 5', 'stroke-opacity': 0.8, 'vector-effect': 'non-scaling-stroke'
         }));
@@ -2080,7 +2171,7 @@
         transform: `translate(${camera.x} ${camera.y}) rotate(${camera.heading}) scale(${state.pxPerMetre})`
       });
       group.setAttribute('opacity','0.72');
-      group.appendChild(drawSymbol(camera, palette(camera)));
+      if(camera.mount!=='special'&&(!isArm(camera)||Grip.boom(camera).valid))group.appendChild(drawSymbol(camera, palette(camera)));
       layers.symbols.appendChild(group);
     }
   }
@@ -2097,7 +2188,7 @@
       const ink=palette(c),g=create('g',{'data-role':'body','data-id':c.id,style:'cursor:move'});
       g.appendChild(create('circle',{cx:c.x,cy:c.y,r:size*.49,fill:'#fff','fill-opacity':.94,stroke:ink.line,'stroke-width':.7,'stroke-opacity':.55,'vector-effect':'non-scaling-stroke'}));
       if(c.id===state.selectedId)g.appendChild(create('circle',{cx:c.x,cy:c.y,r:size*.58,fill:'none',stroke:ink.line,'stroke-width':1.4,'stroke-dasharray':'4 3','vector-effect':'non-scaling-stroke'}));
-      g.appendChild(schematicGlyph(c,ink,c.x,c.y,size,Number(c.heading)||0));layers.badges.appendChild(g);
+      g.appendChild(schematicGlyph(c,{line:'#253642',solid:'#253642',tint:'#253642'},c.x,c.y,size,Number(c.heading)||0));layers.badges.appendChild(g);
       const alt=c.positionRole==='alternate',n=String(c.number??'?').slice(0,8),raw=String(c.label||'');
       const label=(raw.length>32?raw.slice(0,31)+'…':raw)+(alt?' · ALT':'')+(c.rf?' · RF':'');
       const nw=Math.max(31*A,(n.length*11+12)*A),w=nw+Math.max(0,label.length*font*.61+12*A),gap=size*.64;
@@ -2127,7 +2218,7 @@
     const colours = palette(camera);
     const origin = lensOrigin(camera);
     const point = pointOnCircle(origin.x, origin.y,
-      camera.throwMetres * state.pxPerMetre, camera.heading);
+      camera.throwMetres * state.pxPerMetre, camera.heading+(isArm(camera)?Number(camera.headPan)||0:0));
     // The grip never falls below a thumb-sized target on screen, however far the
     // view is zoomed out.
     const radius = Math.max(15 / state.view.k, 13 * A);
@@ -2371,7 +2462,7 @@
           ? { line: '#14181c', solid: '#14181c', tint: '#14181c' }
           : { line: mount.colour, solid: mount.colour, tint: mount.colour };
 
-        group.appendChild(schematicGlyph(members[0],ink,x+33*scale,cursor-10*scale,28*scale));
+        group.appendChild(schematicGlyph(members[0],{line:'#253642',solid:'#253642',tint:'#253642'},x+33*scale,cursor-10*scale,28*scale));
         addText(mount.name,x+55*scale,cursor,13,600,'#172530',0);
         addText([...new Set(members.map(c=>String(c.number)))].join(', '),x+blockWidth-16*scale,cursor,12,500,'#5c6773',0,'end');
         cursor += rowHeight;
@@ -2488,6 +2579,7 @@
     el('cam-number').value = camera.number;
     el('cam-label').value = camera.label;
     el('cam-mount').value = camera.mount;
+    updateGripEditor(camera);
     el('cam-body').value = camera.body;
     el('cam-control').value = camera.control;
     el('cam-viewfinder').value = camera.viewfinder;
@@ -2529,17 +2621,135 @@
       `Frame width at ${format(axialDistance(camera), 1)} m axial distance: ` +
       `<strong>${format(frameWidth(axialDistance(camera), wideAov), 2)} m</strong> to ` +
       `<strong>${format(frameWidth(axialDistance(camera), teleAov), 3)} m</strong>` +
-      (isArm(camera) ? `<br>Head at <strong>${format(camera.reach, 1)} m</strong> from pivot` : '');
+      (isArm(camera) ? `<br>Horizontal head projection <strong>${format(Grip.boom(camera).reach, 1)} m</strong> from pivot` : '');
   }
 
-  function miniature(mountId, size) {
-    const colour = mountById(mountId).colour;
-    const node = create('svg', { viewBox: '-34 -34 68 68', xmlns: SVG_NS });
-    node.appendChild(rigGlyph(defaultsFor(mountId), { line: colour, solid: colour, tint: colour }));
-    if (size) {
-      node.setAttribute('width', size);
-      node.setAttribute('height', size);
-    }
+  // Industrial elevation pictograms: static, bounded SVG geometry.
+  // A picker symbol communicates the rig family, not a scaled footprint.
+  // Plan-view glyphs and metre-scale geometry remain independent.
+  // #region mount-pictograms-03
+  const MOUNT_PICTOGRAMS = Object.freeze({
+  "tripodHeavy": {
+    "label": "OB tripod",
+    "category": "Ground support",
+    "mechanism": "Heavy-duty tripod · pan/tilt head",
+    "legacy": true,
+    "svg": "<g transform=\"translate(8 3) scale(0.94)\"><path d=\"M0 4H10V1H16V4H20V0H42L48 3V15L42 18H20V15H0Z M23 3V15H25V3Z M41 3V15H43V3Z\" fill-rule=\"evenodd\"/></g><g transform=\"translate(30 20) scale(1)\"><path d=\"M-6 0H6V3H2.5V6H-2.5V3H-6Z\"/></g><path d=\"M27 25H33L53 41H46L33 32V41H28V32L15 41H8Z\"/><path d=\"M18 35H43V38H18Z M7 41H17V44H7Z M44 41H54V44H44Z M25 41H36V44H25Z\"/>"
+  },
+  "ped": {
+    "label": "Pedestal",
+    "category": "Ground support",
+    "mechanism": "Balanced column · wheeled base",
+    "legacy": true,
+    "svg": "<g transform=\"translate(10 3) scale(0.9)\"><path d=\"M0 4H10V1H16V4H20V0H42L48 3V15L42 18H20V15H0Z M23 3V15H25V3Z M41 3V15H43V3Z\" fill-rule=\"evenodd\"/></g><g transform=\"translate(32 20) scale(1)\"><path d=\"M-6 0H6V3H2.5V6H-2.5V3H-6Z\"/></g><path d=\"M28 26H36V34H39V37H25V34H28Z M19 28H45V31H19Z M21 38H43L49 41V42H15V41Z\"/><path d=\"M18 43a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z M19.8 43a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M40 43a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z M41.8 43a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/>"
+  },
+  "tripodDolly": {
+    "label": "Tripod dolly",
+    "category": "Ground support",
+    "mechanism": "Tripod · steerable caster base",
+    "legacy": true,
+    "svg": "<g transform=\"translate(13 3) scale(1.04)\"><path d=\"M0 3H6V0H16V3H22V5H29L34 8V13L29 16H22V18H0Z M23 8V13H25V8Z\" fill-rule=\"evenodd\"/></g><g transform=\"translate(31 22) scale(1)\"><path d=\"M-6 0H6V3H2.5V6H-2.5V3H-6Z\"/></g><path d=\"M28 27H34L47 37H42L34 32V37H29V32L20 37H15Z M12 37H50V40H12Z\"/><path d=\"M11.8 42a3.2 3.2 0 1 0 6.4 0a3.2 3.2 0 1 0 -6.4 0Z M13.8 42a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M27.8 42a3.2 3.2 0 1 0 6.4 0a3.2 3.2 0 1 0 -6.4 0Z M29.8 42a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M43.8 42a3.2 3.2 0 1 0 6.4 0a3.2 3.2 0 1 0 -6.4 0Z M45.8 42a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/>"
+  },
+  "tripodEng": {
+    "label": "ENG tripod",
+    "category": "Ground support",
+    "mechanism": "Lightweight tripod · fluid head",
+    "legacy": true,
+    "svg": "<g transform=\"translate(16 3) scale(0.88)\"><path d=\"M0 3H6V0H16V3H22V5H29L34 8V13L29 16H22V18H0Z M23 8V13H25V8Z\" fill-rule=\"evenodd\"/></g><g transform=\"translate(29 19) scale(1)\"><path d=\"M-6 0H6V3H2.5V6H-2.5V3H-6Z\"/></g><path d=\"M29 25L15 42 M29 25L43 42 M29 25V43 M21 34H37\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M12 41H18V44H12Z M40 41H46V44H40Z M26 42H32V44H26Z\"/>"
+  },
+  "crane": {
+    "label": "Telescopic crane",
+    "category": "Boom support",
+    "mechanism": "Extending boom · remote head",
+    "legacy": true,
+    "svg": "<path d=\"M12 36H32V41H12Z M16 31H27V36H16Z\"/><path d=\"M13 43a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z M14.8 43a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M25 43a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z M26.8 43a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M5 28H12V38H5Z M11 30L21 26L23 30L11 34Z\"/><path d=\"M18 27L35 14L40 20L22 33Z M37 14L46 7L49.5 11.5L40 19Z M47.5 7L53 2L55 5L50 9.5Z\"/><circle cx=\"21\" cy=\"30\" r=\"3.1\"/><path d=\"M54 5V12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><g transform=\"translate(47 12) scale(0.52)\"><path d=\"M0 1H17V4H26V14H17V17H0Z M17 7V11H19V7Z\" fill-rule=\"evenodd\"/></g>"
+  },
+  "jib": {
+    "label": "Fixed jib",
+    "category": "Boom support",
+    "mechanism": "Modular fixed boom · counterweight",
+    "legacy": true,
+    "svg": "<path d=\"M20 31H24L10 42H6Z M22 31H26L39 42H34Z M21 31H25V44H21Z M6 42H14V45H6Z M32 42H41V45H32Z\"/><path d=\"M6 30L50 3L53 7L9 34Z M11 37L54 10L56 13L13 41Z\"/><path d=\"M13 31L21 33L24 24L32 26L35 17L43 19L46 10L53 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.35\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M4 30H10V40H4Z\"/><circle cx=\"22\" cy=\"32\" r=\"3.3\"/><path d=\"M54 11V16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><g transform=\"translate(47 16) scale(0.52)\"><path d=\"M0 1H17V4H26V14H17V17H0Z M17 7V11H19V7Z\" fill-rule=\"evenodd\"/></g>"
+  },
+  "steadicam": {
+    "label": "Steadicam",
+    "category": "Operator support",
+    "mechanism": "Vest · articulated arm · balanced sled",
+    "legacy": true,
+    "svg": "<circle cx=\"13\" cy=\"8\" r=\"5.6\"/><path d=\"M6 17Q12 14 19 17L22 30H18V45H12L10 34L7 45H3V30Z\"/><path d=\"M8 18H18V30H8Z M11 20V28H15V20Z\" fill-rule=\"evenodd\"/><path d=\"M19 23L29 30L39 23 M18 28L29 35L39 28\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.0\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><circle cx=\"29\" cy=\"32.5\" r=\"2.5\"/><path d=\"M40 16V39\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.0\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><g transform=\"translate(33 3) scale(0.77)\"><path d=\"M0 3H6V0H16V3H22V5H29L34 8V13L29 16H22V18H0Z M23 8V13H25V8Z\" fill-rule=\"evenodd\"/></g><path d=\"M35 36H47V39H35Z M34 40H48V44H34Z\"/><path d=\"M34 24H40V28H34Z\"/>"
+  },
+  "handheld": {
+    "label": "Shoulder camera",
+    "category": "Operator support",
+    "mechanism": "Shoulder pad · operator-borne camera",
+    "legacy": true,
+    "svg": "<circle cx=\"18\" cy=\"8\" r=\"5.6\"/><path d=\"M10 16Q16 14 23 18L29 24L21 29L17 26V44H11L8 32L7 44H3V26Z\"/><g transform=\"translate(21 9) scale(1.02)\"><path d=\"M0 3H6V0H16V3H22V5H29L34 8V13L29 16H22V18H0Z M23 8V13H25V8Z\" fill-rule=\"evenodd\"/></g><path d=\"M22 27H35V30H22Z\"/><path d=\"M20 23L29 34L43 27 M25 20L35 27L47 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
+  },
+  "robo": {
+    "label": "Remote head / PTZ",
+    "category": "Fixed support",
+    "mechanism": "Pan base · tilting yoke",
+    "legacy": true,
+    "svg": "<path d=\"M20 8Q20 4 25 4H39Q45 4 45 10V12H52V23H45V25Q45 29 39 29H25Q20 29 20 24Z M26 16a3.2 3.2 0 1 0 6.4 0a3.2 3.2 0 1 0 -6.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M12 13H17V23Q17 33 28 33H37Q48 33 48 25H53Q53 38 37 38H35V40H29V38H28Q12 38 12 23Z M12 40H53V44H12Z\"/>"
+  },
+  "pov": {
+    "label": "Fixed bracket",
+    "category": "Fixed support",
+    "mechanism": "Compact payload · rigid mounting interface",
+    "legacy": true,
+    "svg": "<g transform=\"translate(18 7) scale(1.14)\"><path d=\"M0 1H17V4H26V14H17V17H0Z M17 7V11H19V7Z\" fill-rule=\"evenodd\"/></g><path d=\"M13 8H16V28H13Z M13 30H16V37H46V41H12V30Z M27 27H32V37H27Z\"/><circle cx=\"11\" cy=\"13\" r=\"2\"/><circle cx=\"11\" cy=\"34\" r=\"2\"/>"
+  },
+  "rail": {
+    "label": "Track dolly",
+    "category": "Mobile support",
+    "mechanism": "Carriage · constrained rail travel",
+    "legacy": true,
+    "svg": "<g transform=\"translate(15 2) scale(0.98)\"><path d=\"M0 3H6V0H16V3H22V5H29L34 8V13L29 16H22V18H0Z M23 8V13H25V8Z\" fill-rule=\"evenodd\"/></g><g transform=\"translate(31 20) scale(1)\"><path d=\"M-6 0H6V3H2.5V6H-2.5V3H-6Z\"/></g><path d=\"M27 26H35V33H48V37H14V33H27Z\"/><path d=\"M14.5 40a3.5 3.5 0 1 0 7.0 0a3.5 3.5 0 1 0 -7.0 0Z M16.8 40a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M40.5 40a3.5 3.5 0 1 0 7.0 0a3.5 3.5 0 1 0 -7.0 0Z M42.8 40a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M5 42.5H59V45H5Z M9 45H14V46.5H9Z M24 45H29V46.5H24Z M39 45H44V46.5H39Z M54 45H59V46.5H54Z\"/>"
+  },
+  "special": {
+    "label": "Custom support",
+    "category": "Unspecified",
+    "mechanism": "Unspecified support · mounting datum",
+    "legacy": true,
+    "svg": "<path d=\"M9 4H22V7H12V17H9Z M42 4H55V17H52V7H42Z M9 31H12V41H22V44H9Z M52 31H55V44H42V41H52Z\"/><path d=\"M23 14H41V34H23Z M27 18H37V30H27Z\" fill-rule=\"evenodd\"/><circle cx=\"32\" cy=\"24\" r=\"3\"/><path d=\"M30 8H34V12H30Z M30 36H34V40H30Z M17 22H21V26H17Z M43 22H47V26H43Z\"/>"
+  },
+  "gimbal": {
+    "label": "Motorised gimbal",
+    "category": "Operator support",
+    "mechanism": "Active three-axis stabilisation · handgrip",
+    "legacy": false,
+    "svg": "<g transform=\"translate(18 4) scale(0.82)\"><path d=\"M0 3H6V0H16V3H22V5H29L34 8V13L29 16H22V18H0Z M23 8V13H25V8Z\" fill-rule=\"evenodd\"/></g><path d=\"M12 10a5 5 0 1 0 10 0a5 5 0 1 0 -10 0Z M15 10a2 2 0 1 0 4 0a2 2 0 1 0 -4 0Z\" fill-rule=\"evenodd\"/><path d=\"M12 15H17V24L31 29V34L12 27Z M31 28H37V44H31Z\"/><circle cx=\"34\" cy=\"26\" r=\"4.3\"/><path d=\"M42 22H47V28H37V23H42Z\"/>"
+  },
+  "roboticDolly": {
+    "label": "Robotic dolly",
+    "category": "Mobile support",
+    "mechanism": "Steerable chassis · remote head",
+    "legacy": false,
+    "svg": "<g transform=\"translate(22 5) scale(0.8)\"><path d=\"M0 1H17V4H26V14H17V17H0Z M17 7V11H19V7Z\" fill-rule=\"evenodd\"/></g><path d=\"M30 18H35V25H38V34H26V25H30Z M10 31H24V35H42V31H54V39H10Z\"/><path d=\"M11 40a5 5 0 1 0 10 0a5 5 0 1 0 -10 0Z M14.8 40a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M43 40a5 5 0 1 0 10 0a5 5 0 1 0 -10 0Z M46.8 40a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M23 41H41V44H23Z\"/>"
+  },
+  "cablecam": {
+    "label": "Cable camera",
+    "category": "Suspended support",
+    "mechanism": "Cable-suspended carrier · remote head",
+    "legacy": false,
+    "svg": "<path d=\"M4 4L32 18L60 4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M23 16H41L45 21L41 25H23L19 21Z M29 25H35V30H29Z\"/><circle cx=\"32\" cy=\"29\" r=\"4\"/><g transform=\"translate(25 30) scale(0.88)\"><path d=\"M0 1H17V4H26V14H17V17H0Z M17 7V11H19V7Z\" fill-rule=\"evenodd\"/></g>"
+  },
+  "lift": {
+    "label": "Vertical lift",
+    "category": "Vertical support",
+    "mechanism": "Guided vertical travel · remote head",
+    "legacy": false,
+    "svg": "<g transform=\"translate(23 3) scale(0.8)\"><path d=\"M0 1H17V4H26V14H17V17H0Z M17 7V11H19V7Z\" fill-rule=\"evenodd\"/></g><path d=\"M29 16H35V23H38V30H42V39H22V30H26V23H29Z M16 39H48V44H16Z\"/><path d=\"M12 13V34 M8 17L12 12L16 17 M8 30L12 35L16 30\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
+  }
+});
+  // #endregion mount-pictograms-03
+  const EXTRA_GRIP_SYMBOLS=Object.freeze({'motor-gimbal':'gimbal','agito-sports':'roboticDolly','cablecam':'cablecam','vertical':'lift'});
+  function pictogramId(camera){return EXTRA_GRIP_SYMBOLS[camera.grip?.system]||camera.mount}
+  function miniature(mountId,size) {
+    const node=create('svg',{viewBox:'0 0 64 48',xmlns:SVG_NS,fill:'currentColor','aria-hidden':'true',focusable:'false','data-mount-icon':mountId});
+    const icon=Object.hasOwn(MOUNT_PICTOGRAMS,mountId)?MOUNT_PICTOGRAMS[mountId]:MOUNT_PICTOGRAMS.special;
+    node.innerHTML=icon.svg;
+    if(size){node.setAttribute('width',size);node.setAttribute('height',size*.75);}
     return node;
   }
 
@@ -2555,7 +2765,7 @@
       if (camera.id === state.selectedId) row.className = 'is-selected';
 
       const glyphCell = document.createElement('td');
-      glyphCell.appendChild(miniature(camera.mount, 26));
+      glyphCell.appendChild(miniature(pictogramId(camera), 32));
       row.appendChild(glyphCell);
 
       const cells = [
@@ -2582,15 +2792,15 @@
     for (const mount of MOUNTS) {
       const button = document.createElement('button');
       button.type = 'button';
-      button.title = mount.name;
-      if (mount.id === state.pendingMount) {
-        button.classList.add('is-active');
-        button.style.background = mount.colour;
-        button.style.borderColor = mount.colour;
-      }
-      button.appendChild(miniature(mount.id, null));
-      const caption = document.createElement('span');
-      caption.textContent = mount.short;
+      const icon=MOUNT_PICTOGRAMS[mount.id];
+      button.title=icon.mechanism;
+      button.dataset.mount=mount.id;
+      button.setAttribute('aria-label',mount.name);
+      button.setAttribute('aria-pressed',String(mount.id===state.pendingMount));
+      if(mount.id===state.pendingMount)button.classList.add('is-active');
+      button.appendChild(miniature(mount.id,null));
+      const caption=document.createElement('span');
+      caption.textContent=icon.label;
       button.appendChild(caption);
       button.addEventListener('click', () => {
         state.pendingMount = mount.id;
@@ -2632,7 +2842,7 @@
       id: 'preview',
       number: '1',
       label: '',
-      chainId: null, positionRole: 'primary', chainDetails: {},
+      chainId: null, positionRole: 'primary', chainDetails: {}, grip:{},
       mount: mountId,
       body: '',
       control: '',
@@ -2657,7 +2867,13 @@
   function addCamera(point, mountId) {
     const previous = [...state.cameras].reverse().find((item) => item.mount === mountId);
     const camera = {
-      ...(previous ? { ...previous, path: [] } : defaultsFor(mountId)),
+      ...(previous ? { ...previous, path: [] } : {
+        ...defaultsFor(mountId),
+        // Placement templates must not assign an imaginary lens, sensor or
+        // transmission chain. Existing projects retain their optical values.
+        wide:null,tele:null,focalMm:null,imagerId:'custom',imagerWidth:null,imagerHeight:null,
+        lensName:'',body:'',throwMetres:0,rf:false,apertureStatus:'unverified'
+      }),
       id: `cam-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
       number: String(state.nextNumber),
       label: '', chainId: null, positionRole: 'primary', chainDetails: {},
@@ -2918,10 +3134,11 @@
       camera.x += shiftX;
       camera.y += shiftY;
     } else {
-      const raw = (Math.atan2(world.x - camera.x, camera.y - world.y) * 180) / Math.PI;
-      camera.heading = event.shiftKey
-        ? normaliseHeading(Math.round(raw / 15) * 15)
-        : normaliseHeading(Math.round(raw));
+      const anchor=isArm(camera)?lensOrigin(camera):camera;
+      const raw=Math.atan2(world.x-anchor.x,anchor.y-world.y)*180/Math.PI;
+      const aimed=event.shiftKey?Math.round(raw/15)*15:Math.round(raw);
+      if(isArm(camera))camera.headPan=((aimed-camera.heading+540)%360)-180;
+      else camera.heading=normaliseHeading(aimed);
     }
     render();
   });
@@ -2989,6 +3206,9 @@
     if (camera && (event.shiftKey || event.altKey)) {
       const factor = Math.exp(-event.deltaY * 0.0014);
       if (event.altKey && isArm(camera)) {
+        if(Grip.profile(camera).boomMode==='spatial'){
+          showHint('Set installed boom length in Spatial boom configuration.',true);return;
+        }
         camera.reach = clamp(camera.reach * factor, camera.reachMin, camera.reachMax);
         showHint(`Arm ${format(camera.reach, 1)} m`, true);
       } else {
@@ -3096,6 +3316,29 @@
     el('equipment-optics-info').textContent=o.valid?'Active output '+o.width.toFixed(3)+' × '+o.height.toFixed(3)+' mm · '+o.focal.toFixed(2)+' mm native / '+o.effectiveFocal.toFixed(2)+' mm optical\nHFOV '+o.hfov.toFixed(3)+'° · VFOV '+o.vfov.toFixed(3)+'° · DFOV '+o.dfov.toFixed(3)+'°\nReference-plane frame '+(2*axialDistance(c)*o.tanH).toFixed(3)+' × '+(2*axialDistance(c)*o.tanV).toFixed(3)+' m\nAperture: '+o.status+' · Lens: '+o.lensStatus:o.reason;
     el('cam-lens').disabled=!!c.integratedOptics&&!c.integratedOptics.removable;el('cam-extender').disabled=!!c.integratedOptics;
   }
+  const BOOM_FIELDS={'grip-length':'boomLength','grip-angle':'boomElevation','grip-pivot-z':'pivotHeight','grip-offset-z':'headOffsetZ','grip-min':'boomMin','grip-max':'boomMax','grip-rear':'rearLength'};
+  function updateGripEditor(c){
+    const p=Grip.profile(c),t=Grip.template(c),system=Grip.systems.find(x=>x.id===p.system);
+    equipmentOptions('grip-system',Grip.systems.filter(x=>!x.families||x.families.includes(t.family)||x.id===p.system),p.system);
+    equipmentOptions('grip-head',Grip.heads,p.head);
+    if(document.activeElement!==el('grip-reference'))el('grip-reference').value=p.reference;
+    const iconId=pictogramId(c),preview=el('grip-preview'),spec=MOUNT_PICTOGRAMS[iconId]||MOUNT_PICTOGRAMS.special;
+    if(preview.dataset.icon!==iconId){const label=document.createElement('span');label.textContent=spec.label+' · '+spec.mechanism;preview.replaceChildren(miniature(iconId,56),label);preview.dataset.icon=iconId}
+    const a=el('grip-source');a.hidden=!system?.source;if(system?.source)a.href=system.source;else a.removeAttribute('href');
+    el('grip-info').textContent=t.mobility+' · '+t.geometry+'. '+(system?.note||'Support model not selected.')+(Grip.compatible(c)?'':' Support system does not match placement template.')+' No load or clearance certification.';
+    el('grip-boom').hidden=!isArm(c);el('grip-spatial').checked=p.boomMode==='spatial';
+    const b=Grip.boom(c);for(const [id,key] of Object.entries(BOOM_FIELDS))if(document.activeElement!==el(id))el(id).value=Number.isFinite(p[key])?p[key]:'';
+    const explicit=p.boomMode==='spatial';
+    for(const id of ['cam-reach-min','cam-reach-max','cam-reach','cam-tail'])el(id).disabled=explicit;
+    el('cam-height').disabled=isArm(c)&&explicit;
+    el('grip-boom-info').textContent=explicit?(b.valid?'Calculated horizontal reach '+b.reach.toFixed(3)+' m; lens height '+b.z.toFixed(3)+' m above base. Envelope is a fixed-elevation projection only.':'Enter all configuration measurements. Invalid spatial boom: coverage suppressed.'):'Legacy horizontal reach and independent lens height; not measured boom kinematics.';
+  }
+  function installGripEditor(){
+    function setGrip(changes){const c=selected();if(c)updateSelected({grip:{...Grip.profile(c),...changes}})}
+    for(const [id,key] of [['grip-system','system'],['grip-head','head'],['grip-reference','reference']])el(id).addEventListener('change',e=>setGrip({[key]:e.target.value}));
+    el('grip-spatial').addEventListener('change',e=>setGrip({boomMode:e.target.checked?'spatial':'legacy'}));
+    for(const [id,key] of Object.entries(BOOM_FIELDS))el(id).addEventListener('change',e=>setGrip({[key]:e.target.value.trim()&&Number.isFinite(Number(e.target.value))?Number(e.target.value):null}));
+  }
   function installEquipmentEditor(){
     el('cam-body-preset').addEventListener('change',e=>{const c=selected();if(!c)return;const p=Equipment.cameraDefaults(e.target.value);if(p){if(!p.integratedOptics&&!Object.hasOwn(p,'wide')&&c.integratedOptics)Object.assign(p,{wide:null,tele:null,lensName:'',lensMount:'',lensPresetId:null});updateSelected(p)}else updateSelected({cameraPresetId:null,sensorModeId:null,apertureStatus:'custom'})});
     el('cam-sensor-mode').addEventListener('change',e=>{const c=selected();if(!c)return;const p=e.target.value&&Equipment.cameraDefaults(c.cameraPresetId,e.target.value);if(p){delete p.body;updateSelected(p)}else updateSelected({sensorModeId:null,apertureStatus:'custom',integratedOptics:null})});
@@ -3107,6 +3350,7 @@
   populateSelect(el('cam-sensor'), IMAGER_FORMATS);
   populateSelect(el('cam-lens'), LENS_PRESETS);
   installEquipmentEditor();
+  installGripEditor();
   populateSelect(el('cam-crane'), ARM_PRESETS);
 
   el('mode-select').addEventListener('click', () => setMode('select'));
@@ -3174,6 +3418,7 @@
     const camera = selected();
     updateSelected({
       mount: e.target.value,
+      grip:{},
       reachMin: camera.reachMin || template.reachMin,
       reachMax: camera.reachMax || template.reachMax,
       reach: camera.reach || template.reach,
@@ -3189,7 +3434,7 @@
   el('cam-height').addEventListener('input', (e) =>
     updateSelected({ height: Number(e.target.value) || 0 }));
   el('cam-throw').addEventListener('input', (e) =>
-    updateSelected({ throwMetres: Math.max(1, Number(e.target.value) || 1) }));
+    updateSelected({ throwMetres: Math.max(0, Number(e.target.value) || 0) }));
   el('cam-wide').addEventListener('change',e=>updateSelected({wide:Math.max(.01,Number(e.target.value)||.01),lensPresetId:null,integratedOptics:null,extender:1}));
   el('cam-tele').addEventListener('change',e=>updateSelected({tele:Math.max(.01,Number(e.target.value)||.01),lensPresetId:null,integratedOptics:null,extender:1}));
   el('cam-rf').addEventListener('change', (e) => updateSelected({ rf: e.target.checked }));
@@ -3212,7 +3457,8 @@
     if (preset && preset.max) {
       updateSelected({
         reachMin: preset.min, reachMax: preset.max, reach: preset.max,
-        baseSize: preset.base, tail: preset.tail
+        baseSize: preset.base, tail: preset.tail,
+        grip:{...Grip.profile(selected()),boomMode:'legacy'}
       });
     }
   });
@@ -4601,8 +4847,8 @@
   const readNumber=(id,fallback)=>{const raw=el(id).value;if(raw.trim()==='')return fallback;const v=Number(raw);return Number.isFinite(v)?v:fallback};
   const selectedCamera=()=>selected()||state.cameras[0];
   const poseFor=c=>{
-    const origin=lensOrigin(c),optics=opticalAt(c,currentFocal(c));if(!optics.valid)throw Error(optics.reason);
-    return {origin:S.planPoint(origin.x,origin.y,state.pxPerMetre,state.content.height,(Number(c.floorZ)||0)+(Number(c.height)||0)),
+    const origin=lensOrigin(c),optics=opticalAt(c,currentFocal(c)),boom=isArm(c)?Grip.boom(c):null;if(!optics.valid)throw Error(optics.reason);if(boom&&!boom.valid)throw Error('Invalid configured boom geometry');
+    return {origin:S.planPoint(origin.x,origin.y,state.pxPerMetre,state.content.height,(Number(c.floorZ)||0)+(boom?.z??(Number(c.height)||0))),
       ...S.axes(Number(c.heading)+(isArm(c)?Number(c.headPan)||0:0),clamp(Number(c.tilt)||0,-89,89),Number(c.roll)||0),...optics};
   };
   let gpu=null;
