@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { deflateRawSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
 
 const assets = { '/sightline/': ['index.html','text/html'], '/sightline/geometry-worker.js':['geometry-worker.js','text/javascript'] };
 const server=createServer(async(req,res)=>{
@@ -48,6 +49,11 @@ try{
   let svg=await download('action-export-svg');
   assert.match(svg,/DRAFT \/ NOT TO SCALE/);
   assert.doesNotMatch(svg,/id="layer-dimensions"/);
+  assert.match(svg,/POSITION STUDY · NO BASE DRAWING/);
+  assert(await page.locator('#context-banner').isVisible(),'persistent missing venue context');
+  assert(await page.locator('#layer-titleblock svg[data-glyph]').count()>0,'bounded legend glyphs');
+  const legend=await page.locator('#layer-titleblock svg[data-glyph]').evaluateAll(nodes=>nodes.map(n=>[Number(n.getAttribute('width')),Number(n.getAttribute('height')),n.getAttribute('viewBox')]));
+  assert(legend.every(([w,h,v])=>w===h&&w>0&&v==='-34 -34 68 68'),'all legend glyphs normalised');
   await change('scale-direct',21);
   await text('readout-calibration','Estimated');
   await page.locator('#scale-source').fill('Synthetic checked dimension');
@@ -83,6 +89,55 @@ try{
   await page.reload();
   await text('chain-summary','15 unique chains');
   assert.match(page.url(),/#plan=d\./);
+  // Synthetic private resolver: exact old payload, matching raster frame,
+  // no replacement of the camera positions or promotion of scale evidence.
+  const key=createHash('sha256').update('d.'+legacy).digest('hex');
+  const bg=await page.evaluate(({width,height})=>{
+    const c=document.createElement('canvas');c.width=width;c.height=height;
+    const g=c.getContext('2d');g.fillStyle='#eee';g.fillRect(0,0,width,height);g.strokeStyle='#555';g.strokeRect(30,30,width-60,height-60);return c.toDataURL('image/png');
+  },old.content);
+  const privateProject={format:old.format,meta:old.meta,content:old.content,pxPerMetre:old.pxPerMetre,background:{href:bg,...old.content}};
+  await page.route('**/context/'+key+'.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(privateProject)}));
+  await page.reload();
+  await page.waitForFunction(()=>document.getElementById('context-banner').hidden);
+  assert.match(await page.locator('#layer-background').getAttribute('href'),/^data:image\/png;base64,/);
+  await text('chain-summary','15 unique chains');
+  await text('readout-calibration','Uncalibrated');
+  assert.match(page.url(),/#plan=d\./);
+  await page.unroute('**/context/'+key+'.json');
+  // Synthetic authorised revision migration: the later revision has another
+  // frame and scale and one alternate position, and the original link must
+  // keep working unchanged.
+  const R04_SCALE=16.71464,r04bg=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=2000;c.height=1300;const g=c.getContext('2d');g.fillStyle='#ddd';g.fillRect(0,0,2000,1300);return c.toDataURL('image/png')});
+  const k=R04_SCALE/old.pxPerMetre;
+  const r04cameras=old.cameras.map(c=>({...c,x:c.x*k+37,y:c.y*k+11,path:[]}));
+  r04cameras.push({...old.cameras[0],id:'cam-plan-01-alt',positionRole:'alternate',chainId:old.cameras[0].chainId||old.cameras[0].id,x:700,y:600,path:[]});
+  const r04={format:'sightline-context/2',
+    migration:{from:{revision:old.meta.revision,content:old.content,pxPerMetre:old.pxPerMetre},to:{revision:'R04',pxPerMetre:R04_SCALE}},
+    project:{format:old.format,meta:{...old.meta,revision:'R04'},content:{width:2000,height:1300},pxPerMetre:R04_SCALE,calibrated:false,background:{href:r04bg,width:2000,height:1300},cameras:r04cameras,dimensions:[]}};
+  await page.route('**/context/'+key+'.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(r04)}));
+  await page.reload();
+  await page.waitForFunction(()=>document.getElementById('context-banner').hidden);
+  assert.equal(await page.locator('#meta-revision').inputValue(),'R04');
+  await text('chain-summary','15 unique chains · 16 positions · 1 alternate(s)');
+  await text('readout-calibration','Estimated');
+  assert.match(page.url(),/#plan=d\./);
+  assert.equal(page.url().split('#plan=')[1],'d.'+legacy,'distributed link is unchanged');
+  await page.reload();
+  await page.waitForFunction(()=>document.getElementById('context-banner').hidden);
+  assert.equal(await page.locator('#meta-revision').inputValue(),'R04');
+  // Fail closed: a record that names another source frame must not apply.
+  r04.migration.from.revision='R99';
+  await page.unroute('**/context/'+key+'.json');
+  await page.route('**/context/'+key+'.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(r04)}));
+  await page.reload();
+  await text('context-message','could not be verified');
+  assert.equal(await page.locator('#meta-revision').inputValue(),old.meta.revision);
+  await page.unroute('**/context/'+key+'.json');
+  // Reset to the position-only link before testing the optical editor.
+  await page.reload();
+  await text('chain-summary','15 unique chains');
+  await text('context-message','No private drawing');
   await page.locator('#camera-rows tr').first().click();
   await page.locator('#cam-body-preset').selectOption('sony-hdc-p1');
   await page.locator('#cam-lens').selectOption('ua125');

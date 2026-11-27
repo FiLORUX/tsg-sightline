@@ -21,6 +21,7 @@ jobs:
           node tools/test-spatial.mjs
           node tools/test-chain.mjs
           node tools/test-equipment.mjs
+          node tools/test-private-context.mjs
           node tools/check-spatial-embed.mjs
       - name: Install browser test dependency
         run: |

@@ -257,6 +257,14 @@
     #print-sheet svg { display: block; }
   }
 
+  #context-banner{position:absolute;top:64px;left:16px;right:16px;z-index:3;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 13px;border:1px solid #846b38;border-left:3px solid #e8b33c;border-radius:6px;background:#202a32;color:#e4e9ed;font-size:12px;box-shadow:0 4px 14px #0003}
+  #context-banner[hidden]{display:none!important}
+  #context-heading{font-size:13px;color:#ffdf95}
+  #context-message{margin-top:4px;color:#bfc9d0}
+  .context-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-left:auto}
+  #context-authorise{font-size:12px;color:#ffe0a0}
+  @media(max-width:800px){#context-banner{top:58px;left:8px;right:8px;padding:8px}.context-actions{margin-left:0}}
+  @media print{#context-banner{display:none!important}}
   #previs-pane { position:absolute; right:12px; bottom:12px; width:min(520px,66%); max-height:84%; display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--line); border-radius:9px; overflow:hidden; box-shadow:0 8px 28px #0007; z-index:4; }
   .previs-top { display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--surface-high); font-size:11px; }
   .previs-top span { flex:1; color:var(--ink-dim); text-align:right; }
@@ -316,6 +324,10 @@
     </div>
 
     <div class="hint" id="hint"></div>
+    <section id="context-banner" hidden role="status" aria-live="polite">
+      <div><strong id="context-heading">Venue drawing not loaded</strong><div id="context-message"></div></div>
+      <div class="context-actions"><button id="context-open">Open complete project</button><button id="context-retry" hidden>Retry private context</button><a id="context-authorise" target="_blank" rel="noopener noreferrer" hidden>Authorise venue context</a></div>
+    </section>
     <section id="previs-pane" hidden aria-label="Camera previsualisation">
       <div class="previs-top"><strong>CAMERA PREVIS</strong><span id="previs-status">Concept only</span><button id="previs-close" aria-label="Close 3D preview">Close</button></div>
       <canvas id="previs-canvas" aria-label="Three-dimensional geometry and camera view"></canvas>
@@ -1010,6 +1022,7 @@
 
   const state = {
     background: null,
+    sharedContext:null,
     content: { ...DEFAULT_CONTENT },
     pxPerMetre: 20,
     calibrated: false,
@@ -1719,6 +1732,63 @@
     return g;
   }
 
+  function rigGlyph(c,ink){
+  // 68-unit schematic icon. It is not the metre-scaled rig footprint.
+  const g=create('g',{'stroke-linecap':'round','stroke-linejoin':'round','fill':'none'});
+  const l=(x1,y1,x2,y2,w=2.3)=>g.appendChild(create('line',{x1,y1,x2,y2,stroke:ink.line,'stroke-width':w}));
+  const r=(x,y,w,h,rx=2,fill='#fff',sw=2)=>g.appendChild(create('rect',{x,y,width:w,height:h,rx,fill,stroke:ink.line,'stroke-width':sw}));
+  const o=(cx,cy,rr,fill='#fff',sw=2)=>g.appendChild(create('circle',{cx,cy,r:rr,fill,stroke:ink.line,'stroke-width':sw}));
+  const p=(d,fill='none',sw=2)=>g.appendChild(create('path',{d,fill,stroke:ink.line,'stroke-width':sw}));
+  const kind=Equipment.cameraById(c.cameraPresetId)?.kind||'';
+  const optics=Equipment.lensById(c.lensPresetId)?.kind||(c.tele>=400?'box':c.tele>=120?'field':'portable');
+  function head(x,y,profile=optics,compact=false){
+    const w=profile==='box'?16:profile==='field'?13:10,len=profile==='box'?23:profile==='field'?17:12;
+    r(x-w/2,y-len,w,len,1.5);r(x-w/2-1.5,y-len-1,w+3,3,1,ink.line,1);
+    l(x-w/2+2,y-len+6,x+w/2-2,y-len+6,1.2);
+    if(profile==='box')l(x-w/2+2,y-len+10,x+w/2-2,y-len+10,1.2);
+    r(x-(compact?5:7),y-1,compact?10:14,compact?9:13,2,ink.line,1.3);
+    if(!compact){r(x-10,y+2,5,6,1);l(x-5,y+12,x-9,y+17,1.6);l(x+5,y+12,x+9,y+17,1.6)}
+  }
+  function tripod(wheels=false,s=19){
+    for(const [x,y] of [[0,-s],[-s*.87,s*.5],[s*.87,s*.5]]){l(0,0,x,y,2.5);if(wheels)o(x,y,3.5);else r(x-2.5,y-2.5,5,5,1)}
+    o(0,0,4);
+  }
+  function operator(x,y){o(x,y,6);p('M'+(x-8)+' '+(y+8)+'Q'+x+' '+(y+3)+' '+(x+8)+' '+(y+8));}
+  switch(c.mount){
+    case 'ped':
+      o(0,0,18);o(0,0,12,'none',1.4);for(const [x,y] of [[0,-17],[-14,9],[14,9]])r(x-3,y-2,6,4,1,ink.line,1);head(0,0);break;
+    case 'tripodHeavy':tripod(false,20);head(0,0);break;
+    case 'tripodEng':tripod(false,16);head(0,0,optics==='box'?'box':'portable');break;
+    case 'tripodDolly':tripod(true,19);head(0,0);break;
+    case 'crane':case 'jib':
+      if(c.mount==='crane'){r(-10,-8,20,17,2);for(const x of [-12,9])for(const y of [-6,4])r(x,y,3,5,.7,ink.line,1);r(-3.8,-23,7.6,23,1);r(-2.3,-27,4.6,17,1);}
+      else{tripod(true,12);p('M-4 0L-4 -23H4V0Z','#fff');for(let y=0;y>-20;y-=6)l(y%12===0?-4:4,y,y%12===0?4:-4,y-6,1.3);}
+      l(0,4,0,23,2.6);r(-6,18,12,8,1,ink.line,1);o(0,0,4.5);r(-5,-28,10,7,1);l(-4,-28,4,-28,3);break;
+    case 'steadicam':
+      operator(0,16);r(-7,-15,14,20);l(-6,-15,6,-15,3);l(0,5,0,13);r(-5,6,10,4,1);
+      p('M6 0L16 4L13 12L5 16','none',2.5);o(16,4,2.5);break;
+    case 'handheld':
+      operator(0,14);head(4,-3,optics==='box'?'field':optics,true);p('M-6 2L-13 -3V-11L-5 -13');break;
+    case 'robo':
+      if(kind==='ptzr'){r(-13,4,26,13,4);o(0,2,10);r(-5,-19,10,22);l(-5,-19,5,-19,3);}
+      else if(kind==='interchangeable-ptz'||(c.cameraMount&&c.cameraMount!=='integrated')){r(-14,7,28,11,3);p('M-13 7V-2H-7M13 7V-2H7','none',2.8);head(0,0,optics,true);}
+      else{r(-16,5,32,12,4);p('M-12 5V-4Q-12 -16 0 -16Q12 -16 12 -4V5','#fff');r(-6,-19,12,18,3,ink.line,1.5);}
+      break;
+    case 'pov':
+      if(kind==='compact-b4'){r(-13,2,26,6,1.5);head(0,0,optics,true);}
+      else{r(-8,-12,16,22,3);r(-5,-17,10,8,2,ink.line,1);o(0,0,2);l(-5,7,5,7,1.3);}break;
+    case 'rail':
+      for(const x of [-14,14]){l(x,-26,x,26,1.8);for(const y of [-20,0,20])l(x-2,y,x+2,y,1.4);}
+      r(-12,3,24,12);head(0,-3,optics,true);break;
+    default:r(-14,-9,28,22,3);head(0,-2,optics,true);p('M-17 16L-12 21M17 16L12 21');
+  }
+  p('M-3 -29L0 -33L3 -29','none',1.6);
+  return g;
+}
+  function schematicGlyph(c,ink,x,y,size,rotation=0){
+    const s=create('svg',{x:x-size/2,y:y-size/2,width:size,height:size,viewBox:'-34 -34 68 68','data-glyph':c.mount,'aria-hidden':'true'});
+    const g=create('g',{transform:'rotate('+rotation+')'});g.appendChild(rigGlyph(c,ink));s.appendChild(g);return s;
+  }
   function drawSymbol(camera, colours) {
     const group = create('g', {});
     const profile = headProfile(camera);
@@ -1879,7 +1949,7 @@
       const colours = palette(camera);
       const origin = lensOrigin(camera);
       const radius = camera.throwMetres * state.pxPerMetre;
-      const optics=validAngles(camera);if(!optics)continue;
+      const optics=validAngles(camera);if(!optics||!(Number(camera.throwMetres)>0))continue;
       const selected = camera.id === state.selectedId;
       const group = create('g', {});
       const opticalHeading = camera.heading + (isArm(camera) ? Number(camera.headPan || 0) : 0);
@@ -2009,6 +2079,7 @@
         'data-role': 'body', 'data-id': camera.id, style: 'cursor:move',
         transform: `translate(${camera.x} ${camera.y}) rotate(${camera.heading}) scale(${state.pxPerMetre})`
       });
+      group.setAttribute('opacity','0.72');
       group.appendChild(drawSymbol(camera, palette(camera)));
       layers.symbols.appendChild(group);
     }
@@ -2016,66 +2087,34 @@
 
   function renderBadges() {
     clear(layers.badges);
-    const A = annotation();
-    const radius = 30 * A;
-
-    for (const camera of state.cameras) {
-      const colours = palette(camera);
-      const seat = { x: camera.x, y: camera.y };
-      const centre = badgeAnchor(camera);
-      const selectedHere = camera.id === state.selectedId;
-
-      // The number is also the grab target. It is the largest thing on the sheet
-      // at venue scale, so it is what the hand reaches for.
-      const group = create('g', {
-        'data-role': 'body', 'data-id': camera.id, style: 'cursor:move'
-      });
-
-      group.appendChild(create('line', {
-        x1: seat.x, y1: seat.y, x2: centre.x, y2: centre.y,
-        stroke: colours.line, 'stroke-width': 1.4, 'vector-effect': 'non-scaling-stroke'
-      }));
-
-      if (selectedHere) {
-        group.appendChild(create('circle', {
-          cx: centre.x, cy: centre.y, r: radius + 8 * A, fill: 'none',
-          stroke: '#14181c', 'stroke-width': 1.6, 'stroke-dasharray': '5 4',
-          'vector-effect': 'non-scaling-stroke'
-        }));
-      }
-
-      group.appendChild(create('circle', {
-        cx: centre.x, cy: centre.y, r: radius + 3.5 * A,
-        fill: '#ffffff', stroke: 'none'
-      }));
-      group.appendChild(create('circle', {
-        cx: centre.x, cy: centre.y, r: radius,
-        fill: colours.solid, stroke: '#14181c', 'stroke-width': 1.4,
-        'vector-effect': 'non-scaling-stroke'
-      }));
-
-      const number = create('text', {
-        x: centre.x, y: centre.y,
-        'text-anchor': 'middle', 'dominant-baseline': 'central',
-        fill: '#ffffff', 'font-family': 'ui-monospace, Menlo, Consolas, monospace',
-        'font-size': radius * 1.32, 'font-weight': 700
-      });
-      number.textContent = camera.number;
-      group.appendChild(number);
-
-      if (camera.label || camera.positionRole === 'alternate') {
-        const label = create('text', {
-          x: centre.x + radius + 8 * A, y: centre.y + 8 * A,
-          fill: '#14181c', 'font-family': 'ui-monospace, Menlo, Consolas, monospace',
-          'font-size': 23 * A, 'font-weight': 600,
-          stroke: '#ffffff', 'stroke-width': 4, 'stroke-linejoin': 'round',
-          'paint-order': 'stroke', 'vector-effect': 'non-scaling-stroke'
-        });
-        label.textContent = [camera.positionRole === 'alternate' ? 'ALT' : '',camera.label].filter(Boolean).join(' · ');
-        group.appendChild(label);
-      }
-
-      layers.badges.appendChild(group);
+    const A=annotation(),size=42*A,font=18*A,hh=29*A,cams=state.cameras;
+    const occupied=cams.map(c=>({x:c.x-size*.55,y:c.y-size*.55,w:size*1.1,h:size*1.1}));
+    const used=MOUNTS.filter(m=>cams.some(c=>c.mount===m.id)).length,titleHeight=(146+used*34)*A;
+    occupied.push({x:state.content.width-514*A,y:state.content.height-titleHeight-24*A,w:514*A,h:titleHeight+24*A});
+    const collides=(a,b)=>a.x<b.x+b.w+4*A&&a.x+a.w+4*A>b.x&&a.y<b.y+b.h+4*A&&a.y+a.h+4*A>b.y;
+    const rows=[];
+    for(const c of cams){
+      const ink=palette(c),g=create('g',{'data-role':'body','data-id':c.id,style:'cursor:move'});
+      g.appendChild(create('circle',{cx:c.x,cy:c.y,r:size*.49,fill:'#fff','fill-opacity':.94,stroke:ink.line,'stroke-width':.7,'stroke-opacity':.55,'vector-effect':'non-scaling-stroke'}));
+      if(c.id===state.selectedId)g.appendChild(create('circle',{cx:c.x,cy:c.y,r:size*.58,fill:'none',stroke:ink.line,'stroke-width':1.4,'stroke-dasharray':'4 3','vector-effect':'non-scaling-stroke'}));
+      g.appendChild(schematicGlyph(c,ink,c.x,c.y,size,Number(c.heading)||0));layers.badges.appendChild(g);
+      const alt=c.positionRole==='alternate',n=String(c.number??'?').slice(0,8),raw=String(c.label||'');
+      const label=(raw.length>32?raw.slice(0,31)+'…':raw)+(alt?' · ALT':'')+(c.rf?' · RF':'');
+      const nw=Math.max(31*A,(n.length*11+12)*A),w=nw+Math.max(0,label.length*font*.61+12*A),gap=size*.64;
+      const candidates=[{x:c.x+gap,y:c.y-hh/2},{x:c.x-gap-w,y:c.y-hh/2},{x:c.x-w/2,y:c.y+gap},{x:c.x-w/2,y:c.y-gap-hh},{x:c.x+gap,y:c.y+gap},{x:c.x-gap-w,y:c.y+gap},{x:c.x+gap,y:c.y-gap-hh},{x:c.x-gap-w,y:c.y-gap-hh}].map(p=>({...p,w,h:hh}));
+      const fits=p=>p.x>=3*A&&p.y>=3*A&&p.x+p.w<=state.content.width-3*A&&p.y+p.h<=state.content.height-3*A;
+      const cost=p=>occupied.reduce((n,q)=>n+(collides(p,q)?1:0),0)+(fits(p)?0:100);
+      const pos=candidates.reduce((a,b)=>cost(a)<=cost(b)?a:b);occupied.push(pos);rows.push({c,ink,n,label,nw,pos,alt});
+    }
+    for(const {c,ink,n,label,nw,pos,alt} of rows){
+      const g=create('g',{'data-role':'body','data-id':c.id,style:'cursor:move'}),x=pos.x,y=pos.y,w=pos.w;
+      const lx=clamp(c.x,x,x+w),ly=clamp(c.y,y,y+hh),d=Math.hypot(lx-c.x,ly-c.y)||1;
+      g.appendChild(create('line',{x1:c.x+(lx-c.x)*size*.49/d,y1:c.y+(ly-c.y)*size*.49/d,x2:lx,y2:ly,stroke:ink.line,'stroke-width':.75,'vector-effect':'non-scaling-stroke','stroke-dasharray':alt?'4 3':''}));
+      g.appendChild(create('rect',{x,y,width:w,height:hh,rx:3*A,fill:'#fff','fill-opacity':.97,stroke:ink.line,'stroke-width':c.id===state.selectedId?1.3:.7,'stroke-dasharray':alt?'4 3':'','vector-effect':'non-scaling-stroke'}));
+      g.appendChild(create('rect',{x:x+2*A,y:y+2*A,width:nw-4*A,height:hh-4*A,rx:2*A,fill:alt?'#fff':ink.line,stroke:ink.line,'stroke-width':.6,'vector-effect':'non-scaling-stroke'}));
+      const t=create('text',{x:x+nw/2,y:y+hh/2,'text-anchor':'middle','dominant-baseline':'central',fill:alt?ink.line:'#fff','font-family':'system-ui,sans-serif','font-size':19*A,'font-weight':750});t.textContent=n;g.appendChild(t);
+      if(label){const t=create('text',{x:x+nw+5*A,y:y+hh/2,'dominant-baseline':'central',fill:'#172530','font-family':'system-ui,sans-serif','font-size':font,'font-weight':600});t.textContent=label;g.appendChild(t);}
+      const title=create('title',{});title.textContent='Cam '+n+' · '+String(c.label||c.mount);g.appendChild(title);layers.badges.appendChild(g);
     }
   }
 
@@ -2274,7 +2313,7 @@
     const scale = state.content.width / 2000;
     const blockWidth = 490 * scale;
     const rowHeight = 34 * scale;
-    const blockHeight = 132 * scale + (usedMounts.length ? usedMounts.length * rowHeight + 14 * scale : 0);
+    const blockHeight = 146 * scale + usedMounts.length * rowHeight;
     const x = state.content.width - blockWidth - 24 * scale;
     const y = state.content.height - blockHeight - 24 * scale;
 
@@ -2309,7 +2348,7 @@
       }));
     }
 
-    addText('CAMERA PLAN', x + 16 * scale, y + 28 * scale, 13, 700, '#5c6773', 2.4);
+    addText(state.background||state.vector?'CAMERA PLAN':'POSITION STUDY · NO BASE DRAWING',x+16*scale,y+28*scale,12,700,state.background||state.vector?'#5c6773':'#a24610',1.2);
     addText(el('meta-production').value.trim() || 'Production', x + 16 * scale, y + 58 * scale, 21, 700, '#161b20', 0);
     addText(el('meta-venue').value.trim() || 'Venue', x + 16 * scale, y + 82 * scale, 14, 500, '#3c4750', 0);
     addText([
@@ -2332,27 +2371,14 @@
           ? { line: '#14181c', solid: '#14181c', tint: '#14181c' }
           : { line: mount.colour, solid: mount.colour, tint: mount.colour };
 
-        // Two views per row. The plan glyph lets a reader match the legend to the
-        // marks on the sheet, the elevation tells them which piece of kit it is.
-        const glyph = create('g', {
-          transform: `translate(${x + 30 * scale} ${cursor - 12 * scale}) scale(${16 * scale})`
-        });
-        glyph.appendChild(drawSymbol({ ...members[0], rf: false }, ink));
-        group.appendChild(glyph);
-
-        const side = create('g', {
-          transform: `translate(${x + 52 * scale} ${cursor - 22 * scale}) scale(${0.26 * scale})`
-        });
-        side.appendChild(drawElevation(mount.id, ink));
-        group.appendChild(side);
-
-        addText(mount.name, x + 92 * scale, cursor, 13, 600, '#161b20', 0);
-        addText(members.map((camera) => camera.number).join(', '),
-          x + blockWidth - 16 * scale, cursor, 13, 500, '#5c6773', 0, 'end');
+        group.appendChild(schematicGlyph(members[0],ink,x+33*scale,cursor-10*scale,28*scale));
+        addText(mount.name,x+55*scale,cursor,13,600,'#172530',0);
+        addText([...new Set(members.map(c=>String(c.number)))].join(', '),x+blockWidth-16*scale,cursor,12,500,'#5c6773',0,'end');
         cursor += rowHeight;
       }
     }
 
+    addText('GLYPHS SCHEMATIC · FOOTPRINTS NOMINAL',x+16*scale,y+blockHeight-25*scale,8.2,500,'#5c6773',.45);
     // The output ratio in the bottom margin. A graphic scale bar survives any
     // reduction, but a stated ratio is what the reader checks the rule against.
     const plot = outputPlot();
@@ -2497,6 +2523,7 @@
     const angles=validAngles(camera);
     if(!angles){el('readout-coverage').textContent='Coverage unavailable: check active aperture and lens compatibility.';return;}
     const wideAov=angles.wide.hfov,teleAov=angles.tele.hfov;
+    if(!(Number(camera.throwMetres)>0)){el('readout-coverage').textContent='HFOV '+format(wideAov,2)+'° – '+format(teleAov,3)+'°. Plan throw not set; enter a reference distance to plot coverage.';return;}
     el('readout-coverage').innerHTML =
       `HFOV <strong>${format(wideAov, 1)}&deg;</strong> to <strong>${format(teleAov, 2)}&deg;</strong><br>` +
       `Frame width at ${format(axialDistance(camera), 1)} m axial distance: ` +
@@ -2507,11 +2534,11 @@
 
   function miniature(mountId, size) {
     const colour = mountById(mountId).colour;
-    const node = create('svg', { viewBox: '0 0 120 100', xmlns: SVG_NS });
-    node.appendChild(drawElevation(mountId, { line: colour, solid: colour, tint: colour }));
+    const node = create('svg', { viewBox: '-34 -34 68 68', xmlns: SVG_NS });
+    node.appendChild(rigGlyph(defaultsFor(mountId), { line: colour, solid: colour, tint: colour }));
     if (size) {
       node.setAttribute('width', size);
-      node.setAttribute('height', Math.round(size * 0.83));
+      node.setAttribute('height', size);
     }
     return node;
   }
@@ -2587,6 +2614,7 @@
     renderHandles();
     renderCalibration();
     updateReadouts();
+    updateContextBanner();
     updateScaleBar();
     updateEditor();
     updateList();
@@ -3977,6 +4005,7 @@
     if (!Number.isFinite(sourceScale) || sourceScale <= 0 || !Array.isArray(project.cameras) || !project.content || ![project.content.width, project.content.height].every(v=>Number.isFinite(v)&&v>0)) throw new Error('Invalid project dimensions, scale or camera list');
 
     if (carriesPlan) {
+      state.sharedContext=null;
       state.content = project.content;
       state.background = project.background || null;
       state.vector = project.vector || null;
@@ -4247,6 +4276,105 @@
     }
   });
 
+  // The payload itself stays in the URL fragment. Only its SHA-256 identifier
+  // is sent to an optional same-origin, independently authorised resolver.
+  function updateContextBanner(){
+    const missing=state.cameras.length>0&&!state.background&&!state.vector;
+    el('context-banner').hidden=!missing;if(!missing)return;
+    const c=state.sharedContext,zero=state.cameras.filter(x=>!(Number(x.throwMetres)>0)).length;
+    el('context-heading').textContent=c?.status==='loading'?'Retrieving authorised venue drawing…':'Venue drawing not loaded · position study only';
+    const detail=c?.status==='auth'?'Sign in to the private context and retry.':c?.status==='error'?'Private context could not be verified; open the complete authorised project.':c?.status==='missing'?'No private drawing has been registered for this link.':'Camera positions alone do not include a venue drawing. Open the complete project.';
+    el('context-message').textContent=detail+(zero?' '+zero+' position(s) have no plan throw.':'');
+    el('context-retry').hidden=!c?.url||c.status==='loading';
+    el('context-authorise').hidden=c?.status!=='auth'||!c?.url;
+    if(c?.url)el('context-authorise').href=c.url;
+  }
+  // Least-squares similarity (uniform scale, rotation, translation; no
+  // reflection) between two point sets, via complex numbers. Used only to
+  // describe how far a revision moved the positions; it never edits them.
+  function fitSimilarity(pairs){
+    const n=pairs.length;if(n<2)return null;
+    const cp=pairs.reduce((a,[p])=>({x:a.x+p.x/n,y:a.y+p.y/n}),{x:0,y:0}),cq=pairs.reduce((a,[,q])=>({x:a.x+q.x/n,y:a.y+q.y/n}),{x:0,y:0});
+    let re=0,im=0,den=0;
+    for(const [p,q] of pairs){const px=p.x-cp.x,py=p.y-cp.y,qx=q.x-cq.x,qy=q.y-cq.y;re+=px*qx+py*qy;im+=px*qy-py*qx;den+=px*px+py*py}
+    if(!(den>0))return null;
+    const a={re:re/den,im:im/den},tx=cq.x-(a.re*cp.x-a.im*cp.y),ty=cq.y-(a.re*cp.y+a.im*cp.x);
+    let worst=0;
+    for(const [p,q] of pairs)worst=Math.max(worst,Math.hypot(q.x-(a.re*p.x-a.im*p.y+tx),q.y-(a.re*p.y+a.im*p.x+ty)));
+    return {scale:Math.hypot(a.re,a.im),rotationDeg:Math.atan2(a.im,a.re)*180/Math.PI,maxResidualPx:worst};
+  }
+  // Authorised revision migration. A shared link freezes one revision (its
+  // frame, scale and title block). The private record carries the later
+  // revision and names exactly which earlier frame it may replace; anything
+  // else fails closed. Positions in the later revision are authoritative; the
+  // fit below only reports how far they moved, so the change is never silent.
+  function migrateVenueContext(source,ctx){
+    const m=source.migration,p=source.project,from=m?.from||{},to=m?.to||{};
+    if(!m||!p||!/^camera-plan\/[1-6]$/.test(p.format)||!Array.isArray(p.cameras))throw Error('Invalid migration context');
+    if(String(from.revision)!==String(el('meta-revision').value)||from.content?.width!==state.content.width||from.content?.height!==state.content.height||!(Number(from.pxPerMetre)>0)||Math.abs(Number(from.pxPerMetre)-state.pxPerMetre)>1e-8)throw Error('Migration source frame differs');
+    const targetScale=Number(p.pxPerMetre);
+    if(!(targetScale>0)||Math.abs(Number(to.pxPerMetre)-targetScale)>1e-8||String(to.revision)!==String(p.meta?.revision||'')||String(to.revision)===String(from.revision))throw Error('Migration target mismatch');
+    for(const k of ['production','venue'])if(String(p.meta?.[k]||'')!==String(el('meta-'+k).value||''))throw Error('Drawing identity differs');
+    const bg=p.background;
+    if(!p.vector&&(!bg||typeof bg.href!=='string'||!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(bg.href)||bg.href.length>20*1024*1024||bg.width!==p.content?.width||bg.height!==p.content?.height))throw Error('Invalid embedded raster context');
+    const target=new Map(p.cameras.map(c=>[String(c.id),c]));
+    const pairs=state.cameras.map(c=>{const t=target.get(String(c.id));if(!t)throw Error('Position missing in migrated drawing');return [{x:c.x,y:c.y},{x:t.x,y:t.y}]});
+    const known=new Set(state.cameras.map(c=>String(c.id)));
+    for(const c of p.cameras)if(!known.has(String(c.id))&&c.positionRole!=='alternate')throw Error('Unexpected position in migrated drawing');
+    const fit=fitSimilarity(pairs),fromRevision=el('meta-revision').value;
+    const project=JSON.parse(JSON.stringify(p));
+    state.sharedContext=null;state.background=null;state.vector=null;
+    applyProject(project);
+    // A scale read from the drawing is an estimate until someone confirms it
+    // against a checked dimension; the context may not promote itself.
+    if(!Spatial.trusted(state.scaleEvidence,state.pxPerMetre)){
+      state.calibrated=true;
+      state.scaleEvidence={status:'estimated',method:'Drawing-derived ('+p.meta.revision+')',pxPerMetre:state.pxPerMetre,source:String(p.scaleEvidence?.source||'')};
+      render();
+    }
+    const moved=fit?fit.maxResidualPx/targetScale:null;
+    showHint(`Authorised context: ${fromRevision} → ${p.meta.revision}. ${state.cameras.length} positions, ${state.cameras.filter(c=>c.positionRole==='alternate').length} alternate(s)`+(moved===null?'':`; largest shift ${moved.toFixed(2)} m after best fit`)+'. Scale is drawing-derived until confirmed.',true,9000);
+  }
+  function attachVenueContext(source,ctx){
+    if(state.sharedContext!==ctx||state.background||state.vector)throw Error('Plan changed before context arrived');
+    if(source?.format==='sightline-context/2')return migrateVenueContext(source,ctx);
+    const p=source?.format==='sightline-context/1'?source.project:source;
+    if(!p||!/^camera-plan\/[1-6]$/.test(p.format)||p.content?.width!==state.content.width||p.content?.height!==state.content.height||!Number.isFinite(Number(p.pxPerMetre))||Number(p.pxPerMetre)<=0||Math.abs(Number(p.pxPerMetre)-state.pxPerMetre)>1e-8)throw Error('Drawing coordinate frame differs');
+    for(const [k,id] of [['production','meta-production'],['venue','meta-venue'],['revision','meta-revision']])if(String(p.meta?.[k]||'')!==String(el(id).value||''))throw Error('Drawing revision differs');
+    const bg=p.background;
+    if(!bg||bg.width!==state.content.width||bg.height!==state.content.height||typeof bg.href!=='string'||!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(bg.href)||bg.href.length>20*1024*1024)throw Error('Invalid embedded raster context');
+    state.background={href:bg.href,width:bg.width,height:bg.height};
+    state.vector=null;state.calibrated=false;state.scaleEvidence=null;state.plotRatio=null;
+    state.sharedContext=null;buildLayerList();render();fitToContent();
+  }
+  async function fetchVenueContext(ctx){
+    if(!ctx?.url||state.sharedContext!==ctx||state.background||state.vector)return;
+    ctx.status='loading';updateContextBanner();
+    try{
+      const res=await fetch(ctx.url,{credentials:'same-origin',redirect:'manual',cache:'no-store'});
+      if(state.sharedContext!==ctx)return;
+      if(res.type==='opaqueredirect'||res.status===401||res.status===403){ctx.status='auth';return}
+      if(res.status===404){ctx.status='missing';return}
+      if(!res.ok||!(res.headers.get('content-type')||'').includes('application/json'))throw Error('Unexpected context response');
+      const declared=Number(res.headers.get('content-length'));if(declared>24*1024*1024)throw Error('Context too large');
+      const bytes=await res.arrayBuffer();if(bytes.byteLength>24*1024*1024)throw Error('Context too large');
+      attachVenueContext(JSON.parse(new TextDecoder().decode(bytes)),ctx);
+    }catch(err){if(state.sharedContext===ctx)ctx.status='error'}
+    finally{updateContextBanner()}
+  }
+  async function resolveVenueContext(payload){
+    const ctx={status:'missing',url:null};state.sharedContext=ctx;updateContextBanner();
+    if(!window.isSecureContext||!globalThis.crypto?.subtle)return;
+    try{
+      const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(payload));
+      const key=Array.from(new Uint8Array(hash),x=>x.toString(16).padStart(2,'0')).join('');
+      ctx.url=new URL('./context/'+key+'.json',location.href.split('#')[0]).href;
+      await fetchVenueContext(ctx);
+    }catch{if(state.sharedContext===ctx){ctx.status='error';updateContextBanner()}}
+  }
+  el('context-open').addEventListener('click',()=>openProjectFile());
+  el('context-retry').addEventListener('click',()=>fetchVenueContext(state.sharedContext));
+
   async function openSharedPlan(payload) {
     try {
       const project=JSON.parse(await unpackShare(payload));
@@ -4254,9 +4382,9 @@
       // external drawing URLs, model registration or interface metadata.
       delete project.background;delete project.vector;delete project.logo;delete project.previs;delete project.scaleEvidence;
       if(Array.isArray(project.cameras))project.cameras=project.cameras.map(({chainDetails,...position})=>position);
+      state.background=null;state.vector=null;state.sharedContext=null;
       applyProject(project);
-      showHint('Shared plan opened: positions and title block, no drawing. ' +
-        'Load the venue plan to see them on it.', true, 6000);
+      void resolveVenueContext(payload);
     } catch (error) {
       showHint('That link does not carry a readable plan', true);
     } finally {
