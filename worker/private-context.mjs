@@ -121,8 +121,13 @@ export async function privateContext(request,env,{fetcher=fetch,clock=Date.now}=
   }
   const key=id?'projects/'+id+'/latest.json':null;
   if(id){object=await bucket.get(key);if(!object)return reply(503,'Current publication unavailable')}
-  if(!permitted(object,'readers',email)){await discard(object);return reply(403,'Access denied')}
-  const role=id&&permitted(object,'editors',email)?'editor':'viewer';
+  let access=object;
+  if(id){
+    access=await bucket.head('projects/'+id+'/access.json');
+    if(!access){await discard(object);return reply(403,'Project access unavailable')}
+  }
+  if(!permitted(access,'readers',email)){await discard(object);return reply(403,'Access denied')}
+  const role=id&&permitted(access,'editors',email)?'editor':'viewer';
   if(!Number.isFinite(object.size)||object.size<0||object.size>MAX_MANIFEST){await discard(object);return reply(413,'Context too large')}
   if(events){
     await discard(object);
@@ -153,6 +158,8 @@ export async function privateContext(request,env,{fetcher=fetch,clock=Date.now}=
     }catch(err){await discard(object);return reply(400,'Invalid project edit')}
     const body=JSON.stringify(next);
     if(new TextEncoder().encode(body).byteLength>MAX_MANIFEST)return reply(413,'Publication too large');
+    const currentAccess=await bucket.head('projects/'+id+'/access.json');
+    if(!currentAccess||!permitted(currentAccess,'readers',email)||!permitted(currentAccess,'editors',email))return reply(403,'Write permission withdrawn');
     const stored=await bucket.put(key,body,{onlyIf:{etagMatches:object.etag},customMetadata:{...object.customMetadata},httpMetadata:{contentType:'application/json',cacheControl:'private, no-store'}});
     if(!stored)return reply(412,'A newer publication exists');
     // Only an invalidation, not a payload, is sent over the socket. Every

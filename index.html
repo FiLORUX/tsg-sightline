@@ -3275,11 +3275,15 @@
       if(isArm(camera))camera.headPan=((aimed-camera.heading+540)%360)-180;
       else camera.heading=normaliseHeading(aimed);
     }
-    render();
+    renderDrag();
   });
 
+  let pendingDragFrame=0;
+  function renderDrag(){if(!pendingDragFrame)pendingDragFrame=requestAnimationFrame(()=>{pendingDragFrame=0;render()})}
+  function flushDrag(){if(pendingDragFrame){cancelAnimationFrame(pendingDragFrame);pendingDragFrame=0;render()}}
   function endDrag(event) {
     if (event.pointerId !== drag.pointerId) return;
+    flushDrag();
     if(event.type==='pointercancel'){resetDrag(false);render();return}
 
     if (drag.kind === 'rubber') {
@@ -4458,6 +4462,7 @@
   const hasFilePicker = typeof window.showSaveFilePicker === 'function' && window.isSecureContext;
 
   async function saveProject(chooseFile) {
+    if(state.sharedContext&&state.sharedContext.status!=='missing'){showHint('Open the current authorised project first.',true);return}
     if(state.live&&!chooseFile){await saveLive();return}
     const json = JSON.stringify(buildProject(), null, 2);
     if (hasFilePicker) {
@@ -4641,6 +4646,7 @@
   }
 
   el('action-share').addEventListener('click', async () => {
+    if(state.sharedContext&&state.sharedContext.status!=='missing'){showHint('Open the current authorised project first.',true);return}
     if(state.live){try{await navigator.clipboard.writeText(location.origin+location.pathname+'#project='+state.live.id);showHint('Current project link copied',true)}catch{showHint('Clipboard unavailable',true)}return}
     if(state.privateContextLoaded){showHint('Use the existing authorised project link.',true);return}
     const project = buildProject();
@@ -4833,6 +4839,7 @@
     el('live-retry').hidden=l.status!=='offline';
     el('action-save-project').textContent=l.role==='editor'?'Save to project':'Export copy';
     if(l.role!=='editor')el('live-indicator').textContent+=' · View only';
+    if(dirty&&!canSave(l))el('live-indicator').textContent+=' · Local source change';
   }
   function stopLive(){
     const l=state.live;if(!l)return;state.live=null;
@@ -4871,13 +4878,13 @@
     if(!initial&&isDirty(l)&&!l.forceLatest){l.status='conflict';l.pending=true;updateLiveStatus();return}
     const view={...state.view},selectedId=state.selectedId;
     const sameFrame=!initial&&state.content.width===p.content.width&&state.content.height===p.content.height&&state.pxPerMetre===p.pxPerMetre;
-    const retainedModel=sameFrame&&oldGeom?.name===newGeom?.name&&l.loadedGeometry===newGeom?.name?{model:previs.model,name:previs.name,registration:{...previs.registration}}:null;
+    const retainedModel=sameFrame&&oldGeom?.name===newGeom?.name&&l.loadedGeometry===newGeom?.name&&JSON.stringify(l.registrationSource)===JSON.stringify(p.previs?.registration||null)?{model:previs.model,name:previs.name,registration:{...previs.registration}}:null;
     const project={...p,background:bg};
     applyProject(project,{fromLive:true});
     state.privateContextLoaded=true;
     l.sequence=record.sequence;l.revision=String(p.meta.revision);l.etag=etag;l.assets=record.assets||{};
     l.role=res.headers.get('X-Sightline-Role')==='editor'?'editor':'viewer';l.checked=Date.now();l.pending=false;l.forceLatest=false;l.status='ready';
-    l.background=state.background;l.vector=state.vector;l.logo=state.logo;l.frame=frameSignature();l.baseline=editSignature();
+    l.background=state.background;l.vector=state.vector;l.logo=state.logo;l.registrationSource=p.previs?.registration||null;l.frame=frameSignature();l.baseline=editSignature();
     if(sameFrame){state.view=view;if(state.cameras.some(c=>c.id===selectedId))state.selectedId=selectedId;applyView();render()}
     if(retainedModel){previs.model=retainedModel.model;previs.name=retainedModel.name;previs.registration=retainedModel.registration;queuePrevis()}
     else{l.loadedGeometry=null;if(!el('previs-pane').hidden)void ensureLiveGeometry()}
@@ -5307,7 +5314,7 @@ void main(){float shade=1.0;if(lit){vec3 n=cross(dFdx(world),dFdy(world));float 
   }
   P.loadPublishedModel=async file=>{if(!await loadModel(file))throw Error('GLB import failed')};
   el('previs-file').addEventListener('change',e=>{const file=e.target.files[0];e.target.value='';if(state.live)state.live.loadedGeometry=null;void loadModel(file)});
-  el('previs-remove').addEventListener('click',()=>{++P.loadToken;if(P.cancelLoad)P.cancelLoad();P.loading=false;clearBuffers();P.model=null;P.name='';P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();queuePrevis()});
+  el('previs-remove').addEventListener('click',()=>{if(state.live)state.live.loadedGeometry=null;++P.loadToken;if(P.cancelLoad)P.cancelLoad();P.loading=false;clearBuffers();P.model=null;P.name='';P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();queuePrevis()});
   for(const [id,key] of Object.entries({'previs-rx':'x','previs-ry':'y','previs-rz':'z','previs-rotation':'rotation'}))el(id).addEventListener('change',()=>{P.registration[key]=clamp(readNumber(id,P.registration[key]),-1e6,1e6);P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();scheduleAutosave();queuePrevis()});
   el('previs-fit').addEventListener('click',()=>{try{const xy=id=>{const parts=el(id).value.split(',');if(parts.length!==2||parts.some(p=>!p.trim()))throw Error('Enter X,Y in metres');return parts.map(Number)};const fit=S.fitRegistration(xy('previs-ma'),xy('previs-mb'),xy('previs-pa'),xy('previs-pb'),P.registration.z);P.registration={x:fit.x,y:fit.y,z:fit.z,rotation:fit.rotation,confirmed:false};el('previs-residual').textContent=`Endpoint residual ${fit.residual.toFixed(3)} m · model span ${fit.modelSpan.toFixed(3)} m / plan ${fit.planSpan.toFixed(3)} m. Check independent point and datum.`;invalidatePoint();scheduleAutosave();queuePrevis()}catch(e){el('previs-residual').textContent=e.message}});
   el('previs-registration').addEventListener('change',e=>{P.registration.confirmed=e.target.checked&&!P.loading&&!!P.model&&Spatial.trusted(state.scaleEvidence,state.pxPerMetre);invalidatePoint();queuePrevis()});
