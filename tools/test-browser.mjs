@@ -154,7 +154,7 @@ try{
   await page.unroute('**/view/alias/'+key+'.json');
   await page.route('**/view/alias/'+key+'.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(r04)}));
   await page.reload();
-  await text('context-message','could not be verified');
+  await text('context-message','Migration source frame differs');
   assert.equal(await page.locator('#meta-revision').inputValue(),old.meta.revision);
   await page.unroute('**/view/alias/'+key+'.json');
   // Reset to the position-only link before testing the optical editor.
@@ -275,13 +275,13 @@ try{
   async function origin(route,role){
     const req=route.request(),u=new URL(req.url());
     if(u.pathname.endsWith('/asset/'+assetName)){assetGets++;return route.fulfill({status:200,contentType:'image/png',body:binary})}
-    const headers={'ETag':activeTag(),'X-Sightline-Role':role,'Cache-Control':'private, no-store'};
+    const headers={'ETag':'W/'+activeTag(),'X-Sightline-Version':activeTag(),'X-Sightline-Role':role,'Cache-Control':'private, no-store'};
     if(req.method()==='PUT'){
       if(role!=='editor')return route.fulfill({status:403,headers,body:'{}'});
       if(req.headers()['if-match']!==activeTag())return route.fulfill({status:412,headers,body:'{}'});
       const edit=req.postDataJSON();publication={...publication,sequence:publication.sequence+1,publishedAt:new Date().toISOString(),project:{...publication.project,...edit}};saves++;
       for(const socket of sockets){socket.send('changed');invalidations++}
-      return route.fulfill({status:200,headers:{...headers,ETag:activeTag()},contentType:'application/json',body:JSON.stringify({sequence:publication.sequence,publishedAt:publication.publishedAt})});
+      return route.fulfill({status:200,headers:{...headers,ETag:'W/'+activeTag(),'X-Sightline-Version':activeTag()},contentType:'application/json',body:JSON.stringify({sequence:publication.sequence,publishedAt:publication.publishedAt})});
     }
     if(role==='viewer')viewerGets++;
     if(req.headers()['if-none-match']===activeTag())return route.fulfill({status:304,headers});
