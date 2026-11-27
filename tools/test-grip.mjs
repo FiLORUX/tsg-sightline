@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {createGrip} from './grip-core.mjs';
+const G=createGrip();
+const legacy={mount:'crane',reach:10,reachMin:2,reachMax:14,tail:2,height:1.5};
+const c={...legacy,grip:{boomMode:'spatial',boomLength:10,boomElevation:60,pivotHeight:2,headOffsetZ:-.5,boomMin:2,boomMax:14,rearLength:2}};
+const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-8);
+assert.equal(G.boom(legacy).reach,10);near(G.boom(c).reach,5);near(G.boom(c).z,1.5+Math.sqrt(3)*5);near(G.boom(c).tail,1);
+assert.equal(G.boom({...c,mount:'jib'}).valid,false);assert.equal(G.boom({...c,mount:'jib',grip:{...c.grip,boomMin:10,boomMax:10}}).valid,true);
+assert.equal(G.boom({...c,grip:{...c.grip,boomElevation:90}}).valid,false);assert.equal(G.compatible({mount:'rail',grip:{system:'agito-sports'}}),false);
+assert.equal(G.template({mount:'tripodHeavy'}).family,G.template({mount:'tripodEng'}).family);assert.equal(G.template({mount:'rail'}).mobility,'track-constrained');
+console.log('Grip assembly and nominal/spatial boom tests passed');

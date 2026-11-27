@@ -512,7 +512,7 @@
             <input type="text" id="cam-number">
           </div>
           <div class="field">
-            <label for="cam-mount">Mount</label>
+            <label for="cam-mount">Rig template</label>
             <select id="cam-mount"></select>
           </div>
         </div>
@@ -547,18 +547,26 @@
           </div>
         </div>
 
+        <details class="chain-details" open>
+          <summary>Grip / support assembly</summary>
+          <div class="field"><label for="grip-system">Support system</label><select id="grip-system"></select></div>
+          <div class="field"><label for="grip-head">Pan/tilt or stabilised head</label><select id="grip-head"></select></div>
+          <div class="field"><label for="grip-reference">Installed configuration / supplier reference</label><input id="grip-reference" maxlength="200"></div>
+          <div id="grip-info" class="readout" role="status"></div>
+          <a id="grip-source" hidden target="_blank" rel="noopener noreferrer">Manufacturer specification</a>
+        </details>
         <div id="arm-fields" hidden>
           <div class="field">
-            <label for="cam-crane">Arm</label>
+            <label for="cam-crane">Legacy nominal arm template</label>
             <select id="cam-crane"></select>
           </div>
           <div class="row-3">
             <div class="field">
-              <label for="cam-reach-min">Retracted (m)</label>
+              <label for="cam-reach-min">Plan reach min (m)</label>
               <input type="number" id="cam-reach-min" step="0.1" min="0.5">
             </div>
             <div class="field">
-              <label for="cam-reach-max">Extended (m)</label>
+              <label for="cam-reach-max">Plan reach max (m)</label>
               <input type="number" id="cam-reach-max" step="0.1" min="0.5">
             </div>
             <div class="field">
@@ -568,7 +576,7 @@
           </div>
           <div class="row">
             <div class="field">
-              <label for="cam-reach">Arm at (m)</label>
+              <label for="cam-reach">Plan reach (m)</label>
               <input type="number" id="cam-reach" step="0.1" min="0.5">
             </div>
             <div class="field">
@@ -578,6 +586,16 @@
           </div>
         </div>
 
+        <details id="grip-boom" class="chain-details" hidden>
+          <summary>Spatial boom configuration</summary>
+          <label class="check"><input id="grip-spatial" type="checkbox"> Use entered pivot-to-head geometry</label>
+          <div class="readout">These are installed configuration measurements, not nominal model names or certified working limits.</div>
+          <div class="row"><div class="field"><label for="grip-length">Pivot to head (m)</label><input type="number" id="grip-length" step=".01" min=".01"></div><div class="field"><label for="grip-angle">Boom elevation (°)</label><input type="number" id="grip-angle" step=".1" min="-89" max="89"></div></div>
+          <div class="row"><div class="field"><label for="grip-pivot-z">Pivot height above base (m)</label><input type="number" id="grip-pivot-z" step=".01"></div><div class="field"><label for="grip-offset-z">Vertical head / lens offset (m)</label><input type="number" id="grip-offset-z" step=".01"></div></div>
+          <div class="row"><div class="field"><label for="grip-min">Min pivot-head length (m)</label><input type="number" id="grip-min" step=".01" min=".01"></div><div class="field"><label for="grip-max">Max pivot-head length (m)</label><input type="number" id="grip-max" step=".01" min=".01"></div></div>
+          <div class="field"><label for="grip-rear">Rear boom length (m)</label><input type="number" id="grip-rear" step=".01" min="0"></div>
+          <div id="grip-boom-info" class="readout" role="status"></div>
+        </details>
         <div id="roam-fields" hidden>
           <div class="field">
             <label for="cam-roam">Working radius (m)</label>
@@ -759,19 +777,83 @@
      tells a box-lens hard camera from a portable position at a glance and why
      the drawing stays readable after a monochrome plot. */
 
+  // #region grip-core
+  const Grip = (function createGrip(){
+  // Legacy mount identifiers are placement templates, NOT equipment IDs.
+  // Do not infer payload, head, optical aperture, RF or certified limits.
+  const templates={
+    tripodHeavy:{family:'tripod',mobility:'fixed',geometry:'nominal tripod footprint'},
+    tripodEng:{family:'tripod',mobility:'fixed',geometry:'nominal tripod footprint'},
+    tripodDolly:{family:'tripod-dolly',mobility:'free-planar',geometry:'nominal caster footprint'},
+    ped:{family:'pedestal',mobility:'planar-and-lift',geometry:'nominal pedestal footprint'},
+    crane:{family:'telescopic-boom',mobility:'pivot-boom',geometry:'nominal horizontal boom'},
+    jib:{family:'fixed-boom',mobility:'pivot-boom',geometry:'nominal horizontal boom'},
+    steadicam:{family:'body-mounted-sled',mobility:'operator-path',geometry:'nominal operator and sled'},
+    handheld:{family:'shoulder',mobility:'operator-path',geometry:'nominal operator footprint'},
+    robo:{family:'remote-fixed',mobility:'fixed',geometry:'nominal mounting point'},
+    pov:{family:'fixed-bracket',mobility:'fixed',geometry:'nominal mounting point'},
+    rail:{family:'rail',mobility:'track-constrained',geometry:'nominal carriage and route'},
+    special:{family:'custom',mobility:'unknown',geometry:'schematic point only'}
+  };
+  const systems=[
+    {id:'',name:'Unspecified / custom'},
+    {id:'vinten-hdt2',name:'Vinten HDT-2 tripod',families:['tripod','tripod-dolly'],source:'https://www.vinten.com/en/product/hdt-2-heavy-duty-tripod/',note:'Two-stage legs; flat four-bolt / Quickfix interface; 120 kg tripod rating, not an assembled system rating.'},
+    {id:'sachtler-ob2000',name:'Sachtler OB 2000 tripod',families:['tripod','tripod-dolly'],source:'https://www.sachtler.com/en/product/tripod-ob-2000/',note:'Flat-base tripod; 140 kg tripod rating. Head, dolly and centre of gravity are independent.'},
+    {id:'sachtler-ob-dolly',name:'Sachtler OB 2000 + Dolly XL',families:['tripod-dolly'],source:'https://www.sachtler.com/en/product/system-video-75-ob-2000/',note:'Caster-supported tripod. A floor dolly does not imply a rail-constrained movement.'},
+    {id:'vinten-osprey',name:'Vinten Osprey Plus pedestal',families:['pedestal'],source:'https://www.vinten.com/wp-content/uploads/2023/08/v4170-0001-osprey-plus-user-guide.pdf',note:'Balanced vertical column and wheeled base; distinguish studio and OB versions.'},
+    {id:'scorpio45',name:"Servicevision Scorpio 45′",families:['telescopic-boom'],source:'https://scorpio.servicevision.es/en/product/grips-en/telescopic-cranes/scorpio-45-en/scorpio-45/',note:'Published length 2.41–14 m; column extension 0.65 m; maximum optic-axis height 14.1 m. Published overall length is not automatically pivot-to-head distance. Use the configured boom and head offsets.'},
+    {id:'jimmy-jib',name:'Stanton Jimmy Jib Triangle',families:['fixed-boom'],source:'https://www.jimmyjib.com/',note:'Modular fixed-length boom; identify installed sections, pivot and rear arm from the supplier drawing.'},
+    {id:'steadicam',name:'Steadicam vest / arm / sled',families:['body-mounted-sled'],source:'https://flysteadicam.tiffen.com/products/steadicam-g-50x-arm',note:'Iso-elastic arm supports the balanced sled; sled mass is part of arm payload.'},
+    {id:'glidecam-v25',name:'Glidecam V-25',families:['body-mounted-sled'],note:'Vest, spring arm and balanced sled. Confirm installed arm and sled configuration; not an electronic gimbal.'},
+    {id:'agito-trax',name:'AGITO Trax',families:['rail','custom'],source:'https://motion-impossible.com/products/agito/agito-trax/',note:'Rail-constrained carriage; published chassis and gauge depend on configuration. Independent column and remote head.'},
+    {id:'agito-sports',name:'AGITO Sports',families:['custom'],source:'https://motion-impossible.com/products/agito/agito-sports/',note:'Free-roaming steerable chassis; not a circular roaming envelope or a rail.'},
+    {id:'cablecam',name:'Cable-suspended camera / Spidercam-type',families:['custom'],note:'Suspended translation within a configured cable volume; anchors, cable sag, tension and load cases require vendor model. No generic clearance.'},
+    {id:'vertical',name:'Vertical lift / tower',families:['custom'],note:'Constrained vertical travel; enter base and upper/lower optical datum independently.'},
+    {id:'motor-gimbal',name:'Handheld motorised gimbal',families:['custom','shoulder'],source:'https://www.dji.com/rs-4-pro/specs',note:'Motorised pan/tilt/roll; not an iso-elastic support arm. Payload balance and angular limits depend on actual build.'},
+    {id:'fixed-clamp',name:'Fixed bracket / clamp',families:['fixed-bracket','remote-fixed','custom'],note:'Mounting structure, elevation, secondary retention and allowable load require local rigging approval.'}
+  ];
+  const heads=[
+    {id:'',name:'Unspecified / custom'},
+    {id:'vector900',name:'Vinten Vector 900 — manual pan/tilt head'},
+    {id:'video75',name:'Sachtler Video 75 Plus Studio — fluid head',source:'https://www.sachtler.com/en/product/system-video-75-ob-2000-2/'},
+    {id:'video90',name:'Sachtler Video 90 — fluid head',source:'https://www.sachtler.com/en/product/system-video-90-ob-2000/'},
+    {id:'remote2',name:'Remote pan/tilt head — two axis'},
+    {id:'srh3',name:'ARRI SRH-3 — stabilised three-axis remote head',source:'https://www.arri.com/en/cine-systems/camera-stabilizer-systems/legacy/stabilized-remote-heads/srh-3'},
+    {id:'remote3',name:'Stabilised remote head — three axis'},
+    {id:'integratedptz',name:'Integrated PTZ / PTZR camera'},
+    {id:'none',name:'Rigid bracket / no pan-tilt head'},
+    {id:'sled',name:'Mechanical sled / gimbal bearing'}
+  ];
+  const template=c=>templates[c.mount]||templates.special;
+  const profile=(c)=>{const p=c.grip||{};return {system:typeof p.system==='string'?p.system:'',head:typeof p.head==='string'?p.head:'',reference:typeof p.reference==='string'?p.reference:'',...p}};
+  // Only explicit user-entered pivot-to-head length and elevation are used.
+  // Legacy reach is a horizontal projection. Existing coordinates stay intact.
+  function boom(c){
+    const p=profile(c),legacy={explicit:false,valid:true,reach:Number(c.reach)||0,min:Number(c.reachMin)||0,max:Number(c.reachMax)||0,tail:Number(c.tail)||0,z:Number(c.height)||0};
+    if(p.boomMode!=='spatial')return legacy;
+    const values=[p.boomLength,p.boomElevation,p.pivotHeight,p.headOffsetZ,p.boomMin,p.boomMax,p.rearLength];
+    if(!values.every(Number.isFinite)||p.boomLength<=0||p.boomMin<=0||p.boomMax<p.boomMin||p.boomLength<p.boomMin-1e-8||p.boomLength>p.boomMax+1e-8||Math.abs(p.boomElevation)>=90||p.rearLength<0)return {...legacy,valid:false};
+    if(c.mount==='jib'&&(Math.abs(p.boomMax-p.boomMin)>1e-8||Math.abs(p.boomLength-p.boomMin)>1e-8))return {...legacy,valid:false};
+    const a=p.boomElevation*Math.PI/180,co=Math.cos(a);
+    return {explicit:true,valid:true,reach:p.boomLength*co,min:p.boomMin*co,max:p.boomMax*co,tail:p.rearLength*co,z:p.pivotHeight+p.boomLength*Math.sin(a)+p.headOffsetZ};
+  }
+  const compatible=c=>{const s=systems.find(x=>x.id===profile(c).system);return !s||!s.families||s.families.includes(template(c).family)};
+  return {templates,systems,heads,template,profile,boom,compatible};
+})();
+  // #endregion grip-core
   const MOUNTS = [
-    { id: 'tripodHeavy', short: 'Heavy',  name: 'Heavy tripod',            colour: '#14508c', spread: 0.72 },
-    { id: 'ped',         short: 'Ped',    name: 'Studio pedestal',         colour: '#1f6fb8' },
+    { id: 'tripodHeavy', short: 'OB tripod',  name: 'Heavy-duty OB tripod',            colour: '#14508c', spread: 0.72 },
+    { id: 'ped',         short: 'Pedestal',    name: 'Studio / OB pedestal',         colour: '#1f6fb8' },
     { id: 'tripodDolly', short: 'Dolly',  name: 'Tripod on wheeled dolly',        colour: '#2f8f8a', spread: 0.58 },
     { id: 'tripodEng',   short: 'ENG',    name: 'ENG tripod',              colour: '#4a9fd8', spread: 0.52 },
     { id: 'crane',       short: 'Crane',  name: 'Telescopic crane',        colour: '#a05fc4' },
     { id: 'jib',         short: 'Jib',    name: 'Jib arm',                 colour: '#7a52c0' },
     { id: 'steadicam',   short: 'Stead',  name: 'Steadicam',               colour: '#e8a53c' },
     { id: 'handheld',    short: 'Hand',   name: 'Handheld / shoulder',                colour: '#dd5f42' },
-    { id: 'robo',        short: 'Robo',   name: 'Robotic head',            colour: '#3aa06f' },
-    { id: 'pov',         short: 'POV',    name: 'POV / minicam',           colour: '#37a8b8' },
+    { id: 'robo',        short: 'Remote',   name: 'Fixed remote head / PTZ',            colour: '#3aa06f' },
+    { id: 'pov',         short: 'Bracket',    name: 'Fixed camera bracket (POV / box)',           colour: '#37a8b8' },
     { id: 'rail',        short: 'Rail',   name: 'Rail or track dolly',     colour: '#c46a9a' },
-    { id: 'special',     short: 'Spec',   name: 'Specialty',               colour: '#7f8c99' }
+    { id: 'special',     short: 'Custom',   name: 'Custom / specialty support',               colour: '#7f8c99' }
   ];
 
   // #region equipment-core
@@ -1005,10 +1087,8 @@
     { id: 'jib6',   name: 'Jib arm, fixed (6.0 m)',    min: 6.00, max: 6.00,  base: 1.40, tail: 1.60 }
   ];
 
-  // Measured kit that the plan glyphs are drawn from. Only figures published by
-  // the manufacturer or hire house are used, so a footprint on the sheet is the
-  // footprint on the floor.
-  const PEDESTAL = { track: 1.07, ring: 0.74, wheel: 0.16 };
+  // Nominal drawing profiles. The selected model does not establish the installed footprint.
+  const PEDESTAL = { track: 1.07, ring: 0.74, wheel: 0.16 }; // Nominal glyph dimensions; not a verified installed pedestal.
 
   // Head silhouettes keyed to lens class. The break points follow how the glass
   // is actually built: long box lenses above 400 mm, field zooms above 120 mm,
@@ -1178,7 +1258,7 @@
   // Ground mounts carry the glass ahead of the pan axis, arms carry it out to the
   // head, and coverage has to be projected from wherever the front element ends up.
   function lensOrigin(camera) {
-    const forward = isArm(camera) ? camera.reach : pivotOffset(camera);
+    const forward = isArm(camera) ? Grip.boom(camera).reach : pivotOffset(camera);
     return pointOnCircle(camera.x, camera.y, forward * state.pxPerMetre, camera.heading);
   }
 
@@ -1426,7 +1506,7 @@
 
   function armSymbol(group, camera, colours) {
     const telescopic = isTelescopic(camera);
-    const tail = camera.tail || camera.baseSize * 1.4;
+    const tail = Grip.boom(camera).explicit?Grip.boom(camera).tail:(camera.tail || camera.baseSize * 1.4);
     const chassisLength = camera.baseSize;
     const chassisWidth = chassisLength * 0.94;
 
@@ -1469,7 +1549,7 @@
 
     // Telescopic sections drawn as nested stages so the arm reads as extending
     // rather than as a single fixed boom.
-    const tip = -camera.reach;
+    const tip = -Grip.boom(camera).reach;
     const stages = telescopic ? 3 : 1;
     for (let i = 0; i < stages; i += 1) {
       const from = (tip / stages) * i;
@@ -1502,8 +1582,8 @@
       'vector-effect': 'non-scaling-stroke'
     }));
 
-    const head = create('g', { transform: `translate(0 ${tip})` });
-    cameraHead(head, colours, HEAD_PROFILES[camera.tele >= 120 ? 'field' : 'portable']);
+    const head = create('g', { transform: `translate(0 ${tip}) rotate(${Number(camera.headPan)||0})` });
+    cameraHead(head, colours, headProfile(camera));
     // Remote head yoke: the arm carries a stabilised head, not an operator.
     head.appendChild(create('path', {
       d: 'M -0.22 0.62 L -0.22 0.42 M 0.22 0.62 L 0.22 0.42',
@@ -1956,7 +2036,7 @@
       const colours = palette(camera);
       const origin = lensOrigin(camera);
       const radius = camera.throwMetres * state.pxPerMetre;
-      const optics=validAngles(camera);if(!optics||!(Number(camera.throwMetres)>0))continue;
+      const optics=validAngles(camera);if(!optics||!(Number(camera.throwMetres)>0)||(isArm(camera)&&!Grip.boom(camera).valid))continue;
       const selected = camera.id === state.selectedId;
       const group = create('g', {});
       const opticalHeading = camera.heading + (isArm(camera) ? Number(camera.headPan || 0) : 0);
@@ -1994,7 +2074,9 @@
       const group = create('g', {});
 
       if (isArm(camera)) {
-        const tail = (camera.tail || camera.baseSize * 1.4) * state.pxPerMetre;
+        const b=Grip.boom(camera);
+        if(!b.valid)continue;
+        const tail = (b.explicit?b.tail:(camera.tail || camera.baseSize * 1.4)) * state.pxPerMetre;
         // The counterweight trolley sweeps its own circle behind the post. It is
         // the clearance that gets missed, because nobody looks behind a crane.
         group.appendChild(create('circle', {
@@ -2008,7 +2090,7 @@
       if (isTelescopic(camera)) {
         group.appendChild(create('path', {
           d: annulusPath(camera.x, camera.y,
-            camera.reachMin * state.pxPerMetre, camera.reachMax * state.pxPerMetre,
+            Grip.boom(camera).min * state.pxPerMetre, Grip.boom(camera).max * state.pxPerMetre,
             camera.heading, camera.swing),
           fill: colours.tint, 'fill-opacity': state.monochrome ? 0.06 : 0.10,
           stroke: colours.tint, 'stroke-width': 1.2, 'stroke-dasharray': '7 5',
@@ -2018,7 +2100,7 @@
         // A fixed arm sweeps an arc rather than an annulus, so the envelope is the
         // line the head travels along.
         group.appendChild(create('path', {
-          d: arcPath(camera.x, camera.y, camera.reach * state.pxPerMetre, camera.heading, camera.swing),
+          d: arcPath(camera.x, camera.y, Grip.boom(camera).reach * state.pxPerMetre, camera.heading, camera.swing),
           fill: 'none', stroke: colours.tint, 'stroke-width': 1.6,
           'stroke-dasharray': '7 5', 'stroke-opacity': 0.8, 'vector-effect': 'non-scaling-stroke'
         }));
@@ -2087,7 +2169,7 @@
         transform: `translate(${camera.x} ${camera.y}) rotate(${camera.heading}) scale(${state.pxPerMetre})`
       });
       group.setAttribute('opacity','0.72');
-      group.appendChild(drawSymbol(camera, palette(camera)));
+      if(camera.mount!=='special'&&(!isArm(camera)||Grip.boom(camera).valid))group.appendChild(drawSymbol(camera, palette(camera)));
       layers.symbols.appendChild(group);
     }
   }
@@ -2134,7 +2216,7 @@
     const colours = palette(camera);
     const origin = lensOrigin(camera);
     const point = pointOnCircle(origin.x, origin.y,
-      camera.throwMetres * state.pxPerMetre, camera.heading);
+      camera.throwMetres * state.pxPerMetre, camera.heading+(isArm(camera)?Number(camera.headPan)||0:0));
     // The grip never falls below a thumb-sized target on screen, however far the
     // view is zoomed out.
     const radius = Math.max(15 / state.view.k, 13 * A);
@@ -2495,6 +2577,7 @@
     el('cam-number').value = camera.number;
     el('cam-label').value = camera.label;
     el('cam-mount').value = camera.mount;
+    updateGripEditor(camera);
     el('cam-body').value = camera.body;
     el('cam-control').value = camera.control;
     el('cam-viewfinder').value = camera.viewfinder;
@@ -2536,7 +2619,7 @@
       `Frame width at ${format(axialDistance(camera), 1)} m axial distance: ` +
       `<strong>${format(frameWidth(axialDistance(camera), wideAov), 2)} m</strong> to ` +
       `<strong>${format(frameWidth(axialDistance(camera), teleAov), 3)} m</strong>` +
-      (isArm(camera) ? `<br>Head at <strong>${format(camera.reach, 1)} m</strong> from pivot` : '');
+      (isArm(camera) ? `<br>Horizontal head projection <strong>${format(Grip.boom(camera).reach, 1)} m</strong> from pivot` : '');
   }
 
   // Industrial elevation pictograms: static, bounded SVG geometry.
@@ -2557,7 +2640,7 @@
   "special": "<path d='M13 11H39V29H13Z M39 15H48V25H39Z' fill='currentColor' fill-opacity='.18'/><path d='M19 11V7H32V11 M19 29V36 M33 29V36 M11 36H41V42H11Z M8 15V26 M53 16V24'/><circle cx='21' cy='20' r='3'/><path d='M29 18H34 M29 22H34'/>",
   "_fallback": "<rect x='14' y='13' width='34' height='22' rx='3'/><path d='M22 21H40 M31 16V31 M12 41H50'/>"
 });
-  const MOUNT_LABELS = Object.freeze({"tripodHeavy":"Heavy tripod","ped":"Pedestal","tripodDolly":"Tripod dolly","tripodEng":"ENG tripod","crane":"Telescopic crane","jib":"Jib arm","steadicam":"Steadicam","handheld":"Handheld / HH","robo":"Remote / PTZ","pov":"POV / box","rail":"Track / rail","special":"Specialty"});
+  const MOUNT_LABELS = Object.freeze({"tripodHeavy":"OB tripod","ped":"Pedestal","tripodDolly":"Tripod dolly","tripodEng":"ENG tripod","crane":"Telescopic crane","jib":"Jib arm","steadicam":"Steadicam","handheld":"Handheld / HH","robo":"Remote / PTZ","pov":"POV / box","rail":"Track / rail","special":"Custom support"});
   const MOUNT_ACCENTS = Object.freeze({"tripodHeavy":"#82b7ed","ped":"#82b7ed","tripodDolly":"#65c5b7","tripodEng":"#82b7ed","crane":"#b9a1ee","jib":"#b9a1ee","steadicam":"#e7b76a","handheld":"#ee9b80","robo":"#83c7a1","pov":"#79c4d6","rail":"#d7a0c9","special":"#b6c2cb"});
   function miniature(mountId,size) {
     const node=create('svg',{viewBox:'0 0 64 48',xmlns:SVG_NS,fill:'none',stroke:'currentColor','stroke-width':2.2,'stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':'true',focusable:'false','data-mount-icon':mountId});
@@ -2656,7 +2739,7 @@
       id: 'preview',
       number: '1',
       label: '',
-      chainId: null, positionRole: 'primary', chainDetails: {},
+      chainId: null, positionRole: 'primary', chainDetails: {}, grip:{},
       mount: mountId,
       body: '',
       control: '',
@@ -2942,10 +3025,11 @@
       camera.x += shiftX;
       camera.y += shiftY;
     } else {
-      const raw = (Math.atan2(world.x - camera.x, camera.y - world.y) * 180) / Math.PI;
-      camera.heading = event.shiftKey
-        ? normaliseHeading(Math.round(raw / 15) * 15)
-        : normaliseHeading(Math.round(raw));
+      const anchor=isArm(camera)?lensOrigin(camera):camera;
+      const raw=Math.atan2(world.x-anchor.x,anchor.y-world.y)*180/Math.PI;
+      const aimed=event.shiftKey?Math.round(raw/15)*15:Math.round(raw);
+      if(isArm(camera))camera.headPan=((aimed-camera.heading+540)%360)-180;
+      else camera.heading=normaliseHeading(aimed);
     }
     render();
   });
@@ -3013,6 +3097,9 @@
     if (camera && (event.shiftKey || event.altKey)) {
       const factor = Math.exp(-event.deltaY * 0.0014);
       if (event.altKey && isArm(camera)) {
+        if(Grip.profile(camera).boomMode==='spatial'){
+          showHint('Set installed boom length in Spatial boom configuration.',true);return;
+        }
         camera.reach = clamp(camera.reach * factor, camera.reachMin, camera.reachMax);
         showHint(`Arm ${format(camera.reach, 1)} m`, true);
       } else {
@@ -3120,6 +3207,27 @@
     el('equipment-optics-info').textContent=o.valid?'Active output '+o.width.toFixed(3)+' × '+o.height.toFixed(3)+' mm · '+o.focal.toFixed(2)+' mm native / '+o.effectiveFocal.toFixed(2)+' mm optical\nHFOV '+o.hfov.toFixed(3)+'° · VFOV '+o.vfov.toFixed(3)+'° · DFOV '+o.dfov.toFixed(3)+'°\nReference-plane frame '+(2*axialDistance(c)*o.tanH).toFixed(3)+' × '+(2*axialDistance(c)*o.tanV).toFixed(3)+' m\nAperture: '+o.status+' · Lens: '+o.lensStatus:o.reason;
     el('cam-lens').disabled=!!c.integratedOptics&&!c.integratedOptics.removable;el('cam-extender').disabled=!!c.integratedOptics;
   }
+  const BOOM_FIELDS={'grip-length':'boomLength','grip-angle':'boomElevation','grip-pivot-z':'pivotHeight','grip-offset-z':'headOffsetZ','grip-min':'boomMin','grip-max':'boomMax','grip-rear':'rearLength'};
+  function updateGripEditor(c){
+    const p=Grip.profile(c),t=Grip.template(c),system=Grip.systems.find(x=>x.id===p.system);
+    equipmentOptions('grip-system',Grip.systems.filter(x=>!x.families||x.families.includes(t.family)||x.id===p.system),p.system);
+    equipmentOptions('grip-head',Grip.heads,p.head);
+    if(document.activeElement!==el('grip-reference'))el('grip-reference').value=p.reference;
+    const a=el('grip-source');a.hidden=!system?.source;if(system?.source)a.href=system.source;else a.removeAttribute('href');
+    el('grip-info').textContent=t.mobility+' · '+t.geometry+'. '+(system?.note||'Support model not selected.')+(Grip.compatible(c)?'':' Support system does not match placement template.')+' No load or clearance certification.';
+    el('grip-boom').hidden=!isArm(c);el('grip-spatial').checked=p.boomMode==='spatial';
+    const b=Grip.boom(c);for(const [id,key] of Object.entries(BOOM_FIELDS))if(document.activeElement!==el(id))el(id).value=Number.isFinite(p[key])?p[key]:'';
+    const explicit=p.boomMode==='spatial';
+    for(const id of ['cam-reach-min','cam-reach-max','cam-reach','cam-tail'])el(id).disabled=explicit;
+    el('cam-height').disabled=isArm(c)&&explicit;
+    el('grip-boom-info').textContent=explicit?(b.valid?'Calculated horizontal reach '+b.reach.toFixed(3)+' m; lens height '+b.z.toFixed(3)+' m above base. Envelope is a fixed-elevation projection only.':'Enter all configuration measurements. Invalid spatial boom: coverage suppressed.'):'Legacy horizontal reach and independent lens height; not measured boom kinematics.';
+  }
+  function installGripEditor(){
+    function setGrip(changes){const c=selected();if(c)updateSelected({grip:{...Grip.profile(c),...changes}})}
+    for(const [id,key] of [['grip-system','system'],['grip-head','head'],['grip-reference','reference']])el(id).addEventListener('change',e=>setGrip({[key]:e.target.value}));
+    el('grip-spatial').addEventListener('change',e=>setGrip({boomMode:e.target.checked?'spatial':'legacy'}));
+    for(const [id,key] of Object.entries(BOOM_FIELDS))el(id).addEventListener('change',e=>setGrip({[key]:e.target.value.trim()&&Number.isFinite(Number(e.target.value))?Number(e.target.value):null}));
+  }
   function installEquipmentEditor(){
     el('cam-body-preset').addEventListener('change',e=>{const c=selected();if(!c)return;const p=Equipment.cameraDefaults(e.target.value);if(p){if(!p.integratedOptics&&!Object.hasOwn(p,'wide')&&c.integratedOptics)Object.assign(p,{wide:null,tele:null,lensName:'',lensMount:'',lensPresetId:null});updateSelected(p)}else updateSelected({cameraPresetId:null,sensorModeId:null,apertureStatus:'custom'})});
     el('cam-sensor-mode').addEventListener('change',e=>{const c=selected();if(!c)return;const p=e.target.value&&Equipment.cameraDefaults(c.cameraPresetId,e.target.value);if(p){delete p.body;updateSelected(p)}else updateSelected({sensorModeId:null,apertureStatus:'custom',integratedOptics:null})});
@@ -3131,6 +3239,7 @@
   populateSelect(el('cam-sensor'), IMAGER_FORMATS);
   populateSelect(el('cam-lens'), LENS_PRESETS);
   installEquipmentEditor();
+  installGripEditor();
   populateSelect(el('cam-crane'), ARM_PRESETS);
 
   el('mode-select').addEventListener('click', () => setMode('select'));
@@ -3198,6 +3307,7 @@
     const camera = selected();
     updateSelected({
       mount: e.target.value,
+      grip:{},
       reachMin: camera.reachMin || template.reachMin,
       reachMax: camera.reachMax || template.reachMax,
       reach: camera.reach || template.reach,
@@ -3236,7 +3346,8 @@
     if (preset && preset.max) {
       updateSelected({
         reachMin: preset.min, reachMax: preset.max, reach: preset.max,
-        baseSize: preset.base, tail: preset.tail
+        baseSize: preset.base, tail: preset.tail,
+        grip:{...Grip.profile(selected()),boomMode:'legacy'}
       });
     }
   });
@@ -4625,8 +4736,8 @@
   const readNumber=(id,fallback)=>{const raw=el(id).value;if(raw.trim()==='')return fallback;const v=Number(raw);return Number.isFinite(v)?v:fallback};
   const selectedCamera=()=>selected()||state.cameras[0];
   const poseFor=c=>{
-    const origin=lensOrigin(c),optics=opticalAt(c,currentFocal(c));if(!optics.valid)throw Error(optics.reason);
-    return {origin:S.planPoint(origin.x,origin.y,state.pxPerMetre,state.content.height,(Number(c.floorZ)||0)+(Number(c.height)||0)),
+    const origin=lensOrigin(c),optics=opticalAt(c,currentFocal(c)),boom=isArm(c)?Grip.boom(c):null;if(!optics.valid)throw Error(optics.reason);if(boom&&!boom.valid)throw Error('Invalid configured boom geometry');
+    return {origin:S.planPoint(origin.x,origin.y,state.pxPerMetre,state.content.height,(Number(c.floorZ)||0)+(boom?.z??(Number(c.height)||0))),
       ...S.axes(Number(c.heading)+(isArm(c)?Number(c.headPan)||0:0),clamp(Number(c.tilt)||0,-89,89),Number(c.roll)||0),...optics};
   };
   let gpu=null;
