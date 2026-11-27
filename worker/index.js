@@ -12,6 +12,7 @@
 // list per surface lives in thast.se/internal/data/surfaces.json and the
 // nightly loop asserts that no origin is ever indexable.
 import { privateContext } from './private-context.mjs';
+import { publicContext, legacyOwner } from './public-projects.mjs';
 export { ProjectEvents } from './project-events.mjs';
 
 const CANONICAL = 'https://tsg.thast.live/sightline';
@@ -28,7 +29,11 @@ export default {
     }
 
     // Never route private context URLs through the public asset binding.
-    if(url.pathname==='/context'||url.pathname.startsWith('/context/'))return privateContext(request,env);
+    if(url.pathname==='/view'||url.pathname.startsWith('/view/')||url.pathname.startsWith('/context/admin/'))return publicContext(request,env);
+    if(url.pathname==='/context'||url.pathname.startsWith('/context/')){
+      if(request.method!=='GET'||!await legacyOwner(request,env))return new Response('Not available',{status:404,headers:{'Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow'}});
+      return privateContext(request,env);
+    }
 
     const upstream = await env.ASSETS.fetch(request);
 

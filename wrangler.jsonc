@@ -32,6 +32,8 @@
   ],
   "durable_objects": { "bindings": [{ "name": "SIGHTLINE_EVENTS", "class_name": "ProjectEvents" }] },
   "migrations": [{ "tag": "project-events-v1", "new_sqlite_classes": ["ProjectEvents"] }],
+  "ratelimits": [{ "name": "SIGHTLINE_CREATE_LIMIT", "namespace_id": "927041", "simple": { "limit": 4, "period": 60 } }],
+  // Configure the real Turnstile sitekey and secret during deployment.
   "vars": {
     "SIGHTLINE_ACCESS_ISSUER": "https://thast.cloudflareaccess.com",
     "SIGHTLINE_ACCESS_AUD": "2e95db943b83a9ac331870f9b8ce2e110249f2d9c2931958842d88d001031354"
