@@ -42,8 +42,9 @@ try{
   await page.mouse.click(pos.x,pos.y);await page.waitForFunction(()=>document.getElementById('previs-camera').value==='2');
   await page.locator('#previs-camera').selectOption('1');
   await page.locator('#previs-file').setInputFiles({name:'wall.glb',mimeType:'model/gltf-binary',buffer:glb()});await text('previs-model','1 triangles');
-  await text('previs-status','Model scope unknown');await page.locator('#previs-registration').check();
-  await page.locator('#previs-tx').fill('1');await page.locator('#previs-ty').fill('1');await page.locator('#previs-tz').fill('1.5');await page.locator('#previs-tz').blur();await page.locator('#previs-check').click();await text('previs-hit','Indeterminate');
+  await text('previs-status','Model scope unknown');await text('previs-info','intersections can be false positives and obstructions can be missed');await page.locator('#previs-registration').check();
+  await page.locator('#previs-tx').fill('1');await page.locator('#previs-ty').fill('1');await page.locator('#previs-tz').fill('1.5');await page.locator('#previs-tz').blur();await page.locator('#previs-check').click();await text('previs-hit','Indeterminate');await text('previs-hit','intersections can be false positives and obstructions can be missed');
+  await page.locator('#previs-tx').fill('13.5');await page.locator('#previs-ty').fill('5');await page.locator('#previs-ty').blur();await page.locator('#previs-check').click();await text('previs-hit','Model intersection');await text('previs-hit','intersections can be false positives and obstructions can be missed');
   await page.locator('summary').filter({hasText:'Fit two paired'}).click();
   for(const [id,value] of [['previs-ma','0,0'],['previs-pa','10,20'],['previs-mb','10,0'],['previs-pb','20,20'],['previs-mc','0,10'],['previs-pc','10,30']])await page.locator('#'+id).fill(value);
   await page.locator('#previs-fit').click();await text('previs-residual','Endpoint residual 0.000');await page.locator('#previs-check-registration').click();await text('previs-residual','Independent point difference 0.000');
