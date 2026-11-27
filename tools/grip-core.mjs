@@ -22,7 +22,7 @@ export function createGrip(){
     {id:'sachtler-ob-dolly',name:'Sachtler OB 2000 + Dolly XL',families:['tripod-dolly'],source:'https://www.sachtler.com/en/product/system-video-75-ob-2000/',note:'Caster-supported tripod. A floor dolly does not imply a rail-constrained movement.'},
     {id:'vinten-osprey',name:'Vinten Osprey Plus pedestal',families:['pedestal'],source:'https://www.vinten.com/wp-content/uploads/2023/08/v4170-0001-osprey-plus-user-guide.pdf',note:'Balanced vertical column and wheeled base; distinguish studio and OB versions.'},
     {id:'scorpio45',name:"Servicevision Scorpio 45′",families:['telescopic-boom'],source:'https://scorpio.servicevision.es/en/product/grips-en/telescopic-cranes/scorpio-45-en/scorpio-45/',note:'Published length 2.41–14 m; column extension 0.65 m; maximum optic-axis height 14.1 m. Published overall length is not automatically pivot-to-head distance. Use the configured boom and head offsets.'},
-    {id:'jimmy-jib',name:'Stanton Jimmy Jib Triangle',families:['fixed-boom'],source:'https://www.jimmyjib.com/',note:'Modular fixed-length boom; identify installed sections, pivot and rear arm from the supplier drawing.'},
+    {id:'jimmy-jib',name:'Stanton Jimmy Jib Triangle',families:['fixed-boom'],source:'https://www.jimmyjib.com/docs/manuals/Triangle_Pro_Standard_4C.pdf',note:'Modular fixed-length boom; identify installed sections, pivot and rear arm from the supplier drawing.'},
     {id:'steadicam',name:'Steadicam vest / arm / sled',families:['body-mounted-sled'],source:'https://flysteadicam.tiffen.com/products/steadicam-g-50x-arm',note:'Iso-elastic arm supports the balanced sled; sled mass is part of arm payload.'},
     {id:'glidecam-v25',name:'Glidecam V-25',families:['body-mounted-sled'],note:'Vest, spring arm and balanced sled. Confirm installed arm and sled configuration; not an electronic gimbal.'},
     {id:'agito-trax',name:'AGITO Trax',families:['rail','custom'],source:'https://motion-impossible.com/products/agito/agito-trax/',note:'Rail-constrained carriage; published chassis and gauge depend on configuration. Independent column and remote head.'},
@@ -34,7 +34,7 @@ export function createGrip(){
   ];
   const heads=[
     {id:'',name:'Unspecified / custom'},
-    {id:'vector900',name:'Vinten Vector 900 — manual pan/tilt head'},
+    {id:'vector900',name:'Vinten Vector 900 — manual pan/tilt head',source:'https://www.vinten.com/wp-content/uploads/2023/06/1_vector-950.pdf'},
     {id:'video75',name:'Sachtler Video 75 Plus Studio — fluid head',source:'https://www.sachtler.com/en/product/system-video-75-ob-2000-2/'},
     {id:'video90',name:'Sachtler Video 90 — fluid head',source:'https://www.sachtler.com/en/product/system-video-90-ob-2000/'},
     {id:'remote2',name:'Remote pan/tilt head — two axis'},
