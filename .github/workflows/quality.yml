@@ -32,4 +32,5 @@ jobs:
       - name: Browser regression (synthetic geometry)
         run: |
           node tools/test-browser.mjs
+          node tools/test-previs-navigation.mjs
           node tools/render-og.mjs
