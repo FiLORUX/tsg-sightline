@@ -1,15 +1,31 @@
-# ═══════════════════════════════════════════════════════════════════════════
-# AI Trace Scanner — Calls reusable workflow from thast-devkit
-# ═══════════════════════════════════════════════════════════════════════════
-
 name: AI Trace Scanner
 
+# Runs the repository-local scanner. The shared reusable workflow lives in a
+# private repository and cannot be called from a public one.
 on:
   pull_request:
-    branches: [main]
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   scan:
-    uses: FiLORUX/thast-devkit/.github/workflows/ai-trace-scanner.yml@main
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Scan commit messages and changed files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # A new branch or force push has no usable "before"; scan the head commit only.
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            BASE_SHA="$(git rev-parse "$HEAD_SHA^")"
+          fi
+          node tools/scan-ai-traces.mjs "$BASE_SHA" "$HEAD_SHA"
