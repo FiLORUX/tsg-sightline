@@ -154,7 +154,7 @@ try{
   await page.unroute('**/view/alias/'+key+'.json');
   await page.route('**/view/alias/'+key+'.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(r04)}));
   await page.reload();
-  await text('context-message','could not be verified');
+  await text('context-message','Migration source frame differs');
   assert.equal(await page.locator('#meta-revision').inputValue(),old.meta.revision);
   await page.unroute('**/view/alias/'+key+'.json');
   // Reset to the position-only link before testing the optical editor.
