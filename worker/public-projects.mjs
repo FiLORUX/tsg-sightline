@@ -104,6 +104,61 @@ function pngBytes(src){
   for(const c of chunks){clean.set(c,pos);pos+=c.length}
   return {bytes:clean,width,height};
 }
+// Explicit release migration. An operator approves one exact private record
+// by digest AND ETag in the deployment environment. No other legacy context
+// can become public. Keep the original record for authorised access/rollback.
+export async function prepareLegacyPublication(record,id,clock=Date.now){
+  if(record?.format!=='sightline-context/2'||!ID.test(id))throw Error('Invalid legacy source');
+  const p=record.project,b=p?.background;
+  if(!b||b.width!==p.content?.width||b.height!==p.content?.height||!p.cameras?.length)throw Error('Missing rendered drawing');
+  const raster=pngBytes(b.href);
+  if(raster.width!==b.width||raster.height!==b.height)throw Error('Drawing dimensions differ');
+  const name=await hash(raster.bytes)+'.png';
+  const publication=publicRecord({format:'sightline-live/1',publication:'public-view/1',projectId:id,sequence:1,publishedAt:new Date(clock()).toISOString(),project:p,assets:{background:{name,bytes:raster.bytes.length,width:raster.width,height:raster.height}}},id);
+  const body=JSON.stringify(publication);
+  if(new TextEncoder().encode(body).byteLength>MAX_JSON)throw Error('Publication too large');
+  return {publication,body,raster:raster.bytes};
+}
+async function resolveLegacyAlias(bucket,digest,env,clock){
+  const aliasKey='public-alias/'+digest+'.json';
+  const existing=await bucket.head(aliasKey);
+  if(existing)return ID.test(existing.customMetadata?.projectId||'')?{id:existing.customMetadata.projectId}:{status:409};
+  const legacyKey='context/'+digest+'.json',legacy=await bucket.head(legacyKey);
+  if(!legacy)return {status:404};
+  if(ID.test(legacy.customMetadata?.projectId||''))return {id:legacy.customMetadata.projectId};
+  // The approved ETag is the raw R2 ETag, not a caller-supplied credential.
+  if(typeof legacy.etag!=='string'||env.SIGHTLINE_PUBLIC_LEGACY_APPROVAL!==digest+':'+legacy.etag)return {status:409};
+  const source=await bucket.get(legacyKey);
+  if(!source||source.etag!==legacy.etag){await drop(source);return {status:409}}
+  let record,prepared;
+  try{record=await readJSON(source,24*1024*1024);prepared=await prepareLegacyPublication(record,'0'.repeat(32),clock)}catch{return {status:409}}
+  // A CAS reservation ensures concurrent initial visits choose one opaque ID.
+  // It is separate from the committed alias, which is written only after the
+  // derivative and manifest exist. Never overwrite an edited publication.
+  const reservation='migration/'+digest+'.json';
+  let reserved=await bucket.head(reservation);
+  if(!reserved){
+    const candidate=randomId();
+    const wrote=await bucket.put(reservation,'{}',{onlyIf:{etagDoesNotMatch:'*'},customMetadata:{projectId:candidate,sourceEtag:legacy.etag}});
+    reserved=wrote||await bucket.head(reservation);
+  }
+  const id=reserved?.customMetadata?.projectId;
+  if(!ID.test(id||'')||reserved.customMetadata.sourceEtag!==legacy.etag)return {status:409};
+  prepared=await prepareLegacyPublication(record,id,clock);
+  const name=prepared.publication.assets.background.name,assetKey='projects/'+id+'/assets/'+name;
+  const existingManifest=await bucket.head(key(id));
+  if(!existingManifest){
+    const asset=await bucket.put(assetKey,prepared.raster,{onlyIf:{etagDoesNotMatch:'*'},customMetadata:{publicDerivative:'1'},httpMetadata:{contentType:'image/png'}});
+    if(!asset&&!(await bucket.head(assetKey))?.customMetadata?.publicDerivative)return {status:409};
+    await bucket.put(key(id),prepared.body,{onlyIf:{etagDoesNotMatch:'*'},customMetadata:pubMeta(prepared.publication.assets),httpMetadata:{contentType:'application/json',cacheControl:'private, no-store'}});
+  }
+  const available=await current(bucket,id);
+  if(!available.obj)return {status:409};
+  await drop(available.obj);
+  const committed=await bucket.put(aliasKey,'{}',{onlyIf:{etagDoesNotMatch:'*'},customMetadata:{projectId:id,sourceEtag:legacy.etag},httpMetadata:{contentType:'application/json'}});
+  const final=committed||await bucket.head(aliasKey);
+  return final?.customMetadata?.projectId===id?{id}:{status:409};
+}
 async function createProject(req,env,opts){
   if(req.headers.get('Origin')!==ORIGIN)return error(403,'Origin not allowed');
   if(!env.SIGHTLINE_CREATE_LIMIT||!env.SIGHTLINE_TURNSTILE_SECRET||!env.SIGHTLINE_TURNSTILE_SITEKEY)return error(503,'Public publishing is not enabled');
@@ -146,8 +201,7 @@ export async function publicContext(req,env,{fetcher=fetch,clock=Date.now}={}){
   if(save?req.method!=='PUT':req.method!=='GET')return error(405,'Method not allowed');
   if((save||events)&&req.headers.get('Origin')!==ORIGIN)return error(403,'Origin not allowed');
   let id=manifest?.[1]||asset?.[1]||events?.[1]||save?.[1];
-  if(alias){const a=await bucket.head('context/'+alias[1]+'.json');if(!a)return error(404,'Unregistered link');id=a.customMetadata?.projectId;
-    if(!ID.test(id||''))return error(409,'Current publication has not been migrated')}
+  if(alias){const resolved=await resolveLegacyAlias(bucket,alias[1],env,clock);if(!resolved.id)return error(resolved.status||409,resolved.status===404?'Unregistered link':'Current publication has not been migrated');id=resolved.id}
   const result=await current(bucket,id);if(!result.obj)return error(alias?409:result.status,'Current publication unavailable');
   const o=result.obj,etag=tag(o);
   if(events){await drop(o);if(!env.SIGHTLINE_EVENTS||req.headers.get('Upgrade')?.toLowerCase()!=='websocket')return error(426,'WebSocket required');return env.SIGHTLINE_EVENTS.get(env.SIGHTLINE_EVENTS.idFromName(id)).fetch('https://events.internal/subscribe',{headers:{Upgrade:'websocket'}})}

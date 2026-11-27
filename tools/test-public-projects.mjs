@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {publicContext,publicProject,publicRecord,legacyOwner} from '../worker/public-projects.mjs';
+import {publicContext,publicProject,publicRecord,legacyOwner,prepareLegacyPublication} from '../worker/public-projects.mjs';
 const owner='david@thast.se',issuer='https://test-team.cloudflareaccess.com',aud='test',now=1700000000000;
 const keys=await crypto.subtle.generateKey({name:'RSASSA-PKCS1-v1_5',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},true,['sign','verify']);
 const jwk=await crypto.subtle.exportKey('jwk',keys.publicKey);jwk.kid='test';jwk.alg='RS256';
@@ -44,3 +44,25 @@ const published=await (await run('/view/project/'+first.projectId+'.json')).json
 assert.equal((await publicContext(request('/view/create','POST','',create),{...env,SIGHTLINE_TURNSTILE_SECRET:null},opts)).status,503);
 store('projects/'+id+'/latest.json',JSON.stringify(rec),{visibility:'restricted'});assert.equal((await run(view)).status,404);assert.equal((await run('/view/alias/'+alias+'.json')).status,409);
 console.log('Public derivatives, opaque creation, owner-only CAS saves, rejected anonymous writes and no stale alias fallback passed.');
+
+const migrationDigest='9'.repeat(64),migrationPath='/view/alias/'+migrationDigest+'.json',sourceKey='context/'+migrationDigest+'.json';
+const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+const legacy={format:'sightline-context/2',project:{...p,content:{width:1,height:1},background:{href:png,width:1,height:1}}};
+store(sourceKey,JSON.stringify(legacy),{readers:'["private@example.invalid"]'},'approved-source');
+const before=data.get(sourceKey).bytes.toString();
+assert.equal((await run(migrationPath)).status,409);
+const approved={...env,SIGHTLINE_PUBLIC_LEGACY_APPROVAL:migrationDigest+':approved-source'};
+const migrated=await Promise.all([publicContext(request(migrationPath),approved,opts),publicContext(request(migrationPath),approved,opts)]);
+assert(migrated.every(x=>x.status===200));const manifests=await Promise.all(migrated.map(x=>x.json()));
+const migratedId=manifests[0].projectId;
+assert.equal(manifests[1].projectId,migratedId);
+assert.equal(data.get(sourceKey).bytes.toString(),before,'Private legacy source is retained');
+assert(!JSON.stringify(manifests[0]).includes('PRIVATE'));
+assert.equal(manifests[0].project.background,null);
+assert.equal(manifests[0].project.vector,null);
+const image=await run('/view/project/'+migratedId+'/asset/'+manifests[0].assets.background.name);assert.equal(image.status,200);
+const reused=await (await run(migrationPath)).json();assert.equal(reused.projectId,migratedId);
+const mk='projects/'+migratedId+'/latest.json';data.delete(mk);
+assert.equal((await publicContext(request(migrationPath),approved,opts)).status,409,'Unpublished projects never fall back to stale private sources');
+assert(!data.has(mk));
+console.log('Explicit ETag-pinned migration, concurrent alias resolution, retained private source and no stale resurrection passed.');

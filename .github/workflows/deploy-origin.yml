@@ -1,0 +1,73 @@
+name: Deploy Sightline origin
+on:
+  workflow_call:
+    inputs:
+      release_sha:
+        required: true
+        type: string
+      legacy_digest:
+        required: true
+        type: string
+      account_id:
+        required: true
+        type: string
+    secrets:
+      cloudflare_token:
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: sightline-origin-production
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.repository == 'FiLORUX/thast.se'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: FiLORUX/tsg-sightline
+          ref: ${{ inputs.release_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Require an exact commit on the origin main branch
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: |
+          set -eu
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor HEAD FETCH_HEAD
+      - name: Regression gate
+        run: |
+          node tools/test-dxf-parser.mjs
+          node tools/test-spatial.mjs
+          node tools/test-chain.mjs
+          node tools/test-equipment.mjs
+          node tools/test-grip.mjs
+          node tools/test-private-context.mjs
+          node tools/test-public-projects.mjs
+          node tools/check-spatial-embed.mjs
+      - name: Verify the exact approved R2 source before deployment
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.cloudflare_token }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ inputs.account_id }}
+          LEGACY_DIGEST: ${{ inputs.legacy_digest }}
+        run: node tools/release-publication.mjs preflight
+      - name: Deploy origin, keeping existing production variables
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.cloudflare_token }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ inputs.account_id }}
+        run: |
+          set -eu
+          approval="$(cat "$RUNNER_TEMP/sightline-approval")"
+          echo "::add-mask::$approval"
+          npx --yes wrangler@4 deploy --config wrangler.jsonc --keep-vars --var "SIGHTLINE_PUBLIC_LEGACY_APPROVAL:$approval"
+      - name: Verify actual public R04, raster and owner-only mutation
+        env:
+          LEGACY_DIGEST: ${{ inputs.legacy_digest }}
+        run: node tools/release-publication.mjs verify
