@@ -22,5 +22,16 @@
     "run_worker_first": true,
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "none"
+  },
+  // Private venue context (worker/private-context.mjs). The bucket holds one
+  // object per shared-link digest with a per-object reader list in its
+  // metadata. Both values below identify the Cloudflare Access application on
+  // the exact canonical path /sightline/context/*; neither is a credential.
+  "r2_buckets": [
+    { "binding": "SIGHTLINE_CONTEXTS", "bucket_name": "sightline-contexts" }
+  ],
+  "vars": {
+    "SIGHTLINE_ACCESS_ISSUER": "https://thast.cloudflareaccess.com",
+    "SIGHTLINE_ACCESS_AUD": "2e95db943b83a9ac331870f9b8ce2e110249f2d9c2931958842d88d001031354"
   }
 }
