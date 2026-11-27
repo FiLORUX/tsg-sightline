@@ -4943,7 +4943,7 @@
     l.role=ownerSession?'editor':'viewer';l.checked=Date.now();l.pending=false;l.forceLatest=false;l.status='ready';
     l.background=state.background;l.vector=state.vector;l.logo=state.logo;l.registrationSource=p.previs?.registration||null;l.frame=frameSignature();l.baseline=editSignature();
     if(sameFrame){state.view=view;if(state.cameras.some(c=>c.id===selectedId))state.selectedId=selectedId;applyView();render()}
-    if(retainedModel){previs.model=retainedModel.model;previs.name=retainedModel.name;previs.scope=newGeom?.scope||'unknown';previs.registration=retainedModel.registration;queuePrevis()}
+    if(retainedModel){previs.model=retainedModel.model;previs.name=retainedModel.name;previs.scope=safeGeometryScope(newGeom?.scope,newGeom?.limitations);previs.limitations=safeGeometryLimitations(newGeom?.limitations);previs.registration=retainedModel.registration;invalidatePoint();queuePrevis()}
     else{l.loadedGeometry=null;if(!el('previs-pane').hidden)void ensureLiveGeometry()}
     state.sharedContext=null;updateContextBanner();updateLiveStatus();
   }
@@ -5023,7 +5023,7 @@
   async function ensureLiveGeometry(){
     const l=state.live,a=l?.assets?.geometry;if(!a||l.loadedGeometry===a.name||l.geometryLoading||!previs.loadPublishedModel)return;
     l.geometryLoading=true;const sequence=l.sequence;
-    try{const blob=await assetBytes(l,a);if(state.live!==l||l.assets?.geometry?.name!==a.name||l.sequence!==sequence)return;await previs.loadPublishedModel(new File([blob],a.name,{type:'model/gltf-binary'}),a.scope);if(state.live===l&&l.assets?.geometry?.name===a.name)l.loadedGeometry=a.name}
+    try{const blob=await assetBytes(l,a);if(state.live!==l||l.assets?.geometry?.name!==a.name||l.sequence!==sequence)return;await previs.loadPublishedModel(new File([blob],a.name,{type:'model/gltf-binary'}),a.scope,a.limitations);if(state.live===l&&l.assets?.geometry?.name===a.name)l.loadedGeometry=a.name}
     catch{if(state.live===l)showHint('Current 3D geometry could not be loaded.',true,4000)}
     finally{l.geometryLoading=false;if(state.live===l&&l.sequence!==sequence&&!el('previs-pane').hidden)void ensureLiveGeometry()}
   }
@@ -5301,7 +5301,40 @@
 });
   const Spatial = SpatialFactory();
   // #endregion spatial-core
-  const previs = { registration:{x:0,y:0,z:0,rotation:0,confirmed:false}, target:[0,0,1.5], model:null, name:'', scope:'unknown', frame:0, loadToken:0, paint:null, clearGpu:null, cancelLoad:null, loading:false };
+  // Only these fixed labels may be displayed from public model metadata.
+  const geometryLimitationLabels=Object.freeze({
+    'approximated-seating':'Seating is approximated',
+    'omitted-seating':'Seating omitted',
+    'omitted-rigging':'Rigging omitted',
+    'omitted-lighting':'Lighting omitted',
+    'omitted-pa':'PA omitted',
+    'omitted-roof':'Roof omitted',
+    'omitted-people':'People omitted',
+    'omitted-materials':'Materials omitted',
+    'omitted-video-screens':'Video screens omitted',
+    'omitted-stage':'Stage omitted',
+    'omitted-architecture':'Architecture omitted',
+    'omitted-fixtures':'Fixtures omitted',
+    'preliminary-alignment':'Alignment is preliminary and unverified',
+    'unverified-vertical-datum':'Vertical datum and model height are unverified'
+  });
+  function safeGeometryLimitations(value){
+    const items=Array.isArray(value?.items)?value.items.slice(0,Object.keys(geometryLimitationLabels).length):[];
+    const valid=value&&typeof value==='object'&&!Array.isArray(value)&&['unknown','declared'].includes(value.status)&&Array.isArray(value.items)&&value.items.length<=Object.keys(geometryLimitationLabels).length&&items.every(x=>typeof x==='string'&&Object.hasOwn(geometryLimitationLabels,x))&&new Set(items).size===items.length&&Object.keys(value).every(k=>['status','items'].includes(k))&&(value.status!=='declared'||items.length>0);
+    return {status:valid&&value.status==='declared'?'declared':'unknown',items:[...new Set(items.filter(x=>typeof x==='string'&&Object.hasOwn(geometryLimitationLabels,x)))]};
+  }
+  function safeGeometryScope(scope,value){
+    if(!['partial','complete'].includes(scope))return 'unknown';
+    const limits=safeGeometryLimitations(value);
+    if(scope==='complete'&&limits.items.length)return 'partial';
+    if(scope==='complete'&&value!=null&&(!value||typeof value!=='object'||Array.isArray(value)||!['unknown','declared'].includes(value.status)||!Array.isArray(value.items)||value.items.length>Object.keys(geometryLimitationLabels).length||value.items.some(x=>typeof x!=='string'||!Object.hasOwn(geometryLimitationLabels,x))||new Set(value.items).size!==value.items.length||Object.keys(value).some(k=>!['status','items'].includes(k))||value.status==='declared'&&!value.items.length))return 'unknown';
+    return scope;
+  }
+  function geometryLimitationsText(value){
+    const limits=safeGeometryLimitations(value),labels=limits.items.map(x=>geometryLimitationLabels[x]);
+    return `${limits.status==='declared'?'Declared model limitations':'Model limitations unknown'}${labels.length?': '+labels.join('; '):''}. Other omissions or approximations may also exist.`;
+  }
+  const previs = { registration:{x:0,y:0,z:0,rotation:0,confirmed:false}, target:[0,0,1.5], model:null, name:'', scope:'unknown', limitations:{status:'unknown',items:[]}, frame:0, loadToken:0, paint:null, clearGpu:null, cancelLoad:null, loading:false };
   let scaleSourceDirty=false;
   function invalidatePoint(){ el('previs-hit').textContent='No current result. Check the point again after any change.'; }
   function queuePrevis(){
@@ -5321,7 +5354,7 @@
     if(previs.cancelLoad)previs.cancelLoad();
     previs.loading=false;
     if(previs.clearGpu)previs.clearGpu();
-    previs.model=null;previs.name='';previs.scope='unknown';
+    previs.model=null;previs.name='';previs.scope='unknown';previs.limitations=safeGeometryLimitations();
     const r=saved?.registration||{};
     previs.registration={x:Number.isFinite(r.x)?r.x:0,y:Number.isFinite(r.y)?r.y:0,z:Number.isFinite(r.z)?r.z:0,rotation:Number.isFinite(r.rotation)?r.rotation:0,confirmed:false};
     previs.target=Array.isArray(saved?.target)&&saved.target.length===3&&saved.target.every(Number.isFinite)?saved.target.slice():[0,0,1.5];
@@ -5494,7 +5527,7 @@ void main(){if(textured){outColour=texture(floorTexture,vec2(world.x/floorSize.x
     updateControls();const c=selectedCamera(),cameraView=el('previs-view').value==='camera';let pose=null,poseError='';
     let info='Local XYZ in metres · sheet +Y towards top · +Z up';
     info+=P.model?`\nGeometry is a model, not a verified view of the venue. ${P.scope==='partial'?'Partial model: missing objects may obstruct the view.':P.scope==='complete'?'Completeness is a source claim, not independent verification.':'Model completeness is unknown: missing objects may obstruct the view.'}`:state.background?'\nNo venue model: the flat drawing is a plan reference only; there are no walls, seating or occlusion.':'\nNo venue model or floor drawing: there are no walls, seating or occlusion.';
-    if(P.model)info+='\nModel geometry may be approximate: intersections can be false positives and obstructions can be missed.';
+    if(P.model)info+='\n'+geometryLimitationsText(P.limitations)+'\nModel geometry may be approximate: intersections can be false positives and obstructions can be missed.';
     info+='\nCamera positions, height and orientation are inputs; confirm them before relying on a frame.';
     if(state.vector&&!state.background)info+='\nVector drawing is not displayed in 3D.';
     if(c){try{pose=poseFor(c);const p=S.project(P.target,pose);info+=`\nCam ${c.number} · ${pose.focal.toFixed(1)} mm · HFOV ${pose.hfov.toFixed(2)}° / VFOV ${pose.vfov.toFixed(2)}° · lens Z ${pose.origin[2].toFixed(2)} m · ${p.inFrame?'target in frame':'target outside frame'}`;}catch(e){poseError=e.message;info+='\nCamera frame unavailable: '+poseError}}
@@ -5529,20 +5562,20 @@ void main(){if(textured){outColour=texture(floorTexture,vec2(world.x/floorSize.x
       try{worker.postMessage(file)}catch(e){finish();reject(e)}
     });
   }
-  async function loadModel(file,scope='unknown'){
+  async function loadModel(file,scope='unknown',limitations){
     if(!file)return false;
     if(file.size>160*1024*1024){showHint('GLB exceeds 160 MiB; export a simplified model.',true);return false}
     const token=++P.loadToken;if(P.cancelLoad)P.cancelLoad();P.loading=true;P.registration.confirmed=false;invalidatePoint();queuePrevis();
     el('previs-model').textContent='Reading local geometry…';
     try{
       const model=await readLocalModel(file);if(token!==P.loadToken)return;
-      clearBuffers();P.model=model;P.name=file.name;P.scope=['partial','complete'].includes(scope)?scope:'unknown';P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();return true;
+      clearBuffers();P.model=model;P.name=file.name;P.scope=safeGeometryScope(scope,limitations);P.limitations=safeGeometryLimitations(limitations);P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();return true;
     }catch(err){if(token===P.loadToken)showHint(err.message,true,7000);return false}
     finally{if(token===P.loadToken){P.loading=false;queuePrevis()}}
   }
-  P.loadPublishedModel=async (file,scope)=>{if(!await loadModel(file,scope))throw Error('GLB import failed')};
+  P.loadPublishedModel=async (file,scope,limitations)=>{if(!await loadModel(file,scope,limitations))throw Error('GLB import failed')};
   el('previs-file').addEventListener('change',e=>{const file=e.target.files[0];e.target.value='';if(state.live)state.live.loadedGeometry=null;void loadModel(file)});
-  el('previs-remove').addEventListener('click',()=>{if(state.live)state.live.loadedGeometry=null;++P.loadToken;if(P.cancelLoad)P.cancelLoad();P.loading=false;clearBuffers();P.model=null;P.name='';P.scope='unknown';P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();queuePrevis()});
+  el('previs-remove').addEventListener('click',()=>{if(state.live)state.live.loadedGeometry=null;++P.loadToken;if(P.cancelLoad)P.cancelLoad();P.loading=false;clearBuffers();P.model=null;P.name='';P.scope='unknown';P.limitations=safeGeometryLimitations();P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();queuePrevis()});
   for(const [id,key] of Object.entries({'previs-rx':'x','previs-ry':'y','previs-rz':'z','previs-rotation':'rotation'}))el(id).addEventListener('change',()=>{P.registration[key]=clamp(readNumber(id,P.registration[key]),-1e6,1e6);P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();scheduleAutosave();queuePrevis()});
   el('previs-fit').addEventListener('click',()=>{try{const xy=id=>{const parts=el(id).value.split(',');if(parts.length!==2||parts.some(p=>!p.trim()))throw Error('Enter X,Y in metres');return parts.map(Number)};const fit=S.fitRegistration(xy('previs-ma'),xy('previs-mb'),xy('previs-pa'),xy('previs-pb'),P.registration.z);P.registration={x:fit.x,y:fit.y,z:fit.z,rotation:fit.rotation,confirmed:false};el('previs-residual').textContent=`Endpoint residual ${fit.residual.toFixed(3)} m · model span ${fit.modelSpan.toFixed(3)} m / plan ${fit.planSpan.toFixed(3)} m. Check independent point and datum.`;invalidatePoint();scheduleAutosave();queuePrevis()}catch(e){el('previs-residual').textContent=e.message}});
   for(const id of ['previs-ma','previs-mb','previs-pa','previs-pb','previs-mc','previs-pc'])el(id).addEventListener('input',()=>{el('previs-residual').textContent='';});

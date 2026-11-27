@@ -26,6 +26,13 @@ try{
   let out=JSON.parse(await readFile(join(dir,'out','latest.json'),'utf8'));
   assert.equal(out.assets.geometry.scope,'partial');
   run('--glb',model);out=JSON.parse(await readFile(join(dir,'out','latest.json'),'utf8'));assert.equal(out.assets.geometry.scope,'unknown');
+  assert.deepEqual(out.assets.geometry.limitations,{status:'unknown',items:[]});
+  run('--glb',model,'--geometry-scope','partial','--geometry-limitations','approximated-seating,omitted-rigging,omitted-pa,preliminary-alignment,unverified-vertical-datum');
+  out=JSON.parse(await readFile(join(dir,'out','latest.json'),'utf8'));assert.deepEqual(out.assets.geometry.limitations,{status:'declared',items:['approximated-seating','omitted-rigging','omitted-pa','preliminary-alignment','unverified-vertical-datum']});
+  assert.throws(()=>run('--geometry-limitations','omitted-roof'),'limitations without a model are rejected');
+  assert.throws(()=>run('--glb',model,'--geometry-limitations','omitted-roof,PRIVATE'),'private text is rejected');
+  assert.throws(()=>run('--glb',model,'--geometry-limitations','omitted-roof,omitted-roof'),'duplicates are rejected');
+  assert.throws(()=>run('--glb',model,'--geometry-scope','complete','--geometry-limitations','omitted-roof'),'incomplete assertions contradict complete scope');
   assert.throws(()=>run('--geometry-scope','partial'),'scope without a model is rejected');
   assert.throws(()=>run('--glb',model,'--geometry-scope','unverified text'),'scope is constrained to a fixed vocabulary');
   const invalid=Buffer.alloc(20);invalid.writeUInt32LE(0x46546c67,0);invalid.writeUInt32LE(2,4);invalid.writeUInt32LE(20,8);await writeFile(model,invalid);

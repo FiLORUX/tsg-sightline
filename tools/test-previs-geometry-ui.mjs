@@ -42,7 +42,7 @@ try{
   await page.mouse.click(pos.x,pos.y);await page.waitForFunction(()=>document.getElementById('previs-camera').value==='2');
   await page.locator('#previs-camera').selectOption('1');
   await page.locator('#previs-file').setInputFiles({name:'wall.glb',mimeType:'model/gltf-binary',buffer:glb()});await text('previs-model','1 triangles');
-  await text('previs-status','Model scope unknown');await text('previs-info','intersections can be false positives and obstructions can be missed');await page.locator('#previs-registration').check();
+  await text('previs-status','Model scope unknown');await text('previs-info','Model limitations unknown');await text('previs-info','Other omissions or approximations may also exist');await text('previs-info','intersections can be false positives and obstructions can be missed');await page.locator('#previs-registration').check();
   await page.locator('#previs-tx').fill('1');await page.locator('#previs-ty').fill('1');await page.locator('#previs-tz').fill('1.5');await page.locator('#previs-tz').blur();await page.locator('#previs-check').click();await text('previs-hit','Indeterminate');await text('previs-hit','intersections can be false positives and obstructions can be missed');
   await page.locator('#previs-tx').fill('13.5');await page.locator('#previs-ty').fill('5');await page.locator('#previs-ty').blur();await page.locator('#previs-check').click();await text('previs-hit','Model intersection');await text('previs-hit','intersections can be false positives and obstructions can be missed');
   await page.locator('summary').filter({hasText:'Fit two paired'}).click();

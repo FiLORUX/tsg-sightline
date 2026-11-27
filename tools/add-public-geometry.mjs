@@ -1,6 +1,6 @@
 // One-shot R2 binding transaction, not a network endpoint. A caller must
 // authenticate independently and verify that deployed readers support scope.
-import {publicRecord} from '../worker/public-projects.mjs';
+import {publicRecord,geometryLimitations} from '../worker/public-projects.mjs';
 import {createSpatialCore} from './spatial-core.mjs';
 
 const idPattern=/^[a-f0-9]{32}$/,hashPattern=/^[a-f0-9]{64}$/;
@@ -27,9 +27,10 @@ export async function geometryFrameDigest(record){
  * A revision mismatch must be explicitly acknowledged; that is not evidence
  * of geometric registration. On conflict, stop and re-review, never blind retry.
  */
-export async function addPublicGeometry({bucket,id,bytes,approvedDigest,approvedFrameDigest,sourceRevision,acknowledgeRevisionMismatch=false,publicReleaseApproved=false,scopeSupportConfirmed=false,clock=()=>new Date()}){
+export async function addPublicGeometry({bucket,id,bytes,approvedDigest,approvedFrameDigest,sourceRevision,acknowledgeRevisionMismatch=false,publicReleaseApproved=false,scopeSupportConfirmed=false,limitations,clock=()=>new Date()}){
   if(!bucket||!idPattern.test(id||'')||!hashPattern.test(approvedDigest||'')||!hashPattern.test(approvedFrameDigest||''))fail('Invalid publication approval');
   if(publicReleaseApproved!==true||scopeSupportConfirmed!==true)fail('Public derivative approval and deployed scope support are required');
+  limitations=geometryLimitations(limitations,{strict:true});
   if(typeof sourceRevision!=='string'||!sourceRevision.trim()||sourceRevision.length>128)fail('Record the model source revision');
   if(!(bytes instanceof Uint8Array)||bytes.byteLength<20||bytes.byteLength>160*1024*1024)fail('Invalid geometry bytes');
   // Pin a private copy so caller-side mutation cannot change approved bytes.
@@ -53,12 +54,12 @@ export async function addPublicGeometry({bucket,id,bytes,approvedDigest,approved
     if(!asset||asset.customMetadata?.publicDerivative!=='1'||asset.size!==bytes.byteLength||await digest(await asset.arrayBuffer())!==approvedDigest)fail('Existing derivative does not match approval');
   }
   const time=clock();if(!(time instanceof Date)||!Number.isFinite(time.getTime()))fail('Invalid publication timestamp');
-  const next={...record,sequence:record.sequence+1,publishedAt:time.toISOString(),assets:{...record.assets,geometry:{name,bytes:bytes.byteLength,scope:'partial'}}};
+  const next={...record,sequence:record.sequence+1,publishedAt:time.toISOString(),assets:{...record.assets,geometry:{name,bytes:bytes.byteLength,scope:'partial',limitations}}};
   if(!Number.isSafeInteger(next.sequence))fail('Sequence exhausted');
   publicRecord(next,id);
   const payload=encode(next);if(payload.byteLength>2*1024*1024)fail('Updated manifest exceeds size limit');
   const customMetadata={...current.customMetadata,assets:JSON.stringify([...new Set([...allowed,name])])};
   const committed=await bucket.put(key,payload,{onlyIf:{etagMatches:current.etag},customMetadata,httpMetadata:current.httpMetadata});
   if(!committed)fail('Conflict: manifest changed; derivative left unreferenced. Re-read and review');
-  return {projectId:id,sequence:next.sequence,asset:name,scope:'partial',drawingRevision:revision,sourceRevision,revisionMismatch,etag:committed.etag};
+  return {projectId:id,sequence:next.sequence,asset:name,scope:'partial',limitations,drawingRevision:revision,sourceRevision,revisionMismatch,etag:committed.etag};
 }
