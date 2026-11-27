@@ -73,3 +73,12 @@ assert.equal((await privateContext(request(assetPath),liveEnv,ctx)).status,404);
 data.delete(pubKey);
 assert.equal((await privateContext(request(path),liveEnv,ctx)).status,503);
 console.log('Live alias, conditional save race, read-only/revoked ACL, immutable asset and no stale fallback tests passed.');
+
+import {ProjectEvents} from '../worker/project-events.mjs';
+let notifications=0,closed=0;
+const sockets=[{deserializeAttachment:()=>({expires:Date.now()+5000}),send(msg){assert.equal(msg,'changed');notifications++}},{deserializeAttachment:()=>({expires:0}),close(){closed++}}];
+const eventObject=new ProjectEvents({getWebSockets:()=>sockets},{});
+assert.equal((await eventObject.fetch(new Request('https://events.internal/changed',{method:'POST'}))).status,204);
+assert.equal(notifications,1);assert.equal(closed,1);
+assert.equal((await eventObject.fetch(new Request('https://events.internal/changed'))).status,404);
+console.log('ProjectEvents invalidation and socket expiry checks passed.');

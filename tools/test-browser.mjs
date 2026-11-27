@@ -270,7 +270,7 @@ try{
   const id='f'.repeat(32),projectUrl=url+'#project='+id,liveKey='/context/project/'+id+'.json';
   const binary=Buffer.from(r04bg.split(',')[1],'base64'),assetName=createHash('sha256').update(binary).digest('hex')+'.png';
   let publication={format:'sightline-live/1',projectId:id,sequence:10,publishedAt:new Date().toISOString(),project:{...r04.project,background:null},assets:{background:{name:assetName,bytes:binary.length,width:2000,height:1300}}};
-  let assetGets=0,saves=0,viewerGets=0;
+  let assetGets=0,saves=0,viewerGets=0;const sockets=new Set();let invalidations=0;
   const activeTag=()=>'"publication-'+publication.sequence+'"';
   async function origin(route,role){
     const req=route.request(),u=new URL(req.url());
@@ -280,6 +280,7 @@ try{
       if(role!=='editor')return route.fulfill({status:403,headers,body:'{}'});
       if(req.headers()['if-match']!==activeTag())return route.fulfill({status:412,headers,body:'{}'});
       const edit=req.postDataJSON();publication={...publication,sequence:publication.sequence+1,publishedAt:new Date().toISOString(),project:{...publication.project,...edit}};saves++;
+      for(const socket of sockets){socket.send('changed');invalidations++}
       return route.fulfill({status:200,headers:{...headers,ETag:activeTag()},contentType:'application/json',body:JSON.stringify({sequence:publication.sequence,publishedAt:publication.publishedAt})});
     }
     if(role==='viewer')viewerGets++;
@@ -290,7 +291,9 @@ try{
   try{
     const [a,b,v]=await Promise.all([editorA.newPage(),editorB.newPage(),viewer.newPage()]);
     const errs=[];for(const [p,role] of [[a,'editor'],[b,'editor'],[v,'viewer']]){
-      p.on('pageerror',e=>errs.push(e.message));await p.route('**/context/project/'+id+'/**',route=>origin(route,role));
+      p.on('pageerror',e=>errs.push(e.message));
+      if(role==='editor')await p.routeWebSocket('**/context/project/'+id+'/events',socket=>{sockets.add(socket);socket.onClose(()=>sockets.delete(socket))});
+      await p.route('**/context/project/'+id+'/**',route=>origin(route,role));
       await p.route('**'+liveKey,route=>origin(route,role));
       await p.route('**/context/'+key+'.json',route=>origin(route,role));
     }
@@ -317,7 +320,7 @@ try{
     b.once('dialog',d=>d.accept());await b.locator('#live-latest').click();await live(b,'12 · Current');
     await b.locator('#camera-rows tr').first().click();assert.equal(await b.locator('#cam-number').inputValue(),'303');
     await live(v,'12 · Current');
-    assert.equal(assetGets,3);assert.equal(saves,2);assert(viewerGets>=2);
+    assert.equal(assetGets,3);assert.equal(saves,2);assert(viewerGets>=2);assert(invalidations>=2,'push invalidations sent');
     assert.equal(await v.evaluate(()=>localStorage.getItem('tsg-sightline/autosave')),null,'private project not persisted to autosave');
     assert.deepEqual(errs,[]);
     console.log('Shared publication: two editors, mobile viewer, live save propagation, retained view, no repeated raster fetch and conflict resolution passed.');

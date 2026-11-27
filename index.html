@@ -4754,20 +4754,20 @@
       if(state.sharedContext!==ctx)return;
       if(res.type==='opaqueredirect'||res.status===401){ctx.status='auth';return}
       if(res.status===403){ctx.status='denied';return}
-      if(res.status===404&&!ctx.direct){ctx.status='missing';return}
+      if(res.status===404&&!ctx.direct){if(ctx.snapshot)applyProject(ctx.snapshot,{fromLive:true});ctx.status='missing';return}
       if(!res.ok||!(res.headers.get('content-type')||'').includes('application/json'))throw Error('Unexpected context response');
       const declared=Number(res.headers.get('content-length'));if(declared>24*1024*1024)throw Error('Context too large');
       const bytes=await res.arrayBuffer();if(bytes.byteLength>24*1024*1024)throw Error('Context too large');
       const record=JSON.parse(new TextDecoder().decode(bytes));
       if(record?.format==='sightline-live/1')await startLive(record,res,ctx);
       else if(ctx.direct)throw Error('Invalid current publication');
-      else attachVenueContext(record,ctx);
+      else {if(ctx.snapshot)applyProject(ctx.snapshot,{fromLive:true});attachVenueContext(record,ctx)}
     }catch(err){if(state.sharedContext===ctx)ctx.status='error'}
     finally{updateContextBanner()}
   }
   async function resolveVenueContext(payload){
     const ctx=state.sharedContext||{status:'loading',url:null};state.sharedContext=ctx;updateContextBanner();
-    if(!window.isSecureContext||!globalThis.crypto?.subtle){ctx.status='missing';updateContextBanner();return;}
+    if(!window.isSecureContext||!globalThis.crypto?.subtle){if(ctx.snapshot)applyProject(ctx.snapshot,{fromLive:true});ctx.status='missing';updateContextBanner();return;}
     try{
       const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(payload));
       const key=Array.from(new Uint8Array(hash),x=>x.toString(16).padStart(2,'0')).join('');
@@ -4802,9 +4802,11 @@
       // external drawing URLs, model registration or interface metadata.
       delete project.background;delete project.vector;delete project.logo;delete project.previs;delete project.scaleEvidence;
       if(Array.isArray(project.cameras))project.cameras=project.cameras.map(({chainDetails,...position})=>position);
-      stopLive();state.background=null;state.vector=null;state.sharedContext={status:'loading',url:null};
-      applyProject(project);
-      void resolveVenueContext(payload);
+      stopLive();state.background=null;state.vector=null;state.logo=null;state.cameras=[];state.dimensions=[];state.selectedId=null;state.privateContextLoaded=false;
+      // Do not render the legacy snapshot until the server establishes that
+      // it is an unregistered portable link or an old context record.
+      state.sharedContext={status:'loading',url:null,snapshot:project};
+      render();void resolveVenueContext(payload);
     } catch (error) {
       showHint('That link does not carry a readable plan', true);
     } finally {
@@ -4875,6 +4877,7 @@
       else{const href=await readBlob(await assetBytes(l,asset));const img=new Image();img.src=href;await img.decode();if(img.naturalWidth!==asset.width||img.naturalHeight!==asset.height)throw Error('Image dimensions differ');bg={href,width:asset.width,height:asset.height}}
     }
     if(state.live!==l)throw Error('Project changed');
+    if(!initial&&(drag.kind||touches.size)){l.status='ready';l.needsRefresh=true;return}
     if(!initial&&isDirty(l)&&!l.forceLatest){l.status='conflict';l.pending=true;updateLiveStatus();return}
     const view={...state.view},selectedId=state.selectedId;
     const sameFrame=!initial&&state.content.width===p.content.width&&state.content.height===p.content.height&&state.pxPerMetre===p.pxPerMetre;
