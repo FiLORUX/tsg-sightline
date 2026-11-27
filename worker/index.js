@@ -11,6 +11,8 @@
 // Rule: one canonical, the rest redirect (thast.se doctrine §2.4). The origin
 // list per surface lives in thast.se/internal/data/surfaces.json and the
 // nightly loop asserts that no origin is ever indexable.
+import { privateContext } from './private-context.mjs';
+
 const CANONICAL = 'https://tsg.thast.live/sightline';
 const ORIGIN_SUFFIX = '.workers.dev';
 const REDIRECT_STATUSES = new Set([301, 302, 307, 308]);
@@ -23,6 +25,9 @@ export default {
     if (url.hostname.endsWith(ORIGIN_SUFFIX) && !fromProxy) {
       return Response.redirect(`${CANONICAL}${url.pathname}${url.search}`, 308);
     }
+
+    // Never route private context URLs through the public asset binding.
+    if(url.pathname==='/context'||url.pathname.startsWith('/context/'))return privateContext(request,env);
 
     const upstream = await env.ASSETS.fetch(request);
 

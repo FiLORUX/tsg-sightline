@@ -19,3 +19,7 @@ og.svg
 node_modules
 package-lock.json
 package.json
+
+# Documentation and private context storage are never public assets.
+docs
+context
