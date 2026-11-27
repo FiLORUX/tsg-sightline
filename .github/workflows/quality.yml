@@ -25,6 +25,7 @@ jobs:
           node tools/test-private-context.mjs
           node tools/test-public-projects.mjs
           node tools/test-build-live-project.mjs
+          node tools/test-add-public-geometry.mjs
           node tools/check-spatial-embed.mjs
       - name: Install browser test dependency
         run: |

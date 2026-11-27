@@ -5494,6 +5494,7 @@ void main(){if(textured){outColour=texture(floorTexture,vec2(world.x/floorSize.x
     updateControls();const c=selectedCamera(),cameraView=el('previs-view').value==='camera';let pose=null,poseError='';
     let info='Local XYZ in metres · sheet +Y towards top · +Z up';
     info+=P.model?`\nGeometry is a model, not a verified view of the venue. ${P.scope==='partial'?'Partial model: missing objects may obstruct the view.':P.scope==='complete'?'Completeness is a source claim, not independent verification.':'Model completeness is unknown: missing objects may obstruct the view.'}`:state.background?'\nNo venue model: the flat drawing is a plan reference only; there are no walls, seating or occlusion.':'\nNo venue model or floor drawing: there are no walls, seating or occlusion.';
+    if(P.model)info+='\nModel geometry may be approximate: intersections can be false positives and obstructions can be missed.';
     info+='\nCamera positions, height and orientation are inputs; confirm them before relying on a frame.';
     if(state.vector&&!state.background)info+='\nVector drawing is not displayed in 3D.';
     if(c){try{pose=poseFor(c);const p=S.project(P.target,pose);info+=`\nCam ${c.number} · ${pose.focal.toFixed(1)} mm · HFOV ${pose.hfov.toFixed(2)}° / VFOV ${pose.vfov.toFixed(2)}° · lens Z ${pose.origin[2].toFixed(2)} m · ${p.inFrame?'target in frame':'target outside frame'}`;}catch(e){poseError=e.message;info+='\nCamera frame unavailable: '+poseError}}
@@ -5556,7 +5557,7 @@ void main(){if(textured){outColour=texture(floorTexture,vec2(world.x/floorSize.x
       if(P.loading)message+='Model import pending: occlusion not evaluated.';
       else if(!P.model)message+='No venue geometry: occlusion not evaluated.';
       else if(!Spatial.trusted(state.scaleEvidence,state.pxPerMetre)||!P.registration.confirmed)message+='Occlusion not evaluated: confirm plan scale and model registration.';
-      else{const hit=S.firstHit(P.model,pose.origin,P.target,P.registration);message+=hit?`Model intersection at ${hit.distance.toFixed(2)} m (${hit.name}).`:P.scope==='complete'?'No intersection in loaded opaque triangles.':'Indeterminate: no intersection in loaded opaque triangles, but model completeness is not established.';if(P.model.nonOpaque)message+=' Non-opaque geometry excluded.';message+=' Model only; not a rigging or clearance sign-off.'}
+      else{const hit=S.firstHit(P.model,pose.origin,P.target,P.registration);message+=hit?`Model intersection at ${hit.distance.toFixed(2)} m (${hit.name}).`:P.scope==='complete'?'No intersection in loaded opaque triangles.':'Indeterminate: no intersection in loaded opaque triangles, but model completeness is not established.';if(P.model.nonOpaque)message+=' Non-opaque geometry excluded.';message+=' Model geometry may be approximate: intersections can be false positives and obstructions can be missed. Model only; not a rigging or clearance sign-off.'}
       el('previs-hit').textContent=message;
     }catch(err){el('previs-hit').textContent=err.message}
   });
