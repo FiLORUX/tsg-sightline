@@ -51,6 +51,7 @@ jobs:
           node tools/test-grip.mjs
           node tools/test-private-context.mjs
           node tools/test-public-projects.mjs
+          node tools/test-build-live-project.mjs
           node tools/check-spatial-embed.mjs
       - name: Verify the exact approved R2 source before deployment
         env:

@@ -37,7 +37,14 @@ export function publicProject(p){
 }
 function derivative(a,kind){
   if(!a||!ASSET.test(a.name)||!Number.isSafeInteger(a.bytes)||a.bytes<1||a.bytes>(kind==='geometry'?160:20)*1024*1024)throw Error('Invalid derivative');
-  if(kind==='geometry'){if(!a.name.endsWith('.glb'))throw Error('Invalid geometry');return {name:a.name,bytes:a.bytes}}
+  if(kind==='geometry'){
+    if(!a.name.endsWith('.glb'))throw Error('Invalid geometry');
+    // Completeness is a deliberately small public vocabulary: never expose
+    // unreviewed source descriptions or private model metadata here. Missing
+    // and unknown values remain conservative for older publications.
+    const scope=['partial','complete'].includes(a.scope)?a.scope:'unknown';
+    return {name:a.name,bytes:a.bytes,scope};
+  }
   if(!/\.(png|jpg|webp)$/.test(a.name)||!Number.isSafeInteger(a.width)||!Number.isSafeInteger(a.height)||!number(a.width,1,16384)||!number(a.height,1,16384))throw Error('Invalid raster');
   return {name:a.name,bytes:a.bytes,width:a.width,height:a.height};
 }

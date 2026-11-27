@@ -403,12 +403,13 @@
     <div id="placement-notice">Camera positions and pose are planning inputs. Confirm against the production drawing and on site; verified scale does not verify placement.</div>
     <section id="previs-pane" hidden aria-label="Camera previsualisation">
       <div class="previs-top"><strong>CAMERA PREVIS</strong><span id="previs-status">Concept only</span><button id="previs-expand" type="button" aria-pressed="false">Expand</button><button id="previs-close" aria-label="Close 3D preview">Close</button></div>
-      <canvas id="previs-canvas" tabindex="0" aria-label="Three-dimensional preview. Drag to orbit, shift-drag to pan, scroll to zoom. Arrow keys orbit; plus and minus zoom."></canvas>
+      <canvas id="previs-canvas" tabindex="0" aria-label="Three-dimensional preview. Drag to orbit, shift-drag to pan, scroll to zoom. Click near a camera marker to select it. Arrow keys orbit; plus and minus zoom."></canvas>
       <div id="previs-info" class="previs-readout" role="status"></div>
       <div class="previs-controls">
         <div class="row"><div class="field"><label for="previs-view">View</label><select id="previs-view"><option value="overview">Venue overview</option><option value="camera">Camera frame</option></select></div><div class="field"><label for="previs-camera">Camera</label><select id="previs-camera"></select></div></div>
         <div class="button-row"><button id="previs-fit-view" type="button">Fit view</button><button id="previs-focus" type="button">Focus camera</button><button id="previs-zoom-in" type="button" aria-label="Zoom in">+</button><button id="previs-zoom-out" type="button" aria-label="Zoom out">−</button></div>
-        <p class="readout">Overview: drag to orbit; Shift-drag or right-drag to pan; scroll to zoom. Touch: drag to orbit, pinch to zoom and pan.</p>
+        <p class="readout">Overview: click near a camera marker to select it; drag to orbit; Shift-drag or right-drag to pan; scroll to zoom. Touch: drag to orbit, pinch to zoom and pan. Selection can include cameras hidden behind geometry.</p>
+        <label class="check"><input id="previs-show-plan" type="checkbox" checked> Show plan reference on ground</label>
         <div class="row"><div class="field"><label for="previs-orbit">Overview azimuth (°)</label><input id="previs-orbit" type="range" min="0" max="360" value="35"></div><div class="field"><label for="previs-elevation">Overview elevation (°)</label><input id="previs-elevation" type="range" min="10" max="85" value="45"></div></div>
         <details open><summary>Optical pose &amp; framing</summary>
           <div class="row"><div class="field"><label for="previs-floor">Mount datum Z (m)</label><input id="previs-floor" type="number" step="0.1"></div><div class="field"><label for="previs-tilt">Head tilt (° up)</label><input id="previs-tilt" type="number" min="-89" max="89" step="0.5"></div></div>
@@ -423,10 +424,12 @@
           <div class="row"><div class="field"><label for="previs-rx">Model origin X (m)</label><input id="previs-rx" type="number" step="0.01" value="0"></div><div class="field"><label for="previs-ry">Model origin Y (m)</label><input id="previs-ry" type="number" step="0.01" value="0"></div></div>
           <div class="row"><div class="field"><label for="previs-rz">Model origin Z (m)</label><input id="previs-rz" type="number" step="0.01" value="0"></div><div class="field"><label for="previs-rotation">Model yaw (° CCW)</label><input id="previs-rotation" type="number" step="0.1" value="0"></div></div>
           <details><summary>Fit two paired control points (XY metres)</summary>
-            <p class="readout">Model coordinates after Y-up to Z-up conversion. Plan coordinates from lower-left of the sheet. No scaling or stretching.</p>
+            <p class="readout">Model coordinates after Y-up to Z-up conversion. Plan coordinates from lower-left of the sheet. No scaling or stretching. Use a third, independent point to check the fit; this does not check vertical datum.</p>
             <div class="row"><div class="field"><label for="previs-ma">Model A (X,Y)</label><input id="previs-ma" placeholder="0, 0"></div><div class="field"><label for="previs-pa">Plan A (X,Y)</label><input id="previs-pa" placeholder="0, 0"></div></div>
             <div class="row"><div class="field"><label for="previs-mb">Model B (X,Y)</label><input id="previs-mb" placeholder="10, 0"></div><div class="field"><label for="previs-pb">Plan B (X,Y)</label><input id="previs-pb" placeholder="10, 0"></div></div>
-            <button id="previs-fit">Fit rigid transform</button><div id="previs-residual" class="readout" role="status"></div>
+            <button id="previs-fit">Fit rigid transform</button>
+            <div class="row"><div class="field"><label for="previs-mc">Independent model C (X,Y)</label><input id="previs-mc" placeholder="0, 0"></div><div class="field"><label for="previs-pc">Independent plan C (X,Y)</label><input id="previs-pc" placeholder="0, 0"></div></div>
+            <button id="previs-check-registration" type="button">Check independent point</button><div id="previs-residual" class="readout" role="status"></div>
           </details>
           <label class="check"><input id="previs-registration" type="checkbox"> I checked the control points and vertical datum</label>
         </details>
@@ -4940,7 +4943,7 @@
     l.role=ownerSession?'editor':'viewer';l.checked=Date.now();l.pending=false;l.forceLatest=false;l.status='ready';
     l.background=state.background;l.vector=state.vector;l.logo=state.logo;l.registrationSource=p.previs?.registration||null;l.frame=frameSignature();l.baseline=editSignature();
     if(sameFrame){state.view=view;if(state.cameras.some(c=>c.id===selectedId))state.selectedId=selectedId;applyView();render()}
-    if(retainedModel){previs.model=retainedModel.model;previs.name=retainedModel.name;previs.registration=retainedModel.registration;queuePrevis()}
+    if(retainedModel){previs.model=retainedModel.model;previs.name=retainedModel.name;previs.scope=newGeom?.scope||'unknown';previs.registration=retainedModel.registration;queuePrevis()}
     else{l.loadedGeometry=null;if(!el('previs-pane').hidden)void ensureLiveGeometry()}
     state.sharedContext=null;updateContextBanner();updateLiveStatus();
   }
@@ -5020,7 +5023,7 @@
   async function ensureLiveGeometry(){
     const l=state.live,a=l?.assets?.geometry;if(!a||l.loadedGeometry===a.name||l.geometryLoading||!previs.loadPublishedModel)return;
     l.geometryLoading=true;const sequence=l.sequence;
-    try{const blob=await assetBytes(l,a);if(state.live!==l||l.assets?.geometry?.name!==a.name||l.sequence!==sequence)return;await previs.loadPublishedModel(new File([blob],a.name,{type:'model/gltf-binary'}));if(state.live===l&&l.assets?.geometry?.name===a.name)l.loadedGeometry=a.name}
+    try{const blob=await assetBytes(l,a);if(state.live!==l||l.assets?.geometry?.name!==a.name||l.sequence!==sequence)return;await previs.loadPublishedModel(new File([blob],a.name,{type:'model/gltf-binary'}),a.scope);if(state.live===l&&l.assets?.geometry?.name===a.name)l.loadedGeometry=a.name}
     catch{if(state.live===l)showHint('Current 3D geometry could not be loaded.',true,4000)}
     finally{l.geometryLoading=false;if(state.live===l&&l.sequence!==sequence&&!el('previs-pane').hidden)void ensureLiveGeometry()}
   }
@@ -5298,7 +5301,7 @@
 });
   const Spatial = SpatialFactory();
   // #endregion spatial-core
-  const previs = { registration:{x:0,y:0,z:0,rotation:0,confirmed:false}, target:[0,0,1.5], model:null, name:'', frame:0, loadToken:0, paint:null, clearGpu:null, cancelLoad:null, loading:false };
+  const previs = { registration:{x:0,y:0,z:0,rotation:0,confirmed:false}, target:[0,0,1.5], model:null, name:'', scope:'unknown', frame:0, loadToken:0, paint:null, clearGpu:null, cancelLoad:null, loading:false };
   let scaleSourceDirty=false;
   function invalidatePoint(){ el('previs-hit').textContent='No current result. Check the point again after any change.'; }
   function queuePrevis(){
@@ -5318,7 +5321,7 @@
     if(previs.cancelLoad)previs.cancelLoad();
     previs.loading=false;
     if(previs.clearGpu)previs.clearGpu();
-    previs.model=null;previs.name='';
+    previs.model=null;previs.name='';previs.scope='unknown';
     const r=saved?.registration||{};
     previs.registration={x:Number.isFinite(r.x)?r.x:0,y:Number.isFinite(r.y)?r.y:0,z:Number.isFinite(r.z)?r.z:0,rotation:Number.isFinite(r.rotation)?r.rotation:0,confirmed:false};
     previs.target=Array.isArray(saved?.target)&&saved.target.length===3&&saved.target.every(Number.isFinite)?saved.target.slice():[0,0,1.5];
@@ -5391,7 +5394,7 @@ void main(){if(textured){outColour=texture(floorTexture,vec2(world.x/floorSize.x
   canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();gpu=null;el('previs-info').textContent='GPU context lost. The 2D plan is unchanged.'});
   canvas.addEventListener('webglcontextrestored',()=>{gpu=null;queuePrevis()});
   function draw(pose){
-    const g=getGpu(),gl=g.gl,loc=g.loc,reg=P.registration,dpr=Math.min(window.devicePixelRatio||1,2),w=Math.min(1600,Math.max(1,Math.round(canvas.clientWidth*dpr))),h=Math.min(1000,Math.max(1,Math.round(canvas.clientHeight*dpr)));
+    const g=getGpu(),gl=g.gl,loc=g.loc,reg=P.registration,dpr=Math.min(window.devicePixelRatio||1,2),scale=Math.min(dpr,1600/Math.max(1,canvas.clientWidth),1000/Math.max(1,canvas.clientHeight)),w=Math.max(1,Math.round(canvas.clientWidth*scale)),h=Math.max(1,Math.round(canvas.clientHeight*scale));
     if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h}
     gl.viewport(0,0,w,h);gl.clearColor(.055,.078,.105,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.useProgram(g.program);gl.enableVertexAttribArray(g.position);
@@ -5412,7 +5415,7 @@ void main(){if(textured){outColour=texture(floorTexture,vec2(world.x/floorSize.x
       };image.src=source}
     }
     const floorWidth=state.content.width/state.pxPerMetre,floorHeight=state.content.height/state.pxPerMetre;
-    if(g.floorTexture&&floorWidth>0&&floorHeight>0){
+    if(el('previs-show-plan').checked&&g.floorTexture&&floorWidth>0&&floorHeight>0){
       uniforms({x:0,y:0,z:0,rotation:0},[1,1,1],false);gl.uniform1i(loc.textured,1);gl.uniform2f(loc.floorSize,floorWidth,floorHeight);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,g.floorTexture);gl.uniform1i(loc.floorTexture,0);
       gl.bindBuffer(gl.ARRAY_BUFFER,g.dynamic);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([0,0,-.02,floorWidth,0,-.02,0,floorHeight,-.02,0,floorHeight,-.02,floorWidth,0,-.02,floorWidth,floorHeight,-.02]),gl.DYNAMIC_DRAW);gl.vertexAttribPointer(g.position,3,gl.FLOAT,false,0,0);gl.drawArrays(gl.TRIANGLES,0,6);gl.uniform1i(loc.textured,0);
     }
@@ -5427,7 +5430,7 @@ void main(){if(textured){outColour=texture(floorTexture,vec2(world.x/floorSize.x
       const ordinary=[],active=[];
       for(const c of state.cameras){try{const p=poseFor(c),dest=c.id===selectedCamera()?.id?active:ordinary,distance=Math.min(3,Number(c.throwMetres)||3),near=S.add(p.origin,S.mul(p.f,distance)),foot=S.planPoint(c.x,c.y,state.pxPerMetre,state.content.height,Number(c.floorZ)||0);
         const r=S.mul(p.right,p.tanH*distance),u=S.mul(p.up,p.tanV*distance),corners=[S.add(near,S.add(r,u)),S.add(near,S.sub(u,r)),S.sub(near,S.add(r,u)),S.add(near,S.sub(r,u))];
-        dest.push(...foot,...p.origin);for(let i=0;i<4;i++)dest.push(...p.origin,...corners[i],...corners[i],...corners[(i+1)%4]);
+        const mark=.35;dest.push(...foot,...p.origin,p.origin[0]-mark,p.origin[1],p.origin[2],p.origin[0]+mark,p.origin[1],p.origin[2],p.origin[0],p.origin[1]-mark,p.origin[2],p.origin[0],p.origin[1]+mark,p.origin[2]);for(let i=0;i<4;i++)dest.push(...p.origin,...corners[i],...corners[i],...corners[(i+1)%4]);
         if(Array.isArray(c.path)){let prev=foot;for(const q of c.path){const next=S.planPoint(q.x,q.y,state.pxPerMetre,state.content.height,Number(c.floorZ)||0);dest.push(...prev,...next);prev=next}}
       }catch{}}
       line(ordinary,[.35,.68,.85]);line(active,[1,.74,.25]);
@@ -5454,11 +5457,17 @@ void main(){if(textured){outColour=texture(floorTexture,vec2(world.x/floorSize.x
     const step=Math.max(.001,pose.distance*2*pose.tanV/Math.max(1,canvas.clientHeight));
     const h=readNumber('previs-orbit',35)*Math.PI/180,right=[Math.cos(h),-Math.sin(h),0],forward=[Math.sin(h),Math.cos(h),0];
     nav.pan=S.add(nav.pan,S.add(S.mul(right,-dx*step),S.mul(forward,dy*step)));queuePrevis()}
-  const pointers=new Map();let gesture=null;
+  const pointers=new Map();let gesture=null,clickStart=null;
+  function selectAt(clientX,clientY){
+    const rect=canvas.getBoundingClientRect(),pose=overview(),w=Math.min(rect.width,rect.height*pose.aspect),h=Math.min(rect.height,rect.width/pose.aspect),left=rect.left+(rect.width-w)/2,top=rect.top+(rect.height-h)/2;
+    let best=18,hit=null;
+    for(const c of state.cameras){try{const p=S.project(poseFor(c).origin,pose);if(!p.inFrame)continue;const x=left+(p.x+1)*w/2,y=top+(1-p.y)*h/2,d=Math.hypot(clientX-x,clientY-y);if(d<best){best=d;hit=c}}catch{}}
+    if(hit){state.selectedId=hit.id;render()}
+  }
   function snapshot(){const p=[...pointers.values()];if(p.length===1)return {count:1,x:p[0].x,y:p[0].y};if(p.length>=2)return {count:2,x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2,d:Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)};return null}
-  canvas.addEventListener('pointerdown',e=>{if(el('previs-view').value!=='overview')return;e.preventDefault();canvas.focus();canvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY,pan:e.shiftKey||e.button===2});gesture=snapshot()});
-  canvas.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;const p=pointers.get(e.pointerId);p.x=e.clientX;p.y=e.clientY;const next=snapshot();if(gesture&&next&&gesture.count===next.count){const dx=next.x-gesture.x,dy=next.y-gesture.y;if(next.count===2){pan(dx,dy);if(next.d>0&&gesture.d>0)zoom(gesture.d/next.d)}else if(p.pan||e.shiftKey)pan(dx,dy);else{el('previs-orbit').value=(readNumber('previs-orbit',35)-dx*.4+3600)%360;el('previs-elevation').value=clamp(readNumber('previs-elevation',45)+dy*.4,10,85);queuePrevis()}}gesture=next});
-  for(const type of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(type,e=>{pointers.delete(e.pointerId);gesture=snapshot()});
+  canvas.addEventListener('pointerdown',e=>{if(el('previs-view').value!=='overview')return;e.preventDefault();canvas.focus();canvas.setPointerCapture(e.pointerId);if(pointers.size===0&&e.button===0&&!e.shiftKey)clickStart={id:e.pointerId,x:e.clientX,y:e.clientY,moved:false};else clickStart=null;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY,pan:e.shiftKey||e.button===2});gesture=snapshot()});
+  canvas.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;const p=pointers.get(e.pointerId);if(clickStart&&Math.hypot(e.clientX-clickStart.x,e.clientY-clickStart.y)>5)clickStart.moved=true;p.x=e.clientX;p.y=e.clientY;const next=snapshot();if(gesture&&next&&gesture.count===next.count){const dx=next.x-gesture.x,dy=next.y-gesture.y;if(next.count===2){pan(dx,dy);if(next.d>0&&gesture.d>0)zoom(gesture.d/next.d)}else if(p.pan||e.shiftKey)pan(dx,dy);else{el('previs-orbit').value=(readNumber('previs-orbit',35)-dx*.4+3600)%360;el('previs-elevation').value=clamp(readNumber('previs-elevation',45)+dy*.4,10,85);queuePrevis()}}gesture=next});
+  for(const type of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(type,e=>{if(type==='pointerup'&&clickStart?.id===e.pointerId&&!clickStart.moved&&pointers.size===1)selectAt(e.clientX,e.clientY);if(clickStart?.id===e.pointerId)clickStart=null;pointers.delete(e.pointerId);gesture=snapshot()});
   canvas.addEventListener('contextmenu',e=>e.preventDefault());
   canvas.addEventListener('wheel',e=>{if(el('previs-view').value!=='overview')return;e.preventDefault();zoom(Math.exp(clamp(e.deltaY,-100,100)*.002))},{passive:false});
   canvas.addEventListener('keydown',e=>{if(el('previs-view').value!=='overview')return;const orbit=el('previs-orbit'),elevation=el('previs-elevation');if(e.key==='ArrowLeft')orbit.value=(readNumber('previs-orbit',35)-5+360)%360;else if(e.key==='ArrowRight')orbit.value=(readNumber('previs-orbit',35)+5)%360;else if(e.key==='ArrowUp')elevation.value=clamp(readNumber('previs-elevation',45)+5,10,85);else if(e.key==='ArrowDown')elevation.value=clamp(readNumber('previs-elevation',45)-5,10,85);else if(e.key==='+'||e.key==='=')zoom(.8);else if(e.key==='-')zoom(1.25);else return;e.preventDefault();queuePrevis()});
@@ -5477,13 +5486,14 @@ void main(){if(textured){outColour=texture(floorTexture,vec2(world.x/floorSize.x
     el('previs-focus').disabled=!overviewActive||!c;
     const registered=!!P.model&&!P.loading&&Spatial.trusted(state.scaleEvidence,state.pxPerMetre)&&!!P.registration.confirmed;
     el('previs-registration').disabled=P.loading||!P.model||!Spatial.trusted(state.scaleEvidence,state.pxPerMetre);el('previs-registration').checked=registered;
-    el('previs-status').textContent=!P.model?'No venue model · concept only':registered?'Operator-registered · model only':'Unverified geometry / scale';
-    el('previs-model').textContent=P.loading?'Reading local geometry in worker…':P.model?`${P.name} · ${P.model.count.toLocaleString('en-GB')} triangles · ${P.model.nonOpaque} non-opaque triangles omitted. Geometry only; no textures.`:'No mesh loaded. Model stays in this browser.';
+    const scope=P.scope==='partial'?'Partial model':P.scope==='complete'?'Model scope marked complete':'Model scope unknown';
+    el('previs-status').textContent=!P.model?'No venue model · concept only':`${scope} · ${registered?'operator-registered':'unverified registration / scale'}`;
+    el('previs-model').textContent=P.loading?'Reading local geometry in worker…':P.model?`${P.name} · ${P.model.count.toLocaleString('en-GB')} triangles · ${P.model.nonOpaque} non-opaque triangles omitted. ${scope}. Geometry only; no textures. Scope is not an engineering approval.`:'No mesh loaded. Model stays in this browser.';
   }
   P.paint=()=>{
     updateControls();const c=selectedCamera(),cameraView=el('previs-view').value==='camera';let pose=null,poseError='';
     let info='Local XYZ in metres · sheet +Y towards top · +Z up';
-    info+=P.model?'\nGeometry is a model, not a verified view of the venue.':state.background?'\nNo venue model: the flat drawing is a plan reference only; there are no walls, seating or occlusion.':'\nNo venue model or floor drawing: there are no walls, seating or occlusion.';
+    info+=P.model?`\nGeometry is a model, not a verified view of the venue. ${P.scope==='partial'?'Partial model: missing objects may obstruct the view.':P.scope==='complete'?'Completeness is a source claim, not independent verification.':'Model completeness is unknown: missing objects may obstruct the view.'}`:state.background?'\nNo venue model: the flat drawing is a plan reference only; there are no walls, seating or occlusion.':'\nNo venue model or floor drawing: there are no walls, seating or occlusion.';
     info+='\nCamera positions, height and orientation are inputs; confirm them before relying on a frame.';
     if(state.vector&&!state.background)info+='\nVector drawing is not displayed in 3D.';
     if(c){try{pose=poseFor(c);const p=S.project(P.target,pose);info+=`\nCam ${c.number} · ${pose.focal.toFixed(1)} mm · HFOV ${pose.hfov.toFixed(2)}° / VFOV ${pose.vfov.toFixed(2)}° · lens Z ${pose.origin[2].toFixed(2)} m · ${p.inFrame?'target in frame':'target outside frame'}`;}catch(e){poseError=e.message;info+='\nCamera frame unavailable: '+poseError}}
@@ -5497,7 +5507,7 @@ void main(){if(textured){outColour=texture(floorTexture,vec2(world.x/floorSize.x
   P.clearGpu=clearBuffers;P.poseFor=poseFor;
   function toggle(on){el('previs-pane').hidden=!on;el('action-previs').setAttribute('aria-pressed',String(on));if(on){queuePrevis();void ensureLiveGeometry()}}
   el('action-previs').addEventListener('click',()=>toggle(el('previs-pane').hidden));el('previs-close').addEventListener('click',()=>toggle(false));
-  for(const id of ['previs-view','previs-orbit','previs-elevation'])el(id).addEventListener('input',queuePrevis);
+  for(const id of ['previs-view','previs-orbit','previs-elevation','previs-show-plan'])el(id).addEventListener('input',queuePrevis);
   el('previs-camera').addEventListener('change',e=>{state.selectedId=e.target.value;render()});
   for(const [id,key,min,max] of [['previs-floor','floorZ',-1000,1000],['previs-tilt','tilt',-89,89],['previs-roll','roll',-180,180],['previs-pan','headPan',-180,180],['previs-focal','focalMm',.1,10000],['previs-aspect','aspect',1,4]])el(id).addEventListener('change',()=>{const c=selectedCamera();if(!c)return;state.selectedId=c.id;const value=readNumber(id,c[key]??(key==='focalMm'?c.wide:0));updateSelected({[key]:key==='focalMm'?clamp(value,Math.min(c.wide,c.tele),Math.max(c.wide,c.tele)):clamp(value,min,max)})});
   for(const [id,end] of [['previs-wide','wide'],['previs-tele','tele']])el(id).addEventListener('click',()=>{const c=selectedCamera();if(c){state.selectedId=c.id;updateSelected({focalMm:c[end]})}});
@@ -5518,22 +5528,24 @@ void main(){if(textured){outColour=texture(floorTexture,vec2(world.x/floorSize.x
       try{worker.postMessage(file)}catch(e){finish();reject(e)}
     });
   }
-  async function loadModel(file){
+  async function loadModel(file,scope='unknown'){
     if(!file)return false;
     if(file.size>160*1024*1024){showHint('GLB exceeds 160 MiB; export a simplified model.',true);return false}
     const token=++P.loadToken;if(P.cancelLoad)P.cancelLoad();P.loading=true;P.registration.confirmed=false;invalidatePoint();queuePrevis();
     el('previs-model').textContent='Reading local geometry…';
     try{
       const model=await readLocalModel(file);if(token!==P.loadToken)return;
-      clearBuffers();P.model=model;P.name=file.name;P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();return true;
+      clearBuffers();P.model=model;P.name=file.name;P.scope=['partial','complete'].includes(scope)?scope:'unknown';P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();return true;
     }catch(err){if(token===P.loadToken)showHint(err.message,true,7000);return false}
     finally{if(token===P.loadToken){P.loading=false;queuePrevis()}}
   }
-  P.loadPublishedModel=async file=>{if(!await loadModel(file))throw Error('GLB import failed')};
+  P.loadPublishedModel=async (file,scope)=>{if(!await loadModel(file,scope))throw Error('GLB import failed')};
   el('previs-file').addEventListener('change',e=>{const file=e.target.files[0];e.target.value='';if(state.live)state.live.loadedGeometry=null;void loadModel(file)});
-  el('previs-remove').addEventListener('click',()=>{if(state.live)state.live.loadedGeometry=null;++P.loadToken;if(P.cancelLoad)P.cancelLoad();P.loading=false;clearBuffers();P.model=null;P.name='';P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();queuePrevis()});
+  el('previs-remove').addEventListener('click',()=>{if(state.live)state.live.loadedGeometry=null;++P.loadToken;if(P.cancelLoad)P.cancelLoad();P.loading=false;clearBuffers();P.model=null;P.name='';P.scope='unknown';P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();queuePrevis()});
   for(const [id,key] of Object.entries({'previs-rx':'x','previs-ry':'y','previs-rz':'z','previs-rotation':'rotation'}))el(id).addEventListener('change',()=>{P.registration[key]=clamp(readNumber(id,P.registration[key]),-1e6,1e6);P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();scheduleAutosave();queuePrevis()});
   el('previs-fit').addEventListener('click',()=>{try{const xy=id=>{const parts=el(id).value.split(',');if(parts.length!==2||parts.some(p=>!p.trim()))throw Error('Enter X,Y in metres');return parts.map(Number)};const fit=S.fitRegistration(xy('previs-ma'),xy('previs-mb'),xy('previs-pa'),xy('previs-pb'),P.registration.z);P.registration={x:fit.x,y:fit.y,z:fit.z,rotation:fit.rotation,confirmed:false};el('previs-residual').textContent=`Endpoint residual ${fit.residual.toFixed(3)} m · model span ${fit.modelSpan.toFixed(3)} m / plan ${fit.planSpan.toFixed(3)} m. Check independent point and datum.`;invalidatePoint();scheduleAutosave();queuePrevis()}catch(e){el('previs-residual').textContent=e.message}});
+  for(const id of ['previs-ma','previs-mb','previs-pa','previs-pb','previs-mc','previs-pc'])el(id).addEventListener('input',()=>{el('previs-residual').textContent='';});
+  el('previs-check-registration').addEventListener('click',()=>{try{const xy=id=>{const parts=el(id).value.split(',');if(parts.length!==2||parts.some(p=>!p.trim())||parts.some(p=>!Number.isFinite(Number(p))))throw Error('Enter independent X,Y in metres');return parts.map(Number)};const model=xy('previs-mc'),plan=xy('previs-pc'),point=S.register([...model,0],P.registration),error=Math.hypot(point[0]-plan[0],point[1]-plan[1]);el('previs-residual').textContent=`Independent point difference ${error.toFixed(3)} m (model ${point[0].toFixed(3)}, ${point[1].toFixed(3)} m; plan ${plan[0].toFixed(3)}, ${plan[1].toFixed(3)} m). Check datum and source revisions separately.`}catch(e){el('previs-residual').textContent=e.message}});
   el('previs-registration').addEventListener('change',e=>{P.registration.confirmed=e.target.checked&&!P.loading&&!!P.model&&Spatial.trusted(state.scaleEvidence,state.pxPerMetre);invalidatePoint();queuePrevis()});
   for(let i=0;i<3;i++){const id=['previs-tx','previs-ty','previs-tz'][i];el(id).addEventListener('change',()=>{P.target[i]=readNumber(id,P.target[i]);invalidatePoint();scheduleAutosave();queuePrevis()})}
   el('previs-axis-target').addEventListener('click',()=>{const c=selectedCamera();if(c){try{const p=poseFor(c);const horizontal=Math.hypot(p.f[0],p.f[1]);P.target=S.add(p.origin,S.mul(p.f,Math.max(.1,Number(c.throwMetres)||1)/Math.max(.017,horizontal)));invalidatePoint();scheduleAutosave();queuePrevis()}catch(e){showHint(e.message,true)}}});
@@ -5544,7 +5556,7 @@ void main(){if(textured){outColour=texture(floorTexture,vec2(world.x/floorSize.x
       if(P.loading)message+='Model import pending: occlusion not evaluated.';
       else if(!P.model)message+='No venue geometry: occlusion not evaluated.';
       else if(!Spatial.trusted(state.scaleEvidence,state.pxPerMetre)||!P.registration.confirmed)message+='Occlusion not evaluated: confirm plan scale and model registration.';
-      else{const hit=S.firstHit(P.model,pose.origin,P.target,P.registration);message+=hit?`Model intersection at ${hit.distance.toFixed(2)} m (${hit.name}).`:'No intersection in loaded opaque triangles.';if(P.model.nonOpaque)message+=' Non-opaque geometry excluded.';message+=' Model only; not a rigging or clearance sign-off.'}
+      else{const hit=S.firstHit(P.model,pose.origin,P.target,P.registration);message+=hit?`Model intersection at ${hit.distance.toFixed(2)} m (${hit.name}).`:P.scope==='complete'?'No intersection in loaded opaque triangles.':'Indeterminate: no intersection in loaded opaque triangles, but model completeness is not established.';if(P.model.nonOpaque)message+=' Non-opaque geometry excluded.';message+=' Model only; not a rigging or clearance sign-off.'}
       el('previs-hit').textContent=message;
     }catch(err){el('previs-hit').textContent=err.message}
   });

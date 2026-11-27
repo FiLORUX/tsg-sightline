@@ -18,6 +18,15 @@ const id='1'.repeat(32),alias='2'.repeat(64),img='3'.repeat(64)+'.png',base='htt
 const p={format:'camera-plan/6',meta:{production:'Synthetic',revision:'R04',privateField:'SECRET'},content:{width:100,height:100},pxPerMetre:20,calibrated:true,scaleEvidence:{status:'estimated',source:'PRIVATE SOURCE',pxPerMetre:20},sheet:{paper:'A3',ratio:'fit'},cameras:[{id:'c1',number:'1',mount:'tripodHeavy',x:12,y:13,heading:0,path:[],chainDetails:{notes:'PRIVATE NOTES'},grip:{reference:'PRIVATE SUPPLIER'},extra:{dwg:'SECRET'}}],dimensions:[],nextNumber:2,vector:{raw:'DWG'},background:{href:'PRIVATE'},logo:{href:'SECRET'}};
 const rec={format:'sightline-live/1',publication:'public-view/1',projectId:id,sequence:1,publishedAt:new Date(now).toISOString(),project:p,assets:{background:{name:img,width:100,height:100,bytes:3}}};
 const safe=publicRecord(rec,id);assert(!JSON.stringify(safe).includes('PRIVATE'));assert(!JSON.stringify(safe).includes('SECRET'));assert.equal(safe.project.vector,null);
+// Geometry coverage is an allowlisted public assertion, never a channel for
+// private source notes or an implicit claim that an older asset is complete.
+const geometryName='4'.repeat(64)+'.glb';
+const geometryRecord=scope=>publicRecord({...rec,assets:{...rec.assets,geometry:{name:geometryName,bytes:123,scope,notes:'PRIVATE SOURCE'}}},id);
+assert.deepEqual(geometryRecord('partial').assets.geometry,{name:geometryName,bytes:123,scope:'partial'});
+assert.equal(geometryRecord('complete').assets.geometry.scope,'complete');
+assert.equal(geometryRecord(undefined).assets.geometry.scope,'unknown');
+assert.equal(geometryRecord('PRIVATE SOURCE').assets.geometry.scope,'unknown');
+assert(!JSON.stringify(geometryRecord('partial')).includes('PRIVATE SOURCE'));
 store('projects/'+id+'/latest.json',JSON.stringify(rec),{visibility:'public',assets:JSON.stringify([img])},'initial');
 store('context/'+alias+'.json','{}',{projectId:id});store('projects/'+id+'/assets/'+img,'abc',{publicDerivative:'1'});
 const request=(path,method='GET',token='',body,headers={})=>new Request(base+path,{method,headers:{Origin:'https://tsg.thast.live',...(token?{'CF-Access-Jwt-Assertion':token}:{}),...(body?{'Content-Type':'application/json'}:{}),...headers},...(body?{body:JSON.stringify(body)}:{})});
