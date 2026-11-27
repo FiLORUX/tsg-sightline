@@ -48,11 +48,11 @@ export function publicRecord(value,id){
 }
 const tag=o=>{const e=o.httpEtag||(o.etag?'"'+o.etag+'"':'');return /^"[A-Za-z0-9._-]{1,128}"$/.test(e)?e:null};
 const drop=async o=>{try{await o?.body?.cancel()}catch{}};
-async function readJSON(o,limit){
+async function readJSON(o,limit,expectedHash=null){
   if(Number(o.headers?.get('Content-Length')||o.size)>limit||!o.body)throw Error('Too large');
   const rd=o.body.getReader(),chunks=[];let n=0;
   try{for(;;){const x=await rd.read();if(x.done)break;n+=x.value.byteLength;if(n>limit){await rd.cancel();throw Error('Too large')}chunks.push(x.value)}}finally{rd.releaseLock()}
-  const b=new Uint8Array(n);let off=0;for(const x of chunks){b.set(x,off);off+=x.length}return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(b));
+  const b=new Uint8Array(n);let off=0;for(const x of chunks){b.set(x,off);off+=x.length}if(expectedHash&&await hash(b)!==expectedHash)throw Error('Approved source changed');return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(b));
 }
 const key=id=>'projects/'+id+'/latest.json';
 const hash=async b=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',b)),v=>v.toString(16).padStart(2,'0')).join('');
@@ -105,7 +105,7 @@ function pngBytes(src){
   return {bytes:clean,width,height};
 }
 // Explicit release migration. An operator approves one exact private record
-// by digest AND ETag in the deployment environment. No other legacy context
+// by digest AND SHA-256 in the deployment environment. No other legacy context
 // can become public. Keep the original record for authorised access/rollback.
 export async function prepareLegacyPublication(record,id,clock=Date.now){
   if(record?.format!=='sightline-context/2'||!ID.test(id))throw Error('Invalid legacy source');
@@ -126,12 +126,13 @@ async function resolveLegacyAlias(bucket,digest,env,clock){
   const legacyKey='context/'+digest+'.json',legacy=await bucket.head(legacyKey);
   if(!legacy)return {status:404};
   if(ID.test(legacy.customMetadata?.projectId||''))return {id:legacy.customMetadata.projectId};
-  // The approved ETag is the raw R2 ETag, not a caller-supplied credential.
-  if(typeof legacy.etag!=='string'||env.SIGHTLINE_PUBLIC_LEGACY_APPROVAL!==digest+':'+legacy.etag)return {status:409};
-  const source=await bucket.get(legacyKey);
-  if(!source||source.etag!==legacy.etag){await drop(source);return {status:409}}
+  // Pin the exact source bytes, independently of REST ETag representations.
+  const approval=String(env.SIGHTLINE_PUBLIC_LEGACY_APPROVAL||'').split(':');
+  if(approval.length!==2||approval[0]!==digest||! /^[a-f0-9]{64}$/.test(approval[1]))return {status:409};
+  const sourceHash=approval[1],source=await bucket.get(legacyKey);
+  if(!source)return {status:409};
   let record,prepared;
-  try{record=await readJSON(source,24*1024*1024);prepared=await prepareLegacyPublication(record,'0'.repeat(32),clock)}catch{return {status:409}}
+  try{record=await readJSON(source,24*1024*1024,sourceHash);prepared=await prepareLegacyPublication(record,'0'.repeat(32),clock)}catch{return {status:409}}
   // A CAS reservation ensures concurrent initial visits choose one opaque ID.
   // It is separate from the committed alias, which is written only after the
   // derivative and manifest exist. Never overwrite an edited publication.
@@ -139,11 +140,11 @@ async function resolveLegacyAlias(bucket,digest,env,clock){
   let reserved=await bucket.head(reservation);
   if(!reserved){
     const candidate=randomId();
-    const wrote=await bucket.put(reservation,'{}',{onlyIf:{etagDoesNotMatch:'*'},customMetadata:{projectId:candidate,sourceEtag:legacy.etag}});
+    const wrote=await bucket.put(reservation,'{}',{onlyIf:{etagDoesNotMatch:'*'},customMetadata:{projectId:candidate,sourceHash}});
     reserved=wrote||await bucket.head(reservation);
   }
   const id=reserved?.customMetadata?.projectId;
-  if(!ID.test(id||'')||reserved.customMetadata.sourceEtag!==legacy.etag)return {status:409};
+  if(!ID.test(id||'')||reserved.customMetadata.sourceHash!==sourceHash)return {status:409};
   prepared=await prepareLegacyPublication(record,id,clock);
   const name=prepared.publication.assets.background.name,assetKey='projects/'+id+'/assets/'+name;
   const existingManifest=await bucket.head(key(id));
@@ -155,7 +156,7 @@ async function resolveLegacyAlias(bucket,digest,env,clock){
   const available=await current(bucket,id);
   if(!available.obj)return {status:409};
   await drop(available.obj);
-  const committed=await bucket.put(aliasKey,'{}',{onlyIf:{etagDoesNotMatch:'*'},customMetadata:{projectId:id,sourceEtag:legacy.etag},httpMetadata:{contentType:'application/json'}});
+  const committed=await bucket.put(aliasKey,'{}',{onlyIf:{etagDoesNotMatch:'*'},customMetadata:{projectId:id,sourceHash},httpMetadata:{contentType:'application/json'}});
   const final=committed||await bucket.head(aliasKey);
   return final?.customMetadata?.projectId===id?{id}:{status:409};
 }

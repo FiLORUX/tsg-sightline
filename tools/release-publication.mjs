@@ -1,4 +1,5 @@
-import {writeFile,readFile} from 'node:fs/promises';
+import {writeFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
 import {prepareLegacyPublication} from '../worker/public-projects.mjs';
 const [mode]=process.argv.slice(2);
 const digest=process.env.LEGACY_DIGEST,account=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
@@ -25,12 +26,10 @@ if(mode==='preflight'){
   const path='context/'+digest+'.json';
   const {r,b}=await fetchBytes(root+'/'+path,headers);
   const record=decode(b);
-  let etag=r.headers.get('ETag')?.replace(/^"|"$/g,'');
-  if(!etag){const m=decode((await fetchBytes(root+'?prefix='+encodeURIComponent(path)+'&per_page=10',headers)).b);etag=m.result?.find(x=>x.key===path)?.etag}
-  if(!/^[A-Za-z0-9._-]{1,128}$/.test(etag||''))fail('Cannot pin the exact R2 source ETag');
+  const sourceHash=createHash('sha256').update(b).digest('hex');
   const p=await prepareLegacyPublication(record,'0'.repeat(32));
   console.log('Validated actual R2 source and public raster projection:',JSON.stringify(verify(p.publication)));
-  await writeFile(process.env.RUNNER_TEMP+'/sightline-approval',digest+':'+etag,{mode:0o600});
+  await writeFile(process.env.RUNNER_TEMP+'/sightline-approval',digest+':'+sourceHash,{mode:0o600});
 }else if(mode==='verify'){
   const html=await (await fetch(endpoint,{cache:'no-store',signal:AbortSignal.timeout(30000)})).text();
   if(!html.includes('./view/alias/'))fail('Canonical host still serves old code');
@@ -39,7 +38,6 @@ if(mode==='preflight'){
   if(publication.publication!=='public-view/1'||!/^[a-f0-9]{32}$/.test(publication.projectId||''))fail('Public manifest invalid');
   const asset=publication.assets.background;
   const {b}=await fetchBytes(endpoint+'view/project/'+publication.projectId+'/asset/'+asset.name,{},20*1024*1024);
-  const {createHash}=await import('node:crypto');
   if(b.length!==asset.bytes||createHash('sha256').update(b).digest('hex')+'.png'!==asset.name)fail('Public raster hash mismatch');
   const edit=await fetch(endpoint+'context/admin/project/'+publication.projectId+'.json',{method:'PUT',headers:{Origin:'https://tsg.thast.live','Content-Type':'application/json'},body:'{}',redirect:'manual',signal:AbortSignal.timeout(30000)});
   if(![302,303,307,308,401,403].includes(edit.status))fail('Anonymous edit denial not verified: '+edit.status);
