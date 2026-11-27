@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
-for(const [name,expected] of [['spatial-core.mjs',fn=>'const SpatialFactory = ('+fn+');'],['chain-core.mjs',fn=>'const Chains = ('+fn+')();'],['equipment-core.mjs',fn=>'const Equipment = ('+fn+')();']]){
+for(const [name,expected] of [['spatial-core.mjs',fn=>'const SpatialFactory = ('+fn+');'],['grip-core.mjs',fn=>'const Grip = ('+fn+')();'],['chain-core.mjs',fn=>'const Chains = ('+fn+')();'],['equipment-core.mjs',fn=>'const Equipment = ('+fn+')();']]){
  const module=fs.readFileSync(new URL('./'+name,import.meta.url),'utf8');
  const fn=module.slice(module.indexOf('export function ')+7).trim();
  if(!html.includes(expected(fn)))throw Error('Embedded '+name+' differs from tested source');

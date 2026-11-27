@@ -16,6 +16,11 @@ const bucket={async get(k){return data.has(k)?obj(data.get(k)):null},async head(
 const env={SIGHTLINE_CONTEXTS:bucket,SIGHTLINE_ACCESS_ISSUER:issuer,SIGHTLINE_ACCESS_AUD:aud,SIGHTLINE_TURNSTILE_SITEKEY:'site',SIGHTLINE_TURNSTILE_SECRET:'secret',SIGHTLINE_CREATE_LIMIT:{async limit(){return {success:rate}}},SIGHTLINE_EVENTS:{idFromName:id=>id,get:()=>({async fetch(){notifications++;return new Response(null,{status:204})}})}};
 const id='1'.repeat(32),alias='2'.repeat(64),img='3'.repeat(64)+'.png',base='https://example.invalid',view='/view/project/'+id+'.json',admin='/context/admin/project/'+id+'.json';
 const p={format:'camera-plan/6',meta:{production:'Synthetic',revision:'R04',privateField:'SECRET'},content:{width:100,height:100},pxPerMetre:20,calibrated:true,scaleEvidence:{status:'estimated',source:'PRIVATE SOURCE',pxPerMetre:20},sheet:{paper:'A3',ratio:'fit'},cameras:[{id:'c1',number:'1',mount:'tripodHeavy',x:12,y:13,heading:0,path:[],chainDetails:{notes:'PRIVATE NOTES'},grip:{reference:'PRIVATE SUPPLIER'},extra:{dwg:'SECRET'}}],dimensions:[],nextNumber:2,vector:{raw:'DWG'},background:{href:'PRIVATE'},logo:{href:'SECRET'}};
+const suspended={...p.cameras[0],mount:'easyrig',grip:{system:'easyrig-cinema3'},path:[{x:12,y:13},{x:22,y:24}]};
+const publishedRig=publicProject({...p,cameras:[suspended]}).cameras[0];
+assert.equal(publishedRig.mount,suspended.mount);
+assert.deepEqual(publishedRig.grip,suspended.grip);
+assert.deepEqual(publishedRig.path,suspended.path);
 const rec={format:'sightline-live/1',publication:'public-view/1',projectId:id,sequence:1,publishedAt:new Date(now).toISOString(),project:p,assets:{background:{name:img,width:100,height:100,bytes:3}}};
 const safe=publicRecord(rec,id);assert(!JSON.stringify(safe).includes('PRIVATE'));assert(!JSON.stringify(safe).includes('SECRET'));assert.equal(safe.project.vector,null);
 // Geometry coverage is an allowlisted public assertion, never a channel for

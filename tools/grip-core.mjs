@@ -10,6 +10,7 @@ export function createGrip(){
     jib:{family:'fixed-boom',mobility:'pivot-boom',geometry:'nominal horizontal boom'},
     steadicam:{family:'body-mounted-sled',mobility:'operator-path',geometry:'nominal operator and sled'},
     handheld:{family:'shoulder',mobility:'operator-path',geometry:'nominal operator footprint'},
+    easyrig:{family:'vest-suspension',mobility:'operator-path',geometry:'nominal vest and suspended camera'},
     robo:{family:'remote-fixed',mobility:'fixed',geometry:'nominal mounting point'},
     pov:{family:'fixed-bracket',mobility:'fixed',geometry:'nominal mounting point'},
     rail:{family:'rail',mobility:'track-constrained',geometry:'nominal carriage and route'},
@@ -25,6 +26,7 @@ export function createGrip(){
     {id:'scorpio45',name:"Servicevision Scorpio 45′",families:['telescopic-boom'],source:'https://scorpio.servicevision.es/en/product/grips-en/telescopic-cranes/scorpio-45-en/scorpio-45/',note:'Published length 2.41–14 m; column extension 0.65 m; maximum optic-axis height 14.1 m. Published overall length is not automatically pivot-to-head distance. Use the configured boom and head offsets.'},
     {id:'jimmy-jib',name:'Stanton Jimmy Jib Triangle',families:['fixed-boom'],source:'https://www.jimmyjib.com/docs/manuals/Triangle_Pro_Standard_4C.pdf',note:'Modular fixed-length boom; identify installed sections, pivot and rear arm from the supplier drawing.'},
     {id:'steadicam',name:'Steadicam vest / arm / sled',families:['body-mounted-sled'],source:'https://flysteadicam.tiffen.com/products/steadicam-g-50x-arm',note:'Iso-elastic arm supports the balanced sled; sled mass is part of arm payload.'},
+    {id:'easyrig-cinema3',name:'Easyrig Cinema 3',families:['vest-suspension'],source:'https://easyrig.se/wp-content/uploads/2019/04/EASYRIG-3.pdf#page=2',note:'A vest and overhead support arm carry the camera from its top handle on a suspension line.'},
     {id:'glidecam-v25',name:'Glidecam V-25',families:['body-mounted-sled'],note:'Vest, spring arm and balanced sled. Confirm installed arm and sled configuration; not an electronic gimbal.'},
     {id:'agito-trax',name:'AGITO Trax',families:['rail','custom'],source:'https://motion-impossible.com/products/agito/agito-trax/',note:'Rail-constrained carriage; published chassis and gauge depend on configuration. Independent column and remote head.'},
     {id:'agito-sports',name:'AGITO Sports',families:['custom'],source:'https://motion-impossible.com/products/agito/agito-sports/',note:'Free-roaming steerable chassis; not a circular roaming envelope or a rail.'},
@@ -58,7 +60,7 @@ export function createGrip(){
     const a=p.boomElevation*Math.PI/180,co=Math.cos(a);
     return {explicit:true,valid:true,reach:p.boomLength*co,min:p.boomMin*co,max:p.boomMax*co,tail:p.rearLength*co,z:p.pivotHeight+p.boomLength*Math.sin(a)+p.headOffsetZ};
   }
-  const placementSystems={ped:'vinten-hp419',jib:'jimmy-jib'};
+  const placementSystems={ped:'vinten-hp419',jib:'jimmy-jib',easyrig:'easyrig-cinema3'};
   function placementGrip(mount,previous={}){
     const system=placementSystems[mount];
     if(!system||previous?.system===system)return {...previous};

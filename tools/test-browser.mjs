@@ -45,9 +45,9 @@ try{
   await page.goto(url);
   await text('readout-calibration','Uncalibrated');
   const picker=page.locator('#mount-palette button');
-  assert.equal(await picker.count(),12);
+  assert.equal(await picker.count(),13);
   const registry=JSON.parse(await readFile(new URL('../assets/rig-pictograms-03.json',import.meta.url),'utf8'));
-  assert.equal(Object.keys(registry).length,16);
+  assert.equal(Object.keys(registry).length,18);
   assert.equal(Object.values(registry).filter(x=>x.legacy).length,12);
   const embedded=await readFile(new URL('../index.html',import.meta.url),'utf8');
   const match=embedded.match(/const MOUNT_PICTOGRAMS = Object\.freeze\((\{[\s\S]*?\})\);\s*\/\/ #endregion mount-pictograms-03/);
@@ -60,12 +60,32 @@ try{
     const s=b.querySelector('svg'),r=s.getBoundingClientRect(),box=s.getBBox(),label=b.querySelector('span');
     return {id:b.dataset.mount,pressed:b.getAttribute('aria-pressed'),name:b.getAttribute('aria-label'),viewBox:s.getAttribute('viewBox'),markup:s.innerHTML,width:r.width,height:r.height,box:[box.x,box.y,box.width,box.height],colour:getComputedStyle(s).color,overflow:label.scrollWidth>label.clientWidth+1};
   }));
-  assert.equal(new Set(glyphs.map(g=>g.markup)).size,12,'distinct elevation pictograms');
+  assert.equal(new Set(glyphs.map(g=>g.markup)).size,13,'distinct elevation pictograms');
   assert(glyphs.every(g=>g.name&&g.viewBox==='0 0 64 48'&&g.width>=63&&g.height>=47&&!g.overflow&&g.box[0]>=0&&g.box[1]>=0&&g.box[0]+g.box[2]<=64&&g.box[1]+g.box[3]<=48),'bounded, legible picker icons');
   assert.equal(glyphs.filter(g=>g.pressed==='true').length,1);
+  for (const [id,label] of [['handheld','Handheld'],['easyrig','Easyrig']]) {
+    assert.equal(glyphs.find(g=>g.id===id)?.name,label);
+    assert(registry[id].compactSvg && registry[id].compactSvg!==registry[id].svg);
+  }
+  assert(!glyphs.some(g=>g.id==='rf'),'RF is independent of the physical support');
   await picker.filter({has:page.locator('svg[data-mount-icon="jib"]')}).click();
   assert.equal(await page.locator('[data-mount="jib"]').getAttribute('aria-pressed'),'true');
   await page.locator('#mode-select').click();
+
+  const rfNext=page.locator('#next-rf'), transport=page.locator('#cam-rf');
+  await page.locator('[data-mount="handheld"]').click();
+  await rfNext.check();
+  await page.locator('#plan').click({position:{x:300,y:330}});
+  assert.equal(await transport.inputValue(),'RF');
+  assert(!await rfNext.isChecked(),'RF applies to a single new placement');
+  await page.locator('[data-mount="handheld"]').click();
+  await page.locator('#plan').click({position:{x:520,y:330}});
+  assert.equal(await transport.inputValue(),'Unassigned','a physical mount does not imply RF or a cable');
+  assert.equal(await page.locator('#camera-rows [data-mount-icon="rf"]').count(),1);
+  await transport.selectOption('Cabled');
+  assert.equal(await page.locator('#rf-assignment').isVisible(),false);
+  await page.locator('#camera-rows tr').first().click();
+  assert.equal(await transport.inputValue(),'RF');
 
   await page.locator('#file-project').setInputFiles(fixture);
   await text('chain-summary','15 unique chains');
@@ -87,11 +107,17 @@ try{
   await page.locator('.chain-details').filter({has:page.locator('#chain-role')}).locator('summary').click();
   await page.locator('#action-alternate').click();
   await text('chain-summary','15 unique chains · 16 positions · 1 alternate(s)');
+  await transport.selectOption('RF');
+  await page.locator('#chain-rfLink').fill('TX-17 / RX-2');
+  await page.locator('#camera-rows tr').first().click();
+  assert.equal(await transport.inputValue(),'RF','linked primary and alternate share transport');
+  assert.equal(await page.locator('#chain-rfLink').inputValue(),'TX-17 / RX-2');
   await change('cam-number',77);
   await page.locator('#chain-umd').fill('TEST UMD');
   await page.locator('#chain-notes').fill('PRIVATE_TEST_INTERFACE');
   const tsv=await download('action-export-chains');
   assert.equal(tsv.trimEnd().split(/\r?\n/).length,16);assert.match(tsv,/TEST UMD/);
+  assert.match(tsv,/TX-17 \/ RX-2/);
   await page.locator('#action-share').click();
   await page.waitForFunction(()=>Boolean(window.__copied));
   const share=await page.evaluate(async()=>{

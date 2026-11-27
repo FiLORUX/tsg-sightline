@@ -11,6 +11,10 @@ const chainTests = function chainTests(C){
   check(C.analyse([c,{...p,id:'p3',chainId:'p3',positionRole:'primary'}]).issues.some(x=>x.message.includes('multiple chains')),'duplicate director/source identity');
   check(C.renumber([c,p,{...c,id:'p3',number:'9',chainDetails:{sourceId:'RF-3'}}]).map(x=>x.number).join(',')==='1,1,2','renumber by chain');
   check(C.schedule([c,p]).split('\r\n').length===2&&C.schedule([c,p]).includes('Alternate'),'one schedule row per chain');
+  for(const [rf,transport] of [[true,'RF'],[false,'Cabled'],[null,'Unassigned'],[undefined,'Unassigned']]){
+    check(C.schedule([{...c,mount:'tripodHeavy',rf}]).split('\r\n')[1].split('\t')[11]===transport,'transport is independent of the camera support');
+  }
+  check(C.sharedChanges({rf:true,mount:'handheld'}).rf===true,'RF belongs to every position on the chain');
   check(C.cell('=1+2')==="'=1+2"&&C.cell('a\tb\nc')==='a b c','spreadsheet escaping');
   check(Object.keys(C.sharedChanges({heading:4,number:'8',body:'Test'})).sort().join(',')==='body,number','position and chain fields distinct');
   return n;

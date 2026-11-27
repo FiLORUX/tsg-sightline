@@ -16,8 +16,8 @@ before anyone unloads a truck.
 ## What it does
 
 - **Rig plan symbols.** The Vinten HP 419 I pedestal, heavy tripod, ENG tripod,
-  tripod dolly, telescopic crane, Jimmy Jib Triangle, Steadicam, handheld,
-  robotic head, POV and rail dolly have distinct plan symbols. Metric footprints
+  tripod dolly, telescopic crane, Jimmy Jib Triangle, Steadicam, Handheld,
+  Easyrig, robotic head, POV and rail dolly have distinct plan symbols. Metric footprints
   use nominal equipment profiles and the position's configured geometry.
 - **Lens-driven camera silhouettes.** The barrel is sized from the fitted lens, so
   a box lens and a portable zoom on the same body read differently on the plan
@@ -26,7 +26,9 @@ before anyone unloads a truck.
   focal length and imager width and drawn as nested wide and tele sectors. On an
   arm the cone is projected from the head, not the post.
 - **Working envelopes.** Reach annulus and counterweight tail sweep for cranes,
-  arc for fixed jibs, working radius or move path for Steadicam and handheld.
+  arc for fixed jibs, working radius or move path for Steadicam, Handheld and Easyrig.
+- **RF camera links.** Choose RF under Signal link when placing any rig, or
+  set the selected chain’s transport and TX/RX assignment in the position editor.
 - **Rotation about the real axis.** The stored position is the pan axis of the
   head, the crane post or the operator's own axis, so aiming a position turns
   the kit around the point that actually stays still.

@@ -36,12 +36,14 @@ export function createChainCore(){
     for(const c of chains)for(const msg of c.errors)issues.push({chainId:c.id,number:c.number,message:msg});
     return {chains,issues,positionCount:positions.length,alternateCount:positions.filter(p=>role(p)==='alternate').length,chainCount:chains.length,primaryCount:positions.filter(p=>role(p)==='primary').length}
   }
+  // An absent value in older plans means that transport was never assigned.
+  function transport(rf){return rf===true?'RF':rf===false?'Cabled':'Unassigned'}
   function schedule(positions){
     const a=analyse(positions),header=['Director number','Chain ID','UMD / source label','Source ID','Primary coverage call','Alternate positions','Camera body','Lens','Mount','Viewfinder','Camera control','Transport','CCU / base station','RCP / paint','RF link / TX-RX','Handover format','Router input / patch','Tally interface','Return video','Camera intercom','Open confirmations','Validation'];
-    const rows=a.chains.map(c=>{const p=c.lead,d=c.details;return [c.number,c.id,d.umd,d.sourceId,c.primary.map(x=>x.label||x.mount).join(' | '),c.alternates.map(x=>x.label||x.mount).join(' | '),p.body,p.lensName||`${p.wide??''}-${p.tele??''} mm`,p.mount,p.viewfinder,p.control,p.rf?'RF':'Cabled',d.ccu,d.rcp,d.rfLink,d.handoverFormat,d.patch,d.tally,d.returnVideo,d.intercom,d.notes,c.errors.join('; ')||'No identity conflicts detected; not approved']});
+    const rows=a.chains.map(c=>{const p=c.lead,d=c.details;return [c.number,c.id,d.umd,d.sourceId,c.primary.map(x=>x.label||x.mount).join(' | '),c.alternates.map(x=>x.label||x.mount).join(' | '),p.body,p.lensName||`${p.wide??''}-${p.tele??''} mm`,p.mount,p.viewfinder,p.control,transport(p.rf),d.ccu,d.rcp,d.rfLink,d.handoverFormat,d.patch,d.tally,d.returnVideo,d.intercom,d.notes,c.errors.join('; ')||'No identity conflicts detected; not approved']});
     return [header,...rows].map(row=>row.map(cell).join('\t')).join('\r\n')
   }
   function renumber(positions){const groups=new Map();let next=1;return positions.map(p=>{const id=identity(p);if(!groups.has(id))groups.set(id,String(next++));return {...p,number:groups.get(id)}})}
   function sharedChanges(changes){const keys=['number','body','lensName','control','viewfinder','wide','tele','imagerId','imagerWidth','rf','chainDetails'];return Object.fromEntries(keys.filter(k=>Object.hasOwn(changes,k)).map(k=>[k,changes[k]]))}
-  return {fields,identity,role,details,cell,analyse,schedule,renumber,sharedChanges}
+  return {fields,identity,role,details,cell,analyse,transport,schedule,renumber,sharedChanges}
 }

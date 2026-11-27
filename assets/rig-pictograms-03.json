@@ -53,11 +53,20 @@
     "compactSvg": "<g transform=\"translate(2 0) scale(1.5)\"><path d=\"M1 15V9l3-4 2 1-2 4v4l3 .8 1-4h2l-.5 6L7 19l-5-1z\"/>\n  <path fill-rule=\"evenodd\" d=\"M8 15l2-1 8 3 1 2-2 2-9-4z M11 16l5.5 2 .5 1-6-2z M16 17l6-5 2 1.5-.3 2-6 5-2-1z M18 17.8l4.4-3.7.6.7-4.4 3.7z\"/>\n  <path d=\"M22 14l1-3 4.5-2.7 1.5 1.5-4.2 2.4-.5 2.4z\"/>\n  <path d=\"M23 3h2l1-2h5l2 2h2.2l1.3 1L39 3v4.5L36.5 7h-3l-1 1h-9z M23.5 8.6h9v1.2h-3v16h-1.8v-16h-4.2z M26.5 10h4v2h-4z\"/>\n  <path d=\"M20 26l8-1 5.6.2 1-2.5 1.5.5-1.2 4H30l-2 1.2-2-.9-5.8 1z M20 28l5.2-.7.5 3-5.4.8z M32.4 22l5.3-5 1.7 1.4-5.3 5z\"/>\n</g>"
   },
   "handheld": {
-    "label": "Shoulder camera",
+    "label": "Handheld",
     "category": "Operator support",
-    "mechanism": "Shoulder pad · operator-borne camera",
+    "mechanism": "Front view · ENG viewfinder at the right eye and a rectangular lens hood",
     "legacy": true,
-    "svg": "<circle cx=\"18\" cy=\"8\" r=\"5.6\"/><path d=\"M10 16Q16 14 23 18L29 24L21 29L17 26V44H11L8 32L7 44H3V26Z\"/><g transform=\"translate(21 9) scale(1.02)\"><path d=\"M0 3H6V0H16V3H22V5H29L34 8V13L29 16H22V18H0Z M23 8V13H25V8Z\" fill-rule=\"evenodd\"/></g><path d=\"M22 27H35V30H22Z\"/><path d=\"M20 23L29 34L43 27 M25 20L35 27L47 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
+    "svg": "<path d=\"M32.7 10c.1-4.1 2.8-6.7 7.1-6.7 4.9 0 7.9 3 7.9 7.8v3c.9.1 1 .7.8 1.6l-.6 2c-.2.6-.6.9-1.2.9-.7 2.6-2.3 4.4-4.7 5.1v1.6l-4.4 3.8-4.3-4.3 1.7-2.4a10 10 0 0 1-3.2-5.5h3.8c1.4 0 2.2-.8 2.2-2v-3.2c0-1-.8-1.7-1.7-1.7z\"/><path d=\"m33.7 27.4 3.9 3.8 5.8-5.1 5.2 1.7c3 1 4.8 3.1 5.4 6.3l1.7 9.9H16.2l-.5-6.3 1.9-5.6 2 2.7 5.4 5.2c2.1 2 4.4 2.4 7.2.8l7.4-4.7c.8-.5.1-1.7-.7-1.2L32 38.2c-1.5.6-2.8.5-3.8-.4l-5.8-6.4 2 .3 3.6 2.8 3.4-5.5z\"/><path d=\"M15.1 12.2v-2.1l2.7-.7V6.2c0-1 .6-1.6 1.6-1.6H22c.9 0 1.6.6 1.6 1.6v3.1l2.4.9 1.3 1.5h1l1-2h3.3l1.4 1.1h1.9v4.7h-2.2l-1.4.8h-2.7l-1.8-2.1H26l-1.8-2zM19.4 6.6v1.2H22V6.6z\" fill-rule=\"evenodd\"/><circle cx=\"12.3\" cy=\"9.3\" r=\"2.2\"/><path d=\"M11.4 13.2h17.7l2.3 2.5v9.1l-2.5 2.6H12l-2.6-2.8v-8.8zm2 2-1.9 2v6.7l1.6 1.6h14.8l1.4-1.6v-7.1L28 15.2z\" fill-rule=\"evenodd\"/><path d=\"M25.8 20.3a5.3 5.3 0 1 1-10.6 0 5.3 5.3 0 0 1 10.6 0zm-7.7.4a3.7 3.7 0 0 1 3.5-3.1l.1-1.1a4.4 4.4 0 0 0-5 4.1z\" fill-rule=\"evenodd\"/><path d=\"M7.5 20.1h.9v5l2.9 3.5h3.8l.2 2.8-2.6 8c-.6 1.6-1.8 2.4-3.4 2.1-1.6-.3-2.4-1.5-2.6-3.3l-.9-15.1c0-1.5.6-2.5 1.7-3zM18.4 29H22l3.8-1.2c1.1-.3 1.8 1 .9 1.6l-2.4 1.8 5.5 5.4-2.7 1.9c-.8.5-1.6.3-2.3-.3l-7.1-6.5c-1.1-.9-.6-2.7.7-2.7z\"/>",
+    "compactSvg": "<path d=\"M32.7 10c.1-4.1 2.8-6.7 7.1-6.7 4.9 0 7.9 3 7.9 7.8v3c.9.1 1 .7.8 1.6l-.6 2c-.2.6-.6.9-1.2.9-.7 2.6-2.3 4.4-4.7 5.1v1.6l-4.4 3.8-4.3-4.3 1.7-2.4a10 10 0 0 1-3.2-5.5h3.8c1.4 0 2.2-.8 2.2-2v-3.2c0-1-.8-1.7-1.7-1.7z\"/><path d=\"m33.7 27.4 3.9 3.8 5.8-5.1 5.2 1.7c3 1 4.8 3.1 5.4 6.3l1.7 9.9H16.2l-.5-6.3 1.9-5.6 2 2.7 5.4 5.2c2.1 2 4.4 2.4 7.2.8l7.4-4.7c.8-.5.1-1.7-.7-1.2L32 38.2c-1.5.6-2.8.5-3.8-.4l-5.8-6.4 2 .3 3.6 2.8 3.4-5.5z\"/><path d=\"M15.1 12.2v-2.1l2.7-.7V6.2c0-1 .6-1.6 1.6-1.6H22c.9 0 1.6.6 1.6 1.6v3.1l2.4.9 1.3 1.5h1l1-2h3.3l1.4 1.1h1.9v4.7h-2.2l-1.4.8h-2.7l-1.8-2.1H26l-1.8-2z\" fill-rule=\"evenodd\"/><circle cx=\"12.3\" cy=\"9.3\" r=\"2.2\"/><path d=\"M11.3 13.5h17.4l2.7 2.5v8.8l-2.6 2.7H12.1l-2.8-2.9v-8.7zm9.1 1.9a5.1 5.1 0 1 0 0 10.2 5.1 5.1 0 1 0 0-10.2zm2.8 5.1a2.8 2.8 0 1 1-5.6 0 2.8 2.8 0 0 1 5.6 0z\" fill-rule=\"evenodd\"/><path d=\"M7.5 20.1h.9v5l2.9 3.5h3.8l.2 2.8-2.6 8c-.6 1.6-1.8 2.4-3.4 2.1-1.6-.3-2.4-1.5-2.6-3.3l-.9-15.1c0-1.5.6-2.5 1.7-3zM18.4 29H22l3.8-1.2c1.1-.3 1.8 1 .9 1.6l-2.4 1.8 5.5 5.4-2.7 1.9c-.8.5-1.6.3-2.3-.3l-7.1-6.5c-1.1-.9-.6-2.7.7-2.7z\"/>"
+  },
+  "easyrig": {
+    "label": "Easyrig",
+    "category": "Operator support",
+    "mechanism": "Cinema 3 · curved overhead arm, suspension line and camera hook",
+    "legacy": false,
+    "svg": "<path d=\"M14.6 17.7V12c0-5.8 2.8-9 7.6-9 5.2 0 10.6 4.3 14.7 8.4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.9\" stroke-linecap=\"round\"/><path d=\"m33.7 8.4 2-1.9 5.2 5-1.1 2.7-2.3-.1z M12.6 14.8h4.2v3h-1.1v1.4H14v-1.4h-1.4z M12.6 19h4.1v24.3l-1 2.4h-2l-1.1-2.4z\"/><path fill-rule=\"evenodd\" d=\"M16 24.1c1.7-1.6 3.2-3.2 5.8-3.2 3.1 0 5.8 2.5 7.2 5.9l-1.9 1.1c-1.8-3.3-3.1-4.4-5.2-4.4-1.3 0-2.1 1-2.5 2.1L22 35l5.6-1.5 .4-6.4 1.1-.8 1.8.8-1.3 6.7c.8.2 1.4 1.2 1.3 2.6l-.4 4.3c-.1 1.1-.9 2.2-2.3 2.5L22.5 45c-2.3.5-5-.3-6.5-1.7z M19.3 37.8l.4 1.6 8.7-2.4.2-1.6z\"/><path d=\"M39.2 14v6.8q0 1.2 1.2 1.2h.6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.45\" stroke-linecap=\"round\"/><path fill-rule=\"evenodd\" d=\"M32.3 25.9h2.2v-3.5c0-.7.6-1.3 1.3-1.3h8c.8 0 1.3.6 1.3 1.3v3.5h2.2v2h2.7v-.8h2.7l2.6-1.4v8.8l-2.6-1.3H50v-1h-2.8v2H35.5L32.3 33z M36.4 23v2.9h6.7V23z M34.4 27.8v3.4H36v-3.4z M50.6 28.4v3.3h1v-3.3z\"/>",
+    "compactSvg": "<path d=\"M14 20v-8c0-5.8 2.8-8.5 7.2-8.5 6 0 12.6 5.4 17.7 10.4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.9\" stroke-linecap=\"round\"/><path fill-rule=\"evenodd\" d=\"M11.5 17.5h5v7.2c1.7-2.2 3.6-3.6 6.4-3.3 3.2.4 5.6 3.3 6.7 6.4l-2.2 1.1c-1.5-3.1-3-4.7-4.9-4.8-1.3-.1-2.6.9-2.9 2.3l2.3 8.6 5.4-1.5 .3-6.1 1.1-.8 2 .8-1.5 6.7 1.7 1.1-.6 7.3-8.2 2.7-5.6-1.6-1 2.5h-2.8l-1.2-2.3z M19.3 38l.6 2 8.1-2.6.2-1.8z\"/><path d=\"M39 14.4v8.2\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\"/><path fill-rule=\"evenodd\" d=\"M32.3 26.2h2.1v-4.6h10.8v4.6h2.4v2H51l4.7-2.2v8.8l-4.7-2h-3.4v2H35.1l-2.8-1.5z M36.7 23.6v2.6h6.2v-2.6z\"/>"
   },
   "robo": {
     "label": "Remote head / PTZ",
@@ -114,5 +123,13 @@
     "mechanism": "Guided vertical travel · remote head",
     "legacy": false,
     "svg": "<g transform=\"translate(23 3) scale(0.8)\"><path d=\"M0 1H17V4H26V14H17V17H0Z M17 7V11H19V7Z\" fill-rule=\"evenodd\"/></g><path d=\"M29 16H35V23H38V30H42V39H22V30H26V23H29Z M16 39H48V44H16Z\"/><path d=\"M12 13V34 M8 17L12 12L16 17 M8 30L12 35L16 30\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
+  },
+  "rf": {
+    "label": "RF",
+    "category": "Signal link",
+    "mechanism": "Wireless camera transmitter and receiver",
+    "legacy": false,
+    "svg": "<path d=\"M6.5 6.8v9.4h2v-3h1.9l.9 1.8h5.2l2.4 2.5v17.8L16.4 38H5.8l-2.7-2.8V18.4L5 17.3V6.8a.75.75 0 0 1 1.5 0Z M5.7 21v1.4h2.2V21z M10.4 22.2V28h5.7v-5.8z M5.7 25v5.6h1.6V25z\" fill-rule=\"evenodd\"/><path d=\"M22.8 22.6q3 2.9 0 5.8m4.6-9.3q6.1 6.4 0 12.8m4.4-16.1q9.3 9.7 0 19.4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.3\" stroke-linecap=\"round\"/><path d=\"m39 23.1 4.1-4.7H61v7l-3.8 4.8H39z M41.7 24.8v2.6h7.9v-2.6z M53.7 24.6a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 1 0 0-2.5z\" fill-rule=\"evenodd\"/><path d=\"M44 19.7v-4.3h2.7v4.3zm11.6 0v-4.3h2.7v4.3z\"/>",
+    "compactSvg": "<path d=\"M4 7h2.8v8h3.4l1.5 2H17l2.2 2.2v16.3L16.6 38h-11L3 35.2V18l1-1.2z M9.6 22v6.5h6V22z\" fill-rule=\"evenodd\"/><path d=\"M23.3 21.2q4.2 4.3 0 8.6m7.1-14.1q9.2 9.8 0 19.6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.3\" stroke-linecap=\"round\"/><path d=\"m38.5 23.3 4-4.8H61v7.3l-3.7 4.7H38.5z M41.5 24.4v3.1H50v-3.1z M53.2 24.5v2.7h2.6v-2.7z\" fill-rule=\"evenodd\"/><path d=\"M43.7 20.2v-5.6h3v5.6zm12.2 0v-5.6h3v5.6z\"/>"
   }
 }

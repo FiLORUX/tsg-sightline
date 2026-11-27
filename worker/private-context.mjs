@@ -67,7 +67,7 @@ async function readBounded(message,limit){
   const bytes=new Uint8Array(total);let offset=0;for(const chunk of parts){bytes.set(chunk,offset);offset+=chunk.byteLength}
   return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
 }
-const mounts=new Set(['tripodHeavy','ped','tripodDolly','tripodEng','crane','jib','steadicam','handheld','robo','pov','rail','special']);
+const mounts=new Set(['tripodHeavy','ped','tripodDolly','tripodEng','crane','jib','steadicam','handheld','easyrig','robo','pov','rail','special']);
 const finite=n=>typeof n==='number'&&Number.isFinite(n)&&Math.abs(n)<=1e9;
 const point=p=>p&&finite(p.x)&&finite(p.y);
 const plain=o=>o&&typeof o==='object'&&!Array.isArray(o);

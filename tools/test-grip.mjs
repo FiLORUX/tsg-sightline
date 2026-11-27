@@ -11,6 +11,9 @@ assert.equal(G.template({mount:'tripodHeavy'}).family,G.template({mount:'tripodE
 assert.deepEqual(G.placementGrip('ped'),{system:'vinten-hp419'});
 assert.deepEqual(G.placementGrip('ped',null),{system:'vinten-hp419'});
 assert.deepEqual(G.placementGrip('jib'),{system:'jimmy-jib'});
+assert.deepEqual(G.placementGrip('easyrig'),{system:'easyrig-cinema3'});
+assert.equal(G.template({mount:'easyrig'}).mobility,'operator-path');
+assert.ok(!G.compatible({mount:'handheld',grip:G.placementGrip('easyrig')}));
 const osprey={system:'vinten-osprey',head:'vector900',reference:'Osprey supplier drawing'};
 assert.deepEqual(G.placementGrip('ped',osprey),{system:'vinten-hp419',head:'vector900'});
 const hp419={system:'vinten-hp419',reference:'HP 419 drawing'};
