@@ -329,5 +329,36 @@ try{
     assert.deepEqual(errs,[]);
     console.log('Shared publication: two editors, mobile viewer, live save propagation, retained view, no repeated raster fetch and conflict resolution passed.');
   }finally{await editorA.close();await editorB.close();await viewer.close()}
+  // Publish a local project without uploading its native source. The real UI
+  // handles the public-consent step, verification and local file download.
+  const creator=await browser.newContext({viewport:{width:1280,height:900},acceptDownloads:true});
+  try{
+    const cp=await creator.newPage(),errs=[];cp.on('pageerror',e=>errs.push(e.message));
+    await cp.addInitScript(()=>{
+      Object.defineProperty(window,'showSaveFilePicker',{value:undefined,configurable:true});
+      window.turnstile={render:(sel,opts)=>{queueMicrotask(()=>opts.callback('fixture-token'));return 'fixture-widget'},remove(){},reset(){}};
+    });
+    await cp.route('**/view/config',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({sitekey:'fixture-sitekey'})}));
+    let posted=null;const newId='e'.repeat(32);
+    await cp.route('**/view/create',route=>{posted=route.request().postDataJSON();return route.fulfill({status:201,contentType:'application/json',body:JSON.stringify({projectId:newId,sequence:1})})});
+    await cp.goto(url);
+    const localProject={...old,background:{href:bg,...old.content},cameras:old.cameras.map((c,i)=>i===0?{...c,chainDetails:{notes:'LOCAL_SECRET'}}:c)};
+    await cp.locator('#file-project').setInputFiles({name:'local-project.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(localProject))});
+    await cp.waitForFunction(()=>document.getElementById('chain-summary').textContent.includes('15 unique chains'));
+    await cp.locator('#action-publish').click();
+    await cp.waitForFunction(()=>document.getElementById('publish-status').textContent.includes('Confirm the public'));
+    assert(await cp.locator('#publish-confirm').isDisabled());
+    await cp.locator('#publish-consent').check();
+    const [d]=await Promise.all([cp.waitForEvent('download'),cp.locator('#publish-confirm').click()]);
+    const local=JSON.parse(await readFile(await d.path(),'utf8'));
+    assert(posted.consent);assert.equal(posted.token,'fixture-token');
+    assert.match(posted.raster,/^data:image\/png;base64,/);
+    assert(!('background' in posted.project));assert(!('vector' in posted.project));
+    assert(!JSON.stringify(posted.project).includes('LOCAL_SECRET'));
+    assert.match(JSON.stringify(local),/LOCAL_SECRET/);assert.equal(local.publication.projectId,newId);
+    await cp.waitForFunction(()=>document.getElementById('publish-link').value.endsWith('#project='+'e'.repeat(32)));
+    assert.deepEqual(errs,[]);
+    console.log('Public consent, anonymous publish, local-file retention and safe payload regression passed.');
+  }finally{await creator.close()}
   console.log('Browser integration smoke passed (synthetic geometry; not venue acceptance).');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

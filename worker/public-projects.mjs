@@ -84,7 +84,25 @@ function pngBytes(src){
   if(bytes.length<33||bytes.length>MAX_IMAGE||![137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82].every((v,i)=>bytes[i]===v))throw Error('Invalid PNG');
   const dv=new DataView(bytes.buffer),width=dv.getUint32(16),height=dv.getUint32(20);
   if(!number(width,1,4096)||!number(height,1,4096)||width*height>12000000)throw Error('Image dimensions exceed limit');
-  return {bytes,width,height};
+  const chunks=[bytes.subarray(0,8)];let offset=8,seenIDAT=false,ended=false,count=0;
+  const allowed=new Set(['IHDR','PLTE','tRNS','IDAT','IEND','sRGB','gAMA','cHRM','pHYs']);
+  while(offset<bytes.length){
+    if(++count>8192||offset+12>bytes.length)throw Error('Invalid PNG framing');
+    const len=dv.getUint32(offset),end=offset+len+12;
+    if(end>bytes.length)throw Error('Truncated PNG');
+    const type=String.fromCharCode(...bytes.subarray(offset+4,offset+8));
+    if(!/^[A-Za-z]{4}$/.test(type)||type==='IHDR'&&offset!==8||offset===8&&type!=='IHDR')throw Error('Invalid PNG chunk');
+    if(type==='IDAT')seenIDAT=true;
+    if(type==='IEND'){if(len!==0||end!==bytes.length||!seenIDAT)throw Error('Invalid PNG ending');ended=true}
+    if(allowed.has(type))chunks.push(bytes.subarray(offset,end));
+    else if(type[0]===type[0].toUpperCase())throw Error('Unsupported PNG critical chunk');
+    offset=end;
+    if(ended)break;
+  }
+  if(!ended)throw Error('Incomplete PNG');
+  const clean=new Uint8Array(chunks.reduce((n,c)=>n+c.length,0));let pos=0;
+  for(const c of chunks){clean.set(c,pos);pos+=c.length}
+  return {bytes:clean,width,height};
 }
 async function createProject(req,env,opts){
   if(req.headers.get('Origin')!==ORIGIN)return error(403,'Origin not allowed');

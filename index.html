@@ -4529,6 +4529,7 @@
     reader.onload = () => {
       try {
         applyProject(JSON.parse(reader.result));
+        if(location.hash.startsWith('#project=')||location.hash.startsWith('#plan='))history.replaceState(null,'',location.pathname+location.search);
         projectHandle = handle || null;
         showHint(`Opened ${file.name}`, true);
       } catch (error) {
@@ -4791,20 +4792,20 @@
       if(state.sharedContext!==ctx)return;
       if(res.type==='opaqueredirect'||res.status===401){ctx.status='auth';return}
       if(res.status===403){ctx.status='denied';return}
-      if(res.status===404&&!ctx.direct){if(ctx.snapshot)applyProject(ctx.snapshot,{fromLive:true});ctx.status='missing';return}
+      if(res.status===404&&!ctx.direct){const snapshot=await portableSnapshot(ctx);if(state.sharedContext!==ctx)return;applyProject(snapshot,{fromLive:true});ctx.status='missing';return}
       if(!res.ok||!(res.headers.get('content-type')||'').includes('application/json'))throw Error('Unexpected context response');
       const declared=Number(res.headers.get('content-length'));if(declared>24*1024*1024)throw Error('Context too large');
       const bytes=await res.arrayBuffer();if(bytes.byteLength>24*1024*1024)throw Error('Context too large');
       const record=JSON.parse(new TextDecoder().decode(bytes));
       if(record?.format==='sightline-live/1')await startLive(record,res,ctx);
       else if(ctx.direct)throw Error('Invalid current publication');
-      else {if(ctx.snapshot)applyProject(ctx.snapshot,{fromLive:true});attachVenueContext(record,ctx)}
+      else {const snapshot=await portableSnapshot(ctx);if(state.sharedContext!==ctx)return;applyProject(snapshot,{fromLive:true});attachVenueContext(record,ctx)}
     }catch(err){if(state.sharedContext===ctx)ctx.status='error'}
     finally{updateContextBanner()}
   }
   async function resolveVenueContext(payload){
     const ctx=state.sharedContext||{status:'loading',url:null};state.sharedContext=ctx;updateContextBanner();
-    if(!window.isSecureContext||!globalThis.crypto?.subtle){if(ctx.snapshot)applyProject(ctx.snapshot,{fromLive:true});ctx.status='missing';updateContextBanner();return;}
+    if(!window.isSecureContext||!globalThis.crypto?.subtle){try{const snapshot=await portableSnapshot(ctx);if(state.sharedContext!==ctx)return;applyProject(snapshot,{fromLive:true});ctx.status='missing'}catch{ctx.status='error'}updateContextBanner();return;}
     try{
       const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(payload));
       const key=Array.from(new Uint8Array(hash),x=>x.toString(16).padStart(2,'0')).join('');
@@ -4832,25 +4833,22 @@
   window.addEventListener('focus',retryOnReturn);
   document.addEventListener('visibilitychange',retryOnReturn);
 
-  async function openSharedPlan(payload) {
-    try {
-      const project=JSON.parse(await unpackShare(payload));
-      // A portable URL is positions only. Never trust embedded venue assets,
-      // external drawing URLs, model registration or interface metadata.
-      delete project.background;delete project.vector;delete project.logo;delete project.previs;delete project.scaleEvidence;
-      if(Array.isArray(project.cameras))project.cameras=project.cameras.map(({chainDetails,...position})=>position);
-      stopLive();state.background=null;state.vector=null;state.logo=null;state.cameras=[];state.dimensions=[];state.selectedId=null;state.privateContextLoaded=false;
-      // Do not render the legacy snapshot until the server establishes that
-      // it is an unregistered portable link or an old context record.
-      state.sharedContext={status:'loading',url:null,snapshot:project};
-      render();void resolveVenueContext(payload);
-    } catch (error) {
-      showHint('That link does not carry a readable plan', true);
-    } finally {
-      // Preserve the portable plan fragment for reload and forwarding.
-    }
+  async function portableSnapshot(ctx){
+    if(ctx.snapshot)return ctx.snapshot;
+    if(!ctx.payload)throw Error('No portable plan');
+    const project=JSON.parse(await unpackShare(ctx.payload));
+    // A portable link is a fallback position study, not an asset source.
+    delete project.background;delete project.vector;delete project.logo;delete project.previs;delete project.scaleEvidence;
+    if(Array.isArray(project.cameras))project.cameras=project.cameras.map(({chainDetails,...position})=>position);
+    ctx.snapshot=project;return project;
   }
-
+  function openSharedPlan(payload) {
+    stopLive();state.background=null;state.vector=null;state.logo=null;state.cameras=[];state.dimensions=[];state.selectedId=null;state.privateContextLoaded=false;
+    // Resolve the stable alias before decoding the compressed legacy payload.
+    // Current public links work even without DecompressionStream support.
+    state.sharedContext={status:'loading',url:null,payload};
+    render();void resolveVenueContext(payload);
+  }
 
   // Hosted publications are distinct from local portable files. All network
   // resources are same-origin and independently authorised by the Worker.
@@ -5051,7 +5049,8 @@
     const locked=isPublicViewer();
     for(const node of document.querySelectorAll(editableSelector)){
       if(viewAllowed.has(node.id))continue;
-      if(locked){if(!node.disabled){node.dataset.viewerLock='1';node.disabled=true}}
+      const privateField=Boolean(state.live&&(node.id==='cam-control'||node.id==='cam-adapter-note'||node.id==='grip-reference'||node.id.startsWith('chain-')&&node.id!=='chain-role'));
+      if(locked||privateField){if(!node.disabled){node.dataset.viewerLock='1';node.disabled=true}}
       else if(node.dataset.viewerLock==='1'){delete node.dataset.viewerLock;node.disabled=false}
     }
     if(locked&&state.mode!=='select')setMode('select');
