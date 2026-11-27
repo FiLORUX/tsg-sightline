@@ -81,9 +81,17 @@
     overscroll-behavior: none;
   }
 
-  .workspace { display: grid; grid-template-columns: 1fr 372px; height: 100%; }
+  .workspace { display:grid; grid-template-columns:minmax(0,1fr) 372px; height:100%; min-height:0; }
+  .workspace.is-plan-only { grid-template-columns:minmax(0,1fr); }
+  .workspace.is-plan-only .panel { display:none; }
 
-  .plan-area { position: relative; overflow: hidden; background: #0f1317; }
+  .plan-area { position:relative; overflow:hidden; min-width:0; min-height:0; background:#0f1317; }
+  .zoom-controls { position:absolute; right:14px; bottom:12px; display:flex; gap:5px; padding:4px; border:1px solid var(--line); border-radius:7px; background:#151a1ff2; z-index:2; }
+  .zoom-controls button { min-width:42px; min-height:42px; padding:6px 10px; font-size:13px; font-weight:600; touch-action:manipulation; }
+  .zoom-controls button.zoom-step { font-size:23px; line-height:1; }
+  #action-plan-only[aria-pressed=true] { background:#dce6ee; color:#17232b; }
+  .scale-bar { pointer-events:none; }
+  #context-detail-toggle { display:none; }
 
   #plan { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
   #plan.is-panning { cursor: grabbing; }
@@ -252,8 +260,20 @@
   #print-sheet { display: none; }
 
   @media (max-width: 900px) {
-    .workspace { grid-template-columns: 1fr; grid-template-rows: 55vh 1fr; }
-    .panel { border-left: none; border-top: 1px solid var(--line); }
+    .workspace { height:100vh; height:100dvh; grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,62%) minmax(0,1fr); }
+    .workspace.is-plan-only { grid-template-rows:minmax(0,1fr); }
+    .panel { min-height:0; border-left:none; border-top:1px solid var(--line); overscroll-behavior:contain; }
+    .plan-area { display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto auto minmax(0,1fr); }
+    #plan { grid-row:3; grid-column:1; min-height:0; height:100%; }
+    .toolbar { position:relative; inset:auto; grid-row:1; grid-column:1; border-radius:0; border-width:0 0 1px; padding:6px 8px; gap:4px; flex-wrap:wrap; align-content:center; }
+    .toolbar button { flex:1 0 auto; min-height:38px; padding:6px 7px; font-size:12px; touch-action:manipulation; }
+    .zoom-controls { right:8px; bottom:8px; }
+    .scale-bar { left:8px; bottom:10px; }
+    .zoom-controls button { min-height:44px; min-width:44px; }
+    .mode-bar { top:auto; bottom:64px; left:8px; right:8px; max-width:none; }
+    .calibration-entry { top:auto; bottom:108px; left:8px; max-width:calc(100% - 16px); }
+    .hint { top:auto; bottom:66px; z-index:3; max-width:calc(100% - 16px); }
+    .panel input[type="text"],.panel input[type="number"],.panel select { font-size:16px; }
   }
 
   /* Printing hands the browser a sheet with physical dimensions rather than
@@ -271,7 +291,19 @@
   #context-message{margin-top:4px;color:#bfc9d0}
   .context-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-left:auto}
   #context-authorise{font-size:12px;color:#ffe0a0}
-  @media(max-width:800px){#context-banner{top:58px;left:8px;right:8px;padding:8px}.context-actions{margin-left:0}}
+  @media(max-width:900px){
+    #context-banner { grid-row:2; grid-column:1; position:relative; inset:auto; margin:0; padding:7px 9px; gap:5px 8px; border-radius:0; border-width:0 0 1px 3px; box-shadow:none; align-items:center; max-height:30vh; overflow-y:auto; }
+    #context-banner .context-copy { flex:1 1 150px; min-width:0; }
+    #context-heading { font-size:12px; line-height:1.25; }
+    #context-message { font-size:11px; line-height:1.35; }
+    #context-banner:not(.is-expanded) #context-message { display:none; }
+    #context-detail-toggle { display:inline-flex; align-items:center; padding:4px 7px; min-height:32px; font-size:11px; }
+    .context-actions { margin:0; gap:5px; }
+    .context-actions button,.context-actions a { display:inline-flex; align-items:center; min-height:34px; padding:4px 8px; font-size:11px; }
+    #context-banner:not(.is-expanded).has-authorise #context-open,
+    #context-banner:not(.is-expanded).has-authorise #context-retry { display:none; }
+    #context-authorise { text-decoration:none; background:#f0d397; color:#17232b; border:1px solid #f0d397; border-radius:4px; font-weight:650; }
+  }
   @media print{#context-banner{display:none!important}}
   #previs-pane { position:absolute; right:12px; bottom:12px; width:min(520px,66%); max-height:84%; display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--line); border-radius:9px; overflow:hidden; box-shadow:0 8px 28px #0007; z-index:4; }
   .previs-top { display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--surface-high); font-size:11px; }
@@ -332,9 +364,10 @@
     </div>
 
     <div class="hint" id="hint"></div>
-    <section id="context-banner" hidden role="status" aria-live="polite">
-      <div><strong id="context-heading">Venue drawing not loaded</strong><div id="context-message"></div></div>
-      <div class="context-actions"><button id="context-open">Open complete project</button><button id="context-retry" hidden>Retry private context</button><a id="context-authorise" target="_blank" rel="noopener noreferrer" hidden>Authorise venue context</a></div>
+    <section id="context-banner" hidden aria-label="Venue context">
+      <div class="context-copy" role="status" aria-live="polite"><strong id="context-heading">Venue drawing not loaded</strong><div id="context-message"></div></div>
+      <button id="context-detail-toggle" aria-expanded="false" aria-controls="context-message">Details</button>
+      <div class="context-actions"><a id="context-authorise" target="_blank" rel="noopener noreferrer" hidden>Sign in</a><button id="context-open" title="Open complete local project">Open file</button><button id="context-retry" hidden>Retry</button></div>
     </section>
     <section id="previs-pane" hidden aria-label="Camera previsualisation">
       <div class="previs-top"><strong>CAMERA PREVIS</strong><span id="previs-status">Concept only</span><button id="previs-close" aria-label="Close 3D preview">Close</button></div>
@@ -387,6 +420,11 @@
       <p id="calibration-note"></p>
     </div>
 
+    <div class="zoom-controls" role="group" aria-label="Plan navigation">
+      <button id="action-zoom-out" class="zoom-step" title="Zoom out" aria-label="Zoom out">−</button>
+      <button id="action-zoom-in" class="zoom-step" title="Zoom in" aria-label="Zoom in">+</button>
+      <button id="action-plan-only" aria-pressed="false" title="Expand plan and hide editing panel">Plan only</button>
+    </div>
     <div class="scale-bar">
       <div class="rule" id="scale-rule"></div>
       <span id="scale-label">20 m</span>
@@ -1324,16 +1362,32 @@
     updateScaleBar();
   }
 
+  let lastPlanSize=null;
   function fitToContent() {
-    const rect = svg.getBoundingClientRect();
-    const margin = 48;
-    state.view.k = clamp(Math.min(
-      (rect.width - margin * 2) / state.content.width,
-      (rect.height - margin * 2) / state.content.height
-    ), 0.02, 40);
-    state.view.x = (rect.width - state.content.width * state.view.k) / 2;
-    state.view.y = (rect.height - state.content.height * state.view.k) / 2;
-    applyView();
+    const rect=svg.getBoundingClientRect();
+    if(rect.width<=0||rect.height<=0)return;
+    const margin=Math.min(48,Math.max(12,Math.min(rect.width,rect.height)*.045));
+    const usableH=Math.max(1,rect.height-52);
+    state.view.k=clamp(Math.min(
+      Math.max(1,rect.width-margin*2)/state.content.width,
+      Math.max(1,usableH-margin*2)/state.content.height
+    ),.02,40);
+    state.view.x=(rect.width-state.content.width*state.view.k)/2;
+    state.view.y=(usableH-state.content.height*state.view.k)/2;
+    lastPlanSize={width:rect.width,height:rect.height};
+    applyView();renderHandles();renderCalibration();
+  }
+  function zoomAt(local,factor){
+    if(!Number.isFinite(factor)||factor<=0)return;
+    const world=localToWorld(local),k=clamp(state.view.k*factor,.02,40);
+    state.view.k=k;state.view.x=local.x-world.x*k;state.view.y=local.y-world.y*k;
+    applyView();renderHandles();renderCalibration();
+  }
+  function centreZoom(factor){const r=svg.getBoundingClientRect();zoomAt({x:r.width/2,y:r.height/2},factor)}
+  function resizePlan(){
+    const r=svg.getBoundingClientRect();if(!r.width||!r.height)return;
+    if(lastPlanSize){state.view.x+=(r.width-lastPlanSize.width)/2;state.view.y+=(r.height-lastPlanSize.height)/2}
+    lastPlanSize={width:r.width,height:r.height};applyView();renderHandles();renderCalibration();
   }
 
   /* Drawing primitives --------------------------------------------------- */
@@ -2529,9 +2583,10 @@
   }
 
   function updateScaleBar() {
-    const candidates = [1, 2, 5, 10, 20, 50, 100, 200];
-    const target = candidates.find((metres) => metres * state.pxPerMetre * state.view.k > 90)
-      || candidates[candidates.length - 1];
+    const candidates=[.01,.02,.05,.1,.2,.5,1,2,5,10,20,50,100,200,500,1000];
+    const pxPerM=state.pxPerMetre*state.view.k;
+    const desired=Math.min(94,Math.max(32,svg.getBoundingClientRect().width-236));
+    const target=candidates.reduce((best,m)=>Math.abs(Math.log(m*pxPerM/desired))<Math.abs(Math.log(best*pxPerM/desired))?m:best,candidates[0]);
     el('scale-rule').style.width = `${target * state.pxPerMetre * state.view.k}px`;
     el('scale-label').textContent = `${Spatial.trusted(state.scaleEvidence,state.pxPerMetre)?'':'~'}${target} m`;
   }
@@ -3046,6 +3101,70 @@
     }
   }
 
+  // The SVG owns touch gestures. Mouse/pen keep their original controls.
+  // A pinch may begin on any camera, handle or measurement tool. Roll back
+  // any tentative one-finger edit before accepting a second contact.
+  const touches=new Map();
+  let pinch=null,touchSequenceConsumed=false,touchEdit=null,lastTouchAt=-Infinity;
+  function snapshotTouchEdit(event){
+    const target=event.target.closest('[data-role]');
+    const c=target&&state.mode==='select'?state.cameras.find(x=>x.id===target.dataset.id):null;
+    return c?{id:c.id,x:c.x,y:c.y,heading:c.heading,headPan:c.headPan,path:c.path.map(p=>({...p}))}:null;
+  }
+  function resetDrag(rollback=false){
+    if(rollback&&touchEdit){
+      const c=state.cameras.find(x=>x.id===touchEdit.id);
+      if(c){const {id,...values}=touchEdit;Object.assign(c,values)}
+    }
+    drag.kind=null;drag.id=null;drag.pointerId=null;drag.pendingWorld=null;drag.moved=0;
+    state.rubber={start:null,end:null};svg.classList.remove('is-panning');
+  }
+  function pair(){
+    if(touches.size<2)return null;
+    const [a,b]=[...touches.values()];return {mid:{x:(a.x+b.x)/2,y:(a.y+b.y)/2},distance:Math.max(2,Math.hypot(a.x-b.x,a.y-b.y))};
+  }
+  function rebasePinch(){
+    const q=pair();pinch=q?{distance:q.distance,anchor:localToWorld(q.mid),k:state.view.k}:null;
+  }
+  function captureTouch(event){
+    try{svg.setPointerCapture(event.pointerId)}catch{}
+  }
+  function swallowTouch(event){event.preventDefault();event.stopImmediatePropagation()}
+  svg.addEventListener('pointerdown',event=>{
+    if(event.pointerType!=='touch')return;
+    lastTouchAt=performance.now();
+    if(!touches.size){touchSequenceConsumed=false;touchEdit=snapshotTouchEdit(event)}
+    touches.set(event.pointerId,clientToLocal(event));
+    if(touches.size>=2||touchSequenceConsumed){
+      if(!touchSequenceConsumed){resetDrag(true);touchEdit=null;touchSequenceConsumed=true;render()}
+      captureTouch(event);rebasePinch();swallowTouch(event);
+    }
+  },{capture:true,passive:false});
+  svg.addEventListener('pointermove',event=>{
+    if(event.pointerType!=='touch'||!touches.has(event.pointerId))return;
+    lastTouchAt=performance.now();
+    touches.set(event.pointerId,clientToLocal(event));
+    if(!touchSequenceConsumed)return;
+    const q=pair();
+    if(q&&pinch){
+      const k=clamp(pinch.k*q.distance/pinch.distance,.02,40);
+      state.view.k=k;state.view.x=q.mid.x-pinch.anchor.x*k;state.view.y=q.mid.y-pinch.anchor.y*k;
+      applyView();renderHandles();renderCalibration();
+    }
+    swallowTouch(event);
+  },{capture:true,passive:false});
+  function finishTouch(event){
+    if(event.pointerType!=='touch'||!touches.has(event.pointerId))return;
+    lastTouchAt=performance.now();touches.delete(event.pointerId);
+    if(touchSequenceConsumed){
+      rebasePinch();swallowTouch(event);
+      if(!touches.size){touchSequenceConsumed=false;pinch=null;touchEdit=null}
+      return;
+    }
+    if(event.type!=='pointerup'){resetDrag(true);render();swallowTouch(event)}
+    if(!touches.size)touchEdit=null;
+  }
+  for(const type of ['pointerup','pointercancel','lostpointercapture'])svg.addEventListener(type,finishTouch,{capture:true,passive:false});
   svg.addEventListener('pointerdown', (event) => {
     // Middle button and held space pan in every mode, so a tool that owns the
     // drag gesture never traps the operator on one corner of a large sheet.
@@ -3145,6 +3264,7 @@
 
   function endDrag(event) {
     if (event.pointerId !== drag.pointerId) return;
+    if(event.type==='pointercancel'){resetDrag(false);render();return}
 
     if (drag.kind === 'rubber') {
       const { start, end } = state.rubber;
@@ -3189,6 +3309,8 @@
   svg.addEventListener('pointercancel', endDrag);
 
   svg.addEventListener('dblclick', (event) => {
+    // Do not turn a mobile double-tap or pinch into an accidental placement.
+    if(performance.now()-lastTouchAt<700)return;
     if (state.mode === 'path') { setMode('select'); return; }
     if (state.mode !== 'select') return;
     if (performance.now() - lastPlacement < 500) return;
@@ -3219,14 +3341,7 @@
       return;
     }
 
-    const local = clientToLocal(event);
-    const world = localToWorld(local);
-    state.view.k = clamp(state.view.k * Math.exp(-event.deltaY * 0.0016), 0.02, 40);
-    state.view.x = local.x - world.x * state.view.k;
-    state.view.y = local.y - world.y * state.view.k;
-    applyView();
-    renderHandles();
-    renderCalibration();
+    zoomAt(clientToLocal(event),Math.exp(-event.deltaY*.0016));
   }, { passive: false });
 
   // Stepping through positions with the keyboard is how a plan actually gets
@@ -3357,7 +3472,14 @@
   el('mode-calibrate').addEventListener('click', () => setMode('calibrate'));
   el('mode-measure').addEventListener('click', () => setMode('measure'));
   el('mode-bar-done').addEventListener('click', () => setMode('select'));
-  el('action-fit').addEventListener('click', fitToContent);
+  el('action-fit').addEventListener('click',fitToContent);
+  el('action-zoom-in').addEventListener('click',()=>centreZoom(1.5));
+  el('action-zoom-out').addEventListener('click',()=>centreZoom(1/1.5));
+  el('action-plan-only').addEventListener('click',()=>{
+    const btn=el('action-plan-only'),on=document.querySelector('.workspace').classList.toggle('is-plan-only');
+    btn.setAttribute('aria-pressed',String(on));btn.textContent=on?'Show tools':'Plan only';btn.title=on?'Restore editing panel':'Expand plan and hide editing panel';
+    if(typeof ResizeObserver!=='function')resizePlan();
+  });
 
   el('calibration-apply').addEventListener('click', applyCalibration);
   el('calibration-cancel').addEventListener('click', () => {
@@ -4528,11 +4650,13 @@
     const missing=state.cameras.length>0&&!state.background&&!state.vector;
     el('context-banner').hidden=!missing;if(!missing)return;
     const c=state.sharedContext,zero=state.cameras.filter(x=>!(Number(x.throwMetres)>0)).length;
-    el('context-heading').textContent=c?.status==='loading'?'Retrieving authorised venue drawing…':'Venue drawing not loaded · position study only';
-    const detail=c?.status==='auth'?'Sign in to the private context and retry.':c?.status==='error'?'Private context could not be verified; open the complete authorised project.':c?.status==='missing'?'No private drawing has been registered for this link.':'Camera positions alone do not include a venue drawing. Open the complete project.';
+    const needsAuth=c?.status==='auth'||c?.status==='denied';
+    el('context-banner').classList.toggle('has-authorise',needsAuth);
+    el('context-heading').textContent=c?.status==='loading'?'Loading venue drawing…':c?.status==='auth'?'Sign in to view venue drawing':c?.status==='denied'?'Venue drawing access denied':'No venue drawing · position study only';
+    const detail=c?.status==='auth'?'Sign in with an approved account, then return to this tab.':c?.status==='denied'?'The current account is not authorised, or the access configuration rejected the request. Check the approved account.':c?.status==='error'?'Private context could not be verified; open the complete authorised project.':c?.status==='missing'?'No private drawing has been registered for this link.':'Camera positions alone do not include a venue drawing. Open the complete project.';
     el('context-message').textContent=detail+(zero?' '+zero+' position(s) have no plan throw.':'');
     el('context-retry').hidden=!c?.url||c.status==='loading';
-    el('context-authorise').hidden=c?.status!=='auth'||!c?.url;
+    el('context-authorise').hidden=!needsAuth||!c?.url;
     if(c?.url)el('context-authorise').href=c.url;
   }
   // Least-squares similarity (uniform scale, rotation, translation; no
@@ -4599,7 +4723,8 @@
     try{
       const res=await fetch(ctx.url,{credentials:'same-origin',redirect:'manual',cache:'no-store'});
       if(state.sharedContext!==ctx)return;
-      if(res.type==='opaqueredirect'||res.status===401||res.status===403){ctx.status='auth';return}
+      if(res.type==='opaqueredirect'||res.status===401){ctx.status='auth';return}
+      if(res.status===403){ctx.status='denied';return}
       if(res.status===404){ctx.status='missing';return}
       if(!res.ok||!(res.headers.get('content-type')||'').includes('application/json'))throw Error('Unexpected context response');
       const declared=Number(res.headers.get('content-length'));if(declared>24*1024*1024)throw Error('Context too large');
@@ -4618,8 +4743,22 @@
       await fetchVenueContext(ctx);
     }catch{if(state.sharedContext===ctx){ctx.status='error';updateContextBanner()}}
   }
+  el('context-detail-toggle').addEventListener('click',()=>{
+    const open=el('context-banner').classList.toggle('is-expanded');
+    el('context-detail-toggle').setAttribute('aria-expanded',String(open));
+    el('context-detail-toggle').textContent=open?'Less':'Details';
+  });
   el('context-open').addEventListener('click',()=>openProjectFile());
   el('context-retry').addEventListener('click',()=>fetchVenueContext(state.sharedContext));
+  let pendingAuthReturn=null;
+  el('context-authorise').addEventListener('click',()=>{pendingAuthReturn=state.sharedContext});
+  function retryOnReturn(){
+    if(document.visibilityState!=='visible'||!pendingAuthReturn)return;
+    const ctx=pendingAuthReturn;pendingAuthReturn=null;
+    if(state.sharedContext===ctx&&['auth','denied'].includes(ctx.status))void fetchVenueContext(ctx);
+  }
+  window.addEventListener('focus',retryOnReturn);
+  document.addEventListener('visibilitychange',retryOnReturn);
 
   async function openSharedPlan(payload) {
     try {
@@ -4989,7 +5128,8 @@ void main(){float shade=1.0;if(lit){vec3 n=cross(dFdx(world),dFdy(world));float 
 
   /* Start-up ------------------------------------------------------------- */
 
-  window.addEventListener('resize', applyView);
+  if(typeof ResizeObserver==='function')new ResizeObserver(resizePlan).observe(svg);
+  else window.addEventListener('resize',resizePlan);
 
   el('meta-date').value = new Date().toISOString().slice(0, 10);
   el('action-save-as').hidden = !hasFilePicker;
