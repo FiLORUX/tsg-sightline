@@ -12,6 +12,7 @@
 // list per surface lives in thast.se/internal/data/surfaces.json and the
 // nightly loop asserts that no origin is ever indexable.
 import { privateContext } from './private-context.mjs';
+export { ProjectEvents } from './project-events.mjs';
 
 const CANONICAL = 'https://tsg.thast.live/sightline';
 const ORIGIN_SUFFIX = '.workers.dev';
