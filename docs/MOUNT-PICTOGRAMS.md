@@ -1,6 +1,23 @@
 # Mount pictograms
 
-Sightline uses two deliberately separate drawing conventions.
+![Handheld ENG camera facing the viewer, Easyrig Cinema 3 in profile and a transmitter–receiver pair](../assets/handheld-easyrig-rf.svg)
+
+## Place a rig and assign its link
+
+1. In **Mounts**, select **Handheld** or **Easyrig**. For a wireless camera, tick **RF on next placement** under **Signal link**.
+2. Click the plan to place the camera. The RF choice clears after that placement. A fresh camera has **Unassigned** transport unless you explicitly choose RF. You can set a working radius or draw a move path for either rig.
+3. For an existing position, use **Camera chain transport** to choose **RF**, **Cabled** or **Unassigned**. In the local project, enter the transmitter and receiver IDs for an RF chain under **RF link / TX-RX assignment**. A primary and its linked alternates share the transport and assignment. The rig is set per position.
+
+| Output | Transport and assignment |
+| --- | --- |
+| **Copy position list** | One row per position, including transport. |
+| **Export chain schedule TSV** | One row per camera chain, including transport and the recorded TX/RX assignment. |
+| **Save local** | The project keeps the rig, transport and TX/RX assignment. |
+| **Copy share link** and public viewer | The rig and RF state travel with the plot. TX/RX assignments stay out of the shared view. |
+
+An older `handheld` position or legacy `type: hand` opens as **Handheld**. Explicit RF and cabled settings are retained. A missing transport value opens as **Unassigned**.
+
+## Reading the symbols
 
 - Version 03 uses 64 × 48 filled elevation silhouettes, negative-space counters, shared payload geometry, complete labels and a high-contrast monochrome selected state. The editable registry is `assets/rig-pictograms-03.json`; the single-file app embeds the same registry.
 - The plan and its legend use oriented plan-view schematic glyphs. Neutral linework improves contrast on CAD and in monochrome output. Camera numbers, RF and alternate-position state remain annotations; metric footprint and optical frustum remain independent.

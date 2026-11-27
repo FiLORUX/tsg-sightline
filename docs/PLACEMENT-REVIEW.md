@@ -53,6 +53,8 @@ production schedule. Neither renumbering nor an automatically passing schedule
 confirms the mapping. Keep superseded positions and their rationale in the
 controlled revision record, rather than silently overwriting the evidence.
 
+Record the physical support per position and the RF transport and TX/RX assignment per camera chain. [Rig and RF guide](MOUNT-PICTOGRAMS.md#place-a-rig-and-assign-its-link)
+
 ## 3. Review scale, position and pose separately
 
 For each position, record the evidence, reviewer, date, status and any open

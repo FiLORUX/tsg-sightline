@@ -5,9 +5,10 @@ TSG tool set. Drop a venue drawing in, set the scale once, and place camera
 positions whose footprints, coverage and working envelopes are drawn to true
 size. The output is a camera plan sheet a rigging crew can work from.
 
-Everything lives in `index.html`. There is no build step, no dependency and no
-network access at runtime. Open the file in a browser or host it on any static
-server.
+The plan editor runs from `index.html` without a build step. Open it in a browser
+for local projects. The hosted application also supports publishing and live updates.
+
+[Open Sightline](https://tsg.thast.live/sightline/) · [Operator handbook](https://docs.xn--thst-roa.se/tsg-sightline/) · [Illustrated rig and RF guide](docs/MOUNT-PICTOGRAMS.md)
 
 The name refers to what the tool draws that a general drawing program does not:
 the line from each lens to what it covers, at scale, so a position can be judged
@@ -46,11 +47,10 @@ before anyone unloads a truck.
   PDF" is the PDF export. SVG exports carry the same physical dimensions.
 - **Output.** SVG with the base plan embedded, PNG at twice sheet resolution,
   print, and a tab-separated camera list for the rigging schedule.
-- **Nothing lost, nothing uploaded.** The project file is the source of truth
-  and stays with the production. Around it: an autosave in the browser for
-  crash recovery, a save that writes back to the same file where the browser
-  allows it, and a share link that carries positions and title block in the
-  URL itself, never the drawing.
+- **Saving and sharing.** Save local keeps the full project and camera-chain
+  assignments. Copy share link can carry a position study in the URL. Publish
+  & save creates an unlisted hosted view with the assets you approve. TX/RX
+  assignments are available in the local project and chain schedule.
 
 ## Using it
 
