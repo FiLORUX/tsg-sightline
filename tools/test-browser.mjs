@@ -265,5 +265,62 @@ try{
     assert.deepEqual(mobileErrors,[]);
     console.log('Touch input: anchored pinch, midpoint translation, placement safety, explicit zoom, expanded plan and context retry passed.');
   }finally{await mobile.close()}
+  // Two independent sessions using the same current publication. Simulate
+  // an edge origin; use the real browser code, not an in-page state mock.
+  const id='f'.repeat(32),projectUrl=url+'#project='+id,liveKey='/context/project/'+id+'.json';
+  const binary=Buffer.from(r04bg.split(',')[1],'base64'),assetName=createHash('sha256').update(binary).digest('hex')+'.png';
+  let publication={format:'sightline-live/1',projectId:id,sequence:10,publishedAt:new Date().toISOString(),project:{...r04.project,background:null},assets:{background:{name:assetName,bytes:binary.length,width:2000,height:1300}}};
+  let assetGets=0,saves=0,viewerGets=0;
+  const activeTag=()=>'"publication-'+publication.sequence+'"';
+  async function origin(route,role){
+    const req=route.request(),u=new URL(req.url());
+    if(u.pathname.endsWith('/asset/'+assetName)){assetGets++;return route.fulfill({status:200,contentType:'image/png',body:binary})}
+    const headers={'ETag':activeTag(),'X-Sightline-Role':role,'Cache-Control':'private, no-store'};
+    if(req.method()==='PUT'){
+      if(role!=='editor')return route.fulfill({status:403,headers,body:'{}'});
+      if(req.headers()['if-match']!==activeTag())return route.fulfill({status:412,headers,body:'{}'});
+      const edit=req.postDataJSON();publication={...publication,sequence:publication.sequence+1,publishedAt:new Date().toISOString(),project:{...publication.project,...edit}};saves++;
+      return route.fulfill({status:200,headers:{...headers,ETag:activeTag()},contentType:'application/json',body:JSON.stringify({sequence:publication.sequence,publishedAt:publication.publishedAt})});
+    }
+    if(role==='viewer')viewerGets++;
+    if(req.headers()['if-none-match']===activeTag())return route.fulfill({status:304,headers});
+    return route.fulfill({status:200,headers,contentType:'application/json',body:JSON.stringify(publication)});
+  }
+  const [editorA,editorB,viewer]=await Promise.all([browser.newContext({viewport:{width:1440,height:900}}),browser.newContext({viewport:{width:1440,height:900}}),browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true})]);
+  try{
+    const [a,b,v]=await Promise.all([editorA.newPage(),editorB.newPage(),viewer.newPage()]);
+    const errs=[];for(const [p,role] of [[a,'editor'],[b,'editor'],[v,'viewer']]){
+      p.on('pageerror',e=>errs.push(e.message));await p.route('**/context/project/'+id+'/**',route=>origin(route,role));
+      await p.route('**'+liveKey,route=>origin(route,role));
+      await p.route('**/context/'+key+'.json',route=>origin(route,role));
+    }
+    await Promise.all([a.goto(projectUrl),b.goto(projectUrl),v.goto(url+'#plan=d.'+legacy)]);
+    const live=async(p,txt)=>p.waitForFunction(t=>document.getElementById('live-indicator')?.textContent.includes(t),txt);
+    await Promise.all([live(a,'10 · Current'),live(b,'10 · Current'),live(v,'10 · Current')]);
+    assert.equal(assetGets,3);assert.equal(await v.locator('#meta-revision').inputValue(),'R04');
+    assert(await v.locator('#live-save').isHidden());
+    await v.locator('#action-zoom-in').tap();
+    const transform=await v.locator('#viewport').getAttribute('transform');
+    await a.locator('#camera-rows tr').first().click();await a.locator('#cam-number').fill('101');await a.locator('#cam-number').blur();
+    await live(a,'Unsaved changes');await a.locator('#live-save').click();
+    await live(a,'11 · Current');await Promise.all([live(b,'11 · Current'),live(v,'11 · Current')]);
+    assert.match(await v.locator('#camera-rows tr').first().textContent(),/101/);
+    assert.equal(await v.locator('#viewport').getAttribute('transform'),transform);
+    assert.equal(assetGets,3,'unchanged background downloaded once per session');
+    assert.equal(saves,1);
+    // Both editors change a position; B must not lose its local draft.
+    await b.locator('#camera-rows tr').first().click();await b.locator('#cam-number').fill('202');await b.locator('#cam-number').blur();await live(b,'Unsaved changes');
+    await a.locator('#camera-rows tr').first().click();await a.locator('#cam-number').fill('303');await a.locator('#cam-number').blur();await live(a,'Unsaved changes');await a.locator('#live-save').click();
+    await live(a,'12 · Current');await live(b,'Local draft · update available');
+    assert.equal(await b.locator('#cam-number').inputValue(),'202');
+    assert(await b.locator('#live-save').isDisabled());assert(await b.locator('#live-copy').isVisible());
+    b.once('dialog',d=>d.accept());await b.locator('#live-latest').click();await live(b,'12 · Current');
+    await b.locator('#camera-rows tr').first().click();assert.equal(await b.locator('#cam-number').inputValue(),'303');
+    await live(v,'12 · Current');
+    assert.equal(assetGets,3);assert.equal(saves,2);assert(viewerGets>=2);
+    assert.equal(await v.evaluate(()=>localStorage.getItem('tsg-sightline/autosave')),null,'private project not persisted to autosave');
+    assert.deepEqual(errs,[]);
+    console.log('Shared publication: two editors, mobile viewer, live save propagation, retained view, no repeated raster fetch and conflict resolution passed.');
+  }finally{await editorA.close();await editorB.close();await viewer.close()}
   console.log('Browser integration smoke passed (synthetic geometry; not venue acceptance).');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
