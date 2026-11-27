@@ -4333,7 +4333,7 @@
       render();
     }
     const moved=fit?fit.maxResidualPx/targetScale:null;
-    showHint(`Authorised context: ${fromRevision} → ${p.meta.revision}. ${state.cameras.length} positions, ${state.cameras.filter(c=>c.positionRole==='alternate').length} alternate(s)`+(moved===null?'':`; largest shift ${moved.toFixed(2)} m after best fit`)+'. Scale is drawing-derived until confirmed.',true,9000);
+    showHint(`Authorised context: ${fromRevision} → ${p.meta.revision}. ${state.cameras.length} positions, ${state.cameras.filter(c=>c.positionRole==='alternate').length} alternate(s)`+(moved===null?'':`; largest shift ${moved.toFixed(2)} m after best fit`)+`. Scale status: ${state.scaleEvidence?.status||'uncalibrated'}${state.scaleEvidence?.status==='estimated'?' (confirm against a checked dimension)':''}.`,true,9000);
   }
   function attachVenueContext(source,ctx){
     if(state.sharedContext!==ctx||state.background||state.vector)throw Error('Plan changed before context arrived');
