@@ -120,14 +120,14 @@ try{
     const g=c.getContext('2d');g.fillStyle='#eee';g.fillRect(0,0,width,height);g.strokeStyle='#555';g.strokeRect(30,30,width-60,height-60);return c.toDataURL('image/png');
   },old.content);
   const privateProject={format:old.format,meta:old.meta,content:old.content,pxPerMetre:old.pxPerMetre,background:{href:bg,...old.content}};
-  await page.route('**/context/'+key+'.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(privateProject)}));
+  await page.route('**/view/alias/'+key+'.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(privateProject)}));
   await page.reload();
   await page.waitForFunction(()=>document.getElementById('context-banner').hidden);
   assert.match(await page.locator('#layer-background').getAttribute('href'),/^data:image\/png;base64,/);
   await text('chain-summary','15 unique chains');
   await text('readout-calibration','Uncalibrated');
   assert.match(page.url(),/#plan=d\./);
-  await page.unroute('**/context/'+key+'.json');
+  await page.unroute('**/view/alias/'+key+'.json');
   // Synthetic authorised revision migration: the later revision has another
   // frame and scale and one alternate position, and the original link must
   // keep working unchanged.
@@ -138,7 +138,7 @@ try{
   const r04={format:'sightline-context/2',
     migration:{from:{revision:old.meta.revision,content:old.content,pxPerMetre:old.pxPerMetre},to:{revision:'R04',pxPerMetre:R04_SCALE}},
     project:{format:old.format,meta:{...old.meta,revision:'R04'},content:{width:2000,height:1300},pxPerMetre:R04_SCALE,calibrated:false,background:{href:r04bg,width:2000,height:1300},cameras:r04cameras,dimensions:[]}};
-  await page.route('**/context/'+key+'.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(r04)}));
+  await page.route('**/view/alias/'+key+'.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(r04)}));
   await page.reload();
   await page.waitForFunction(()=>document.getElementById('context-banner').hidden);
   assert.equal(await page.locator('#meta-revision').inputValue(),'R04');
@@ -151,12 +151,12 @@ try{
   assert.equal(await page.locator('#meta-revision').inputValue(),'R04');
   // Fail closed: a record that names another source frame must not apply.
   r04.migration.from.revision='R99';
-  await page.unroute('**/context/'+key+'.json');
-  await page.route('**/context/'+key+'.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(r04)}));
+  await page.unroute('**/view/alias/'+key+'.json');
+  await page.route('**/view/alias/'+key+'.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(r04)}));
   await page.reload();
   await text('context-message','could not be verified');
   assert.equal(await page.locator('#meta-revision').inputValue(),old.meta.revision);
-  await page.unroute('**/context/'+key+'.json');
+  await page.unroute('**/view/alias/'+key+'.json');
   // Reset to the position-only link before testing the optical editor.
   await page.reload();
   await text('chain-summary','15 unique chains');
@@ -211,7 +211,7 @@ try{
     const mp=await mobile.newPage();
     const mobileErrors=[];mp.on('pageerror',e=>mobileErrors.push(e.message));
     let authenticated=false;
-    await mp.route('**/context/'+key+'.json*',route=>{
+    await mp.route('**/view/alias/'+key+'.json*',route=>{
       if(new URL(route.request().url()).searchParams.get('view')==='authorise')return route.fulfill({status:200,contentType:'text/html',body:'<h1>Venue access confirmed</h1>'});
       return authenticated?route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(privateProject)}):route.fulfill({status:401,contentType:'application/json',body:'{}'});
     });
@@ -267,7 +267,7 @@ try{
   }finally{await mobile.close()}
   // Two independent sessions using the same current publication. Simulate
   // an edge origin; use the real browser code, not an in-page state mock.
-  const id='f'.repeat(32),projectUrl=url+'#project='+id,liveKey='/context/project/'+id+'.json';
+  const id='f'.repeat(32),projectUrl=url+'#project='+id,liveKey='/view/project/'+id+'.json',adminKey='/context/admin/project/'+id+'.json';
   const binary=Buffer.from(r04bg.split(',')[1],'base64'),assetName=createHash('sha256').update(binary).digest('hex')+'.png';
   let publication={format:'sightline-live/1',projectId:id,sequence:10,publishedAt:new Date().toISOString(),project:{...r04.project,background:null},assets:{background:{name:assetName,bytes:binary.length,width:2000,height:1300}}};
   let assetGets=0,saves=0,viewerGets=0;const sockets=new Set();let invalidations=0;
@@ -292,16 +292,20 @@ try{
     const [a,b,v]=await Promise.all([editorA.newPage(),editorB.newPage(),viewer.newPage()]);
     const errs=[];for(const [p,role] of [[a,'editor'],[b,'editor'],[v,'viewer']]){
       p.on('pageerror',e=>errs.push(e.message));
-      if(role==='editor')await p.routeWebSocket('**/context/project/'+id+'/events',socket=>{sockets.add(socket);socket.onClose(()=>sockets.delete(socket))});
-      await p.route('**/context/project/'+id+'/**',route=>origin(route,role));
+      await p.route('**/context/admin/session',route=>route.fulfill({status:role==='editor'?200:403,contentType:'application/json',body:JSON.stringify({role})}));
+      if(role==='editor')await p.addInitScript(()=>sessionStorage.setItem('sightline.owner-intent','1'));
+      await p.route('**'+adminKey,route=>origin(route,role));
+      if(role==='editor')await p.routeWebSocket('**/view/project/'+id+'/events',socket=>{sockets.add(socket);socket.onClose(()=>sockets.delete(socket))});
+      await p.route('**/view/project/'+id+'/**',route=>origin(route,role));
       await p.route('**'+liveKey,route=>origin(route,role));
-      await p.route('**/context/'+key+'.json',route=>origin(route,role));
+      await p.route('**/view/alias/'+key+'.json',route=>origin(route,role));
     }
     await Promise.all([a.goto(projectUrl),b.goto(projectUrl),v.goto(url+'#plan=d.'+legacy)]);
     const live=async(p,txt)=>p.waitForFunction(t=>document.getElementById('live-indicator')?.textContent.includes(t),txt);
     await Promise.all([live(a,'10 · Current'),live(b,'10 · Current'),live(v,'10 · Current')]);
+    await a.waitForFunction(()=>!document.getElementById('live-save').hidden);await b.waitForFunction(()=>!document.getElementById('live-save').hidden);
     assert.equal(assetGets,3);assert.equal(await v.locator('#meta-revision').inputValue(),'R04');
-    assert(await v.locator('#live-save').isHidden());
+    assert(await v.locator('#live-save').isHidden());assert(await v.locator('#live-owner').isVisible());assert(await v.locator('#meta-revision').isDisabled());
     await v.locator('#action-zoom-in').tap();
     const transform=await v.locator('#viewport').getAttribute('transform');
     await a.locator('#camera-rows tr').first().click();await a.locator('#cam-number').fill('101');await a.locator('#cam-number').blur();

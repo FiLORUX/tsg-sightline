@@ -4787,7 +4787,7 @@
     if(!ctx?.url||state.sharedContext!==ctx||state.background||state.vector)return;
     ctx.status='loading';updateContextBanner();
     try{
-      const res=await fetch(ctx.url,{credentials:'same-origin',redirect:'manual',cache:'no-store'});
+      const res=await fetch(ctx.url,{credentials:'omit',redirect:'manual',cache:'no-store'});
       if(state.sharedContext!==ctx)return;
       if(res.type==='opaqueredirect'||res.status===401){ctx.status='auth';return}
       if(res.status===403){ctx.status='denied';return}
@@ -4868,12 +4868,12 @@
   function isDirty(l){return !!l.baseline&&(editSignature()!==l.baseline||frameSignature()!==l.frame||state.background!==l.background||state.vector!==l.vector||state.logo!==l.logo)}
   function canSave(l){return frameSignature()===l.frame&&state.background===l.background&&state.vector===l.vector&&state.logo===l.logo}
   let liveStatusFrame=0;
-  function scheduleLiveStatus(){if(!state.live||liveStatusFrame)return;liveStatusFrame=requestAnimationFrame(()=>{liveStatusFrame=0;updateLiveStatus()})}
+  function scheduleLiveStatus(){if(liveStatusFrame)return;liveStatusFrame=requestAnimationFrame(()=>{liveStatusFrame=0;updateLiveStatus()})}
   function updateLiveStatus(){
     const l=state.live,bar=el('live-status');bar.hidden=!l;
     document.querySelector('.workspace').classList.toggle('public-viewer',Boolean(l&&l.role!=='editor'));
-    el('action-publish').disabled=Boolean(l||state.privateContextLoaded);
-    if(!l){el('action-save-project').textContent='Save local';return}
+    el('action-publish').disabled=Boolean(l||state.privateContextLoaded||state.sharedContext&&state.sharedContext.status!=='missing');
+    if(!l){el('action-save-project').textContent='Save local';applyViewerControls();return}
     const dirty=isDirty(l),stateLabel=l.status==='conflict'?'Local draft · update available':l.status==='offline'?'Offline · last checked '+new Date(l.checked||Date.now()).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):l.status==='saving'?'Saving…':l.status==='syncing'?'Updating…':dirty?'Unsaved changes':'Current';
     bar.dataset.state=l.status;el('live-indicator').textContent=(l.revision||'Project')+' · '+(l.sequence||'')+' · '+stateLabel;
     el('live-save').hidden=l.role!=='editor';el('live-save').disabled=!dirty||l.busy||l.status==='conflict'||l.status==='offline'||!canSave(l);
@@ -4973,7 +4973,7 @@
     l.busy=true;
     try{
       const requestHeaders={};if(l.etag&&!force)requestHeaders['If-None-Match']=l.etag;
-      const res=await fetch(l.url,{credentials:'same-origin',redirect:'manual',cache:'no-store',headers:requestHeaders});
+      const res=await fetch(l.url,{credentials:'omit',redirect:'manual',cache:'no-store',headers:requestHeaders});
       if(state.live!==l)return;
       if(res.type==='opaqueredirect'||res.status===401){loseAccess(l,'auth');return}
       if(res.status===403){loseAccess(l,'denied');return}
@@ -5039,7 +5039,7 @@
     try{
       const res=await fetch(new URL('./context/admin/session',location.href.split('#')[0]),{credentials:'same-origin',redirect:'manual',cache:'no-store'});
       ownerSession=res.ok&&res.headers.get('content-type')?.includes('application/json')&&(await res.json()).role==='editor';
-      if(state.live){state.live.role=ownerSession?'editor':'viewer';updateLiveStatus();render()}
+      if(state.live&&state.live.role!==(ownerSession?'editor':'viewer')){state.live.role=ownerSession?'editor':'viewer';updateLiveStatus();render()}
       el('owner-status').textContent=ownerSession?'Owner session active.':'Continue through Cloudflare Access, then return to this tab.';
       if(ownerSession&&el('owner-dialog').open)el('owner-dialog').close();
     }catch{ownerSession=false;if(state.live){state.live.role='viewer';updateLiveStatus()}el('owner-status').textContent='Could not verify the editor session. Try again.'}
@@ -5059,7 +5059,7 @@
   function forkLocal(){
     if(!state.live)return;
     // Public derivatives can travel with a local project, never with raw CAD.
-    stopLive();state.sharedContext=null;state.privateContextLoaded=false;projectHandle=null;
+    stopLive();state.sharedContext=null;state.privateContextLoaded=false;projectHandle=null;applyViewerControls();
     history.replaceState(null,'',location.pathname);render();showHint('Local copy. Changes are not published.',true,2600)
   }
   el('live-owner').addEventListener('click',openOwnerDialog);
@@ -5070,7 +5070,7 @@
   el('action-new-local').addEventListener('click',()=>{window.open(new URL('./',location.href.split('#')[0]).href,'_blank','noopener')});
   function snapshotForPublic(){
     const p=buildProject();
-    const copy=JSON.parse(JSON.stringify(p));delete copy.background;delete copy.vector;delete copy.logo;
+    const {background,vector,logo,...plot}=p;const copy=JSON.parse(JSON.stringify(plot));
     copy.cameras=copy.cameras.map(({chainDetails,control,adapterNote,...camera})=>{if(camera.grip)delete camera.grip.reference;return camera});
     if(copy.scaleEvidence)copy.scaleEvidence.source='Published drawing reference';
     return copy;

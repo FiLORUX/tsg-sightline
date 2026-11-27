@@ -2,10 +2,12 @@ import {createHash} from 'node:crypto';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import {resolve,relative,isAbsolute,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {publicRecord} from '../worker/public-projects.mjs';
 
 const args=process.argv.slice(2);
 const opt=k=>{const i=args.indexOf(k);return i<0?null:args.splice(i,2)[1]};
 const id=opt('--project'),sequence=Number(opt('--sequence')),geometry=opt('--glb'),revision=opt('--revision');
+const publicIndex=args.indexOf('--public-approved'),publicApproved=publicIndex>=0;if(publicApproved)args.splice(publicIndex,1);
 const [input,out,...links]=args;
 const fail=s=>{throw Error(s)};
 if(!input||!out||!/^[a-f0-9]{32}$/.test(id||'')||!Number.isSafeInteger(sequence)||sequence<1)fail('Usage: build-live-project.mjs <project.json> <private-output-dir> --project <32 hex> --sequence <integer> [--revision R04] [--glb file] [legacy links or digests ...]');
@@ -28,6 +30,7 @@ if(p.background){
   if(!m||b.width!==p.content.width||b.height!==p.content.height)fail('Raster and source frame differ');
   assets.background=await store(Buffer.from(m[2],'base64'),m[1]==='jpeg'?'jpg':m[1],20*1024*1024,{width:b.width,height:b.height});delete p.background;
 }
+if(publicApproved&&!assets.background)fail('Public publication requires a rendered raster derivative; do not upload source vector CAD');
 if(!assets.background&&!p.vector)fail('No venue drawing');
 if(geometry){
   const b=await readFile(geometry);
@@ -35,8 +38,9 @@ if(geometry){
   assets.geometry=await store(b,'glb',160*1024*1024);
 }
 if(p.previs?.registration)p.previs.registration.confirmed=false;
-const manifest={format:'sightline-live/1',projectId:id,sequence,publishedAt:new Date().toISOString(),project:p,assets};
-const bytes=Buffer.from(JSON.stringify(manifest));if(bytes.length>24*1024*1024)fail('Manifest too large');
+let manifest={format:'sightline-live/1',projectId:id,sequence,publishedAt:new Date().toISOString(),project:p,assets};
+if(publicApproved)manifest=publicRecord({...manifest,publication:'public-view/1'},id);
+const bytes=Buffer.from(JSON.stringify(manifest));if(bytes.length>(publicApproved?2:24)*1024*1024)fail('Manifest too large');
 await writeFile(join(target,'latest.json'),bytes);
 const aliases=links.map(link=>{
   if(/^[a-f0-9]{64}$/.test(link))return link;
@@ -45,5 +49,5 @@ const aliases=links.map(link=>{
   return digest(s);
 });
 await writeFile(join(target,'alias.json'),JSON.stringify({format:'sightline-alias/1',projectId:id}));
-await writeFile(join(target,'publication.json'),JSON.stringify({projectId:id,sequence,revision:p.meta.revision,manifestKey:'projects/'+id+'/latest.json',accessKey:'projects/'+id+'/access.json',manifestSha256:digest(bytes),assetMetadata:JSON.stringify(Object.values(assets).map(a=>a.name)),assetKeys:Object.values(assets).map(a=>'projects/'+id+'/assets/'+a.name),aliasKeys:[...new Set(aliases)].map(a=>'context/'+a+'.json')},null,2));
+await writeFile(join(target,'publication.json'),JSON.stringify({projectId:id,sequence,revision:p.meta.revision,manifestKey:'projects/'+id+'/latest.json',accessKey:'projects/'+id+'/access.json',manifestSha256:digest(bytes),assetMetadata:JSON.stringify(Object.values(assets).map(a=>a.name)),publicationMetadata:{visibility:publicApproved?'public':'restricted',assets:JSON.stringify(Object.values(assets).map(a=>a.name))},derivativeMetadata:publicApproved?{publicDerivative:'1'}:{},assetKeys:Object.values(assets).map(a=>'projects/'+id+'/assets/'+a.name),aliasKeys:[...new Set(aliases)].map(a=>'context/'+a+'.json')},null,2));
 console.log(JSON.stringify({revision:p.meta.revision,sequence,manifestBytes:bytes.length,positions:p.cameras.length,chains:new Set(p.cameras.map(c=>String(c.chainId||c.id))).size,assets:Object.keys(assets),aliases:aliases.length}));
