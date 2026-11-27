@@ -205,5 +205,65 @@ try{
   await page.setViewportSize({width:390,height:844});
   assert(await page.locator('#previs-pane').isVisible());
   assert.deepEqual(errors,[]);
+  // Exercise actual multi-contact input, rather than only resizing a desktop.
+  const mobile=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,isMobile:true,hasTouch:true,acceptDownloads:true});
+  try{
+    const mp=await mobile.newPage();
+    const mobileErrors=[];mp.on('pageerror',e=>mobileErrors.push(e.message));
+    let authenticated=false;
+    await mp.route('**/context/'+key+'.json*',route=>{
+      if(new URL(route.request().url()).searchParams.get('view')==='authorise')return route.fulfill({status:200,contentType:'text/html',body:'<h1>Venue access confirmed</h1>'});
+      return authenticated?route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(privateProject)}):route.fulfill({status:401,contentType:'application/json',body:'{}'});
+    });
+    await mp.goto(url+'?case=touch#plan=d.'+legacy);
+    await mp.waitForFunction(()=>document.getElementById('context-heading').textContent==='Sign in to view venue drawing');
+    assert.equal(await mp.locator('#context-message').isVisible(),false);
+    const banner=await mp.locator('#context-banner').boundingBox(),canvas=await mp.locator('#plan').boundingBox();
+    assert(banner.y+banner.height<=canvas.y+1,'warning does not obscure plan');
+    assert(canvas.height>180,'usable canvas');
+    await mp.locator('#context-detail-toggle').tap();
+    assert(await mp.locator('#context-message').isVisible());
+    assert.match(await mp.locator('#context-authorise').getAttribute('href'),/view=authorise/);
+    authenticated=true;
+    await mp.locator('#context-retry').tap();
+    await mp.waitForFunction(()=>document.getElementById('context-banner').hidden&&document.getElementById('layer-background').getAttribute('href')?.startsWith('data:image/'));
+    assert.equal(mp.url().split('#plan=')[1],'d.'+legacy);
+    await mp.locator('#action-fit').tap();
+    const matrix=()=>mp.locator('#viewport').evaluate(g=>{const m=g.transform.baseVal.consolidate().matrix;return {k:m.a,x:m.e,y:m.f}});
+    const approx=(a,b,t=.025)=>assert.ok(Math.abs(a-b)<=t,a+' differs from '+b);
+    let v=await matrix();
+    await mp.locator('#action-zoom-in').tap();approx((await matrix()).k,v.k*1.5);
+    await mp.locator('#action-zoom-out').tap();approx((await matrix()).k,v.k);
+    const short=await mp.locator('#plan').boundingBox();
+    await mp.locator('#action-plan-only').tap();
+    await mp.waitForFunction(()=>document.querySelector('.panel').getBoundingClientRect().height===0);
+    const tall=await mp.locator('#plan').boundingBox();
+    assert(tall.height>short.height+100,'plan-only expands drawing surface');
+    await mp.locator('#action-fit').tap();
+    const cdp=await mobile.newCDPSession(mp);
+    const touch=(type,points)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints:points.map(([x,y,id])=>({x,y,id,radiusX:2,radiusY:2,force:1}))});
+    const r=await mp.locator('#plan').boundingBox(),cx=r.x+r.width*.5,cy=r.y+r.height*.42;
+    v=await matrix();
+    const world={x:(cx-r.x-v.x)/v.k,y:(cy-r.y-v.y)/v.k};
+    const count=await mp.locator('#layer-symbols > g').count();
+    await touch('touchStart',[[cx-40,cy,1],[cx+40,cy,2]]);
+    await touch('touchMove',[[cx-72+12,cy+16,1],[cx+72+12,cy+16,2]]);
+    await touch('touchEnd',[]);
+    const after=await matrix();
+    approx(after.k,v.k*1.8);
+    approx(after.x+world.x*after.k,cx-r.x+12,2);
+    approx(after.y+world.y*after.k,cy-r.y+16,2);
+    assert.equal(await mp.locator('#layer-symbols > g').count(),count);
+    await mp.locator('#action-plan-only').tap();
+    await mp.locator('[data-mount="jib"]').tap();
+    const pb=await mp.locator('#plan').boundingBox(),mx=pb.x+pb.width/2,my=pb.y+pb.height*.32;
+    await touch('touchStart',[[mx-30,my,3],[mx+30,my,4]]);
+    await touch('touchMove',[[mx-55,my,3],[mx+55,my,4]]);
+    await touch('touchEnd',[]);
+    assert.equal(await mp.locator('#layer-symbols > g').count(),count,'pinch must not place camera');
+    await mp.locator('#mode-select').tap();
+    assert.deepEqual(mobileErrors,[]);
+    console.log('Touch input: anchored pinch, midpoint translation, placement safety, explicit zoom, expanded plan and context retry passed.');
+  }finally{await mobile.close()}
   console.log('Browser integration smoke passed (synthetic geometry; not venue acceptance).');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

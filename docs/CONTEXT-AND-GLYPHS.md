@@ -15,3 +15,7 @@ A distributed link freezes one revision: its frame, its scale and its title bloc
 Build the record with `node tools/build-context-record.mjs <link> <later-project.json> <out-dir> --scale <px/m> --chains <n> --positions <n>`. It validates identity, scale, chain and position counts, and the 24 MiB origin limit, and writes `<digest>.json`. The output belongs in the private bucket, never in this repository.
 
 The per-object reader list is the `readers` custom metadata of the R2 object and must contain exactly the addresses permitted by the Cloudflare Access application. Neither list is stored in this repository.
+
+## Mobile viewing and production access
+
+The plan owns its two-contact gestures and provides explicit zoom controls and a plan-only workspace. The compact mobile context notice occupies a separate row. The authorised sign-in link returns an HTML status page rather than raw venue JSON, and the original tab retries when focus returns. Google Drive and Cloudflare Access authorisation are separate. A release must verify the actual distributed link in an approved account, including R04 background, scale, 15 chains/16 positions and optical coverage. Anonymous, denied and forged credentials must not return the private record. Touch-enabled Chromium is a regression gate; real iOS Safari acceptance and the actual live Access policy remain separate production checks.
