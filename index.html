@@ -4657,7 +4657,7 @@
     el('context-message').textContent=detail+(zero?' '+zero+' position(s) have no plan throw.':'');
     el('context-retry').hidden=!c?.url||c.status==='loading';
     el('context-authorise').hidden=!needsAuth||!c?.url;
-    if(c?.url)el('context-authorise').href=c.url;
+    if(c?.url){const url=new URL(c.url);url.searchParams.set('view','authorise');el('context-authorise').href=url.href;}
   }
   // Least-squares similarity (uniform scale, rotation, translation; no
   // reflection) between two point sets, via complex numbers. Used only to

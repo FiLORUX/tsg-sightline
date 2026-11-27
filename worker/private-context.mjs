@@ -39,5 +39,12 @@ export async function privateContext(request,env,{fetcher=fetch,clock=Date.now}=
     await object.body?.cancel().catch(()=>{});return reply(403,'Access denied');
   }
   if(!Number.isFinite(object.size)||object.size>24*1024*1024){await object.body?.cancel().catch(()=>{});return reply(413,'Context too large')}
+  // The sign-in link opens a status page, not a raw private drawing.
+  // The original app tab retries the same authenticated JSON request on return.
+  if(new URL(request.url).searchParams.get('view')==='authorise'){
+    await object.body?.cancel().catch(()=>{});
+    const headers={...HEADERS,'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'"};
+    return new Response('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sightline · Venue access</title><style>body{font:16px system-ui,sans-serif;background:#151a1f;color:#dfe6ec;padding:24px;max-width:32rem;margin:12vh auto}h1{font-size:24px}p{line-height:1.55;color:#b8c6d1}</style></head><body><h1>Venue access confirmed</h1><p>Return to your original Sightline tab. The venue drawing will be requested again automatically. If necessary, use Retry.</p><p>You can close this tab.</p></body></html>',{headers});
+  }
   return new Response(object.body,{headers:HEADERS});
 }

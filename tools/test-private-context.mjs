@@ -25,4 +25,10 @@ assert.equal((await privateContext(req('forged'),env,ctx)).status,401);assert.eq
 assert.equal((await privateContext(req(),{...env,SIGHTLINE_CONTEXTS:{async get(){return obj(['someone@example.invalid'])}}},ctx)).status,403);
 const res=await privateContext(req(),env,ctx);assert.equal(res.status,200);assert.equal(res.headers.get('cache-control'),'private, no-store');assert.equal(await res.text(),'{}');
 assert.equal((await privateContext(req(token,'POST'),env,ctx)).status,405);
+const authReq=new Request(path+'?view=authorise',{headers:{'CF-Access-Jwt-Assertion':token}});
+const auth=await privateContext(authReq,env,ctx);
+assert.equal(auth.status,200);assert.match(auth.headers.get('content-type'),/^text\/html/);
+assert.equal(auth.headers.get('cache-control'),'private, no-store');assert.match(await auth.text(),/Venue access confirmed/);
+const anon=await privateContext(new Request(path+'?view=authorise'),env,ctx);assert.equal(anon.status,401);
+assert.equal((await privateContext(authReq,{...env,SIGHTLINE_CONTEXTS:{async get(){return obj(['other@example.invalid'])}}},ctx)).status,403);
 console.log('Private context: signature, expiry, audience, issuer, ACL, disabled binding and no-store tests passed');
