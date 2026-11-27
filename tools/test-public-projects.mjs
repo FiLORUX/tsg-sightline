@@ -51,7 +51,9 @@ const legacy={format:'sightline-context/2',project:{...p,content:{width:1,height
 store(sourceKey,JSON.stringify(legacy),{readers:'["private@example.invalid"]'},'approved-source');
 const before=data.get(sourceKey).bytes.toString();
 assert.equal((await run(migrationPath)).status,409);
-const approved={...env,SIGHTLINE_PUBLIC_LEGACY_APPROVAL:migrationDigest+':approved-source'};
+const fingerprint=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',data.get(sourceKey).bytes)),v=>v.toString(16).padStart(2,'0')).join('');
+const approved={...env,SIGHTLINE_PUBLIC_LEGACY_APPROVAL:migrationDigest+':'+fingerprint};
+assert.equal((await publicContext(request(migrationPath),{...approved,SIGHTLINE_PUBLIC_LEGACY_APPROVAL:migrationDigest+':'+('0'.repeat(64))},opts)).status,409);
 const migrated=await Promise.all([publicContext(request(migrationPath),approved,opts),publicContext(request(migrationPath),approved,opts)]);
 assert(migrated.every(x=>x.status===200));const manifests=await Promise.all(migrated.map(x=>x.json()));
 const migratedId=manifests[0].projectId;
@@ -65,4 +67,4 @@ const reused=await (await run(migrationPath)).json();assert.equal(reused.project
 const mk='projects/'+migratedId+'/latest.json';data.delete(mk);
 assert.equal((await publicContext(request(migrationPath),approved,opts)).status,409,'Unpublished projects never fall back to stale private sources');
 assert(!data.has(mk));
-console.log('Explicit ETag-pinned migration, concurrent alias resolution, retained private source and no stale resurrection passed.');
+console.log('Explicit SHA-256-pinned migration, concurrent alias resolution, retained private source and no stale resurrection passed.');
