@@ -44,6 +44,19 @@ function wallGlb(){
 try{
   await page.goto(url);
   await text('readout-calibration','Uncalibrated');
+  const picker=page.locator('#mount-palette button');
+  assert.equal(await picker.count(),12);
+  const glyphs=await picker.evaluateAll(buttons=>buttons.map(b=>{
+    const s=b.querySelector('svg'),r=s.getBoundingClientRect(),box=s.getBBox(),label=b.querySelector('span');
+    return {id:b.dataset.mount,pressed:b.getAttribute('aria-pressed'),name:b.getAttribute('aria-label'),viewBox:s.getAttribute('viewBox'),markup:s.innerHTML,width:r.width,height:r.height,box:[box.x,box.y,box.width,box.height],colour:getComputedStyle(s).color,overflow:label.scrollWidth>label.clientWidth+1};
+  }));
+  assert.equal(new Set(glyphs.map(g=>g.markup)).size,12,'distinct elevation pictograms');
+  assert(glyphs.every(g=>g.name&&g.viewBox==='0 0 64 48'&&g.width>=56&&g.height>=42&&!g.overflow&&g.box[0]>=0&&g.box[1]>=0&&g.box[0]+g.box[2]<=64&&g.box[1]+g.box[3]<=48),'bounded, legible picker icons');
+  assert.equal(glyphs.filter(g=>g.pressed==='true').length,1);
+  await picker.filter({has:page.locator('svg[data-mount-icon="jib"]')}).click();
+  assert.equal(await page.locator('[data-mount="jib"]').getAttribute('aria-pressed'),'true');
+  await page.locator('#mode-select').click();
+
   await page.locator('#file-project').setInputFiles(fixture);
   await text('chain-summary','15 unique chains');
   let svg=await download('action-export-svg');

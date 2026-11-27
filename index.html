@@ -195,14 +195,21 @@
   .readout { font-family: var(--font-data); font-size: 12px; color: var(--ink-dim); line-height: 1.6; }
   .readout strong { color: var(--ink); font-weight: 600; }
 
-  .palette { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .palette { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
   .palette button {
-    display: flex; flex-direction: column; align-items: center; gap: 3px;
-    padding: 8px 2px 6px; line-height: 1.1; font-size: 9px;
-    letter-spacing: 0.03em; text-transform: uppercase; color: var(--ink-dim);
+    position:relative; display:flex; flex-direction:column; justify-content:center;
+    align-items:center; gap:5px; min-width:0; min-height:84px; padding:8px 3px;
+    background:#202a32; color:#e3eaf0; border:1px solid #394650;
+    border-radius:6px; font:600 11px/1.15 var(--font-ui); letter-spacing:0;
+    text-align:center;
   }
-  .palette button svg { width: 36px; height: 36px; }
-  .palette button.is-active { color: #191307; }
+  .palette button svg { display:block; width:57px; height:43px; flex-shrink:0; color:inherit; }
+  .palette button span { min-height:24px; max-width:100%; display:flex; align-items:center; justify-content:center; }
+  .palette button::after { content:''; position:absolute; width:5px; height:5px; top:8px; right:8px; border-radius:50%; background:var(--family,#b6c2cb); }
+  .palette button:hover { background:#293640; border-color:#738796; }
+  .palette button.is-active { background:#2d3b47; border-color:#9bc6ed; box-shadow:inset 0 0 0 1px #9bc6ed; color:#f3f7fb; }
+  .palette button:focus-visible { outline:2px solid #e3eaf0; outline-offset:2px; }
+  @media(forced-colors:active){.palette button.is-active{border:2px solid Highlight}.palette button::after{background:ButtonText}}
 
   table.camera-list { width: 100%; border-collapse: collapse; font-family: var(--font-data); font-size: 11.5px; }
   table.camera-list th {
@@ -212,7 +219,7 @@
   table.camera-list td { padding: 5px 6px 5px 0; border-top: 1px solid var(--line); white-space: nowrap; }
   table.camera-list tr.is-selected td { background: rgba(232, 179, 60, 0.12); }
   table.camera-list tbody tr { cursor: pointer; }
-  table.camera-list td svg { width: 22px; height: 22px; vertical-align: middle; }
+  table.camera-list td svg { width:28px; height:21px; vertical-align:middle; color:var(--ink); }
   table.camera-list td.truncate { max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
 
   .empty { font-size: 12px; color: var(--ink-dim); line-height: 1.5; }
@@ -755,12 +762,12 @@
   const MOUNTS = [
     { id: 'tripodHeavy', short: 'Heavy',  name: 'Heavy tripod',            colour: '#14508c', spread: 0.72 },
     { id: 'ped',         short: 'Ped',    name: 'Studio pedestal',         colour: '#1f6fb8' },
-    { id: 'tripodDolly', short: 'Dolly',  name: 'Tripod on pulley',        colour: '#2f8f8a', spread: 0.58 },
+    { id: 'tripodDolly', short: 'Dolly',  name: 'Tripod on wheeled dolly',        colour: '#2f8f8a', spread: 0.58 },
     { id: 'tripodEng',   short: 'ENG',    name: 'ENG tripod',              colour: '#4a9fd8', spread: 0.52 },
     { id: 'crane',       short: 'Crane',  name: 'Telescopic crane',        colour: '#a05fc4' },
     { id: 'jib',         short: 'Jib',    name: 'Jib arm',                 colour: '#7a52c0' },
     { id: 'steadicam',   short: 'Stead',  name: 'Steadicam',               colour: '#e8a53c' },
-    { id: 'handheld',    short: 'Hand',   name: 'Handheld',                colour: '#dd5f42' },
+    { id: 'handheld',    short: 'Hand',   name: 'Handheld / shoulder',                colour: '#dd5f42' },
     { id: 'robo',        short: 'Robo',   name: 'Robotic head',            colour: '#3aa06f' },
     { id: 'pov',         short: 'POV',    name: 'POV / minicam',           colour: '#37a8b8' },
     { id: 'rail',        short: 'Rail',   name: 'Rail or track dolly',     colour: '#c46a9a' },
@@ -1735,10 +1742,10 @@
   function rigGlyph(c,ink){
   // 68-unit schematic icon. It is not the metre-scaled rig footprint.
   const g=create('g',{'stroke-linecap':'round','stroke-linejoin':'round','fill':'none'});
-  const l=(x1,y1,x2,y2,w=2.3)=>g.appendChild(create('line',{x1,y1,x2,y2,stroke:ink.line,'stroke-width':w}));
-  const r=(x,y,w,h,rx=2,fill='#fff',sw=2)=>g.appendChild(create('rect',{x,y,width:w,height:h,rx,fill,stroke:ink.line,'stroke-width':sw}));
-  const o=(cx,cy,rr,fill='#fff',sw=2)=>g.appendChild(create('circle',{cx,cy,r:rr,fill,stroke:ink.line,'stroke-width':sw}));
-  const p=(d,fill='none',sw=2)=>g.appendChild(create('path',{d,fill,stroke:ink.line,'stroke-width':sw}));
+  const l=(x1,y1,x2,y2,w=2.3)=>g.appendChild(create('line',{x1,y1,x2,y2,stroke:ink.line,'stroke-width':Math.max(2.5,w)}));
+  const r=(x,y,w,h,rx=2,fill='#fff',sw=2)=>g.appendChild(create('rect',{x,y,width:w,height:h,rx,fill,stroke:ink.line,'stroke-width':Math.max(2.3,sw)}));
+  const o=(cx,cy,rr,fill='#fff',sw=2)=>g.appendChild(create('circle',{cx,cy,r:rr,fill,stroke:ink.line,'stroke-width':Math.max(2.3,sw)}));
+  const p=(d,fill='none',sw=2)=>g.appendChild(create('path',{d,fill,stroke:ink.line,'stroke-width':Math.max(2.3,sw)}));
   const kind=Equipment.cameraById(c.cameraPresetId)?.kind||'';
   const optics=Equipment.lensById(c.lensPresetId)?.kind||(c.tele>=400?'box':c.tele>=120?'field':'portable');
   function head(x,y,profile=optics,compact=false){
@@ -2097,7 +2104,7 @@
       const ink=palette(c),g=create('g',{'data-role':'body','data-id':c.id,style:'cursor:move'});
       g.appendChild(create('circle',{cx:c.x,cy:c.y,r:size*.49,fill:'#fff','fill-opacity':.94,stroke:ink.line,'stroke-width':.7,'stroke-opacity':.55,'vector-effect':'non-scaling-stroke'}));
       if(c.id===state.selectedId)g.appendChild(create('circle',{cx:c.x,cy:c.y,r:size*.58,fill:'none',stroke:ink.line,'stroke-width':1.4,'stroke-dasharray':'4 3','vector-effect':'non-scaling-stroke'}));
-      g.appendChild(schematicGlyph(c,ink,c.x,c.y,size,Number(c.heading)||0));layers.badges.appendChild(g);
+      g.appendChild(schematicGlyph(c,{line:'#253642',solid:'#253642',tint:'#253642'},c.x,c.y,size,Number(c.heading)||0));layers.badges.appendChild(g);
       const alt=c.positionRole==='alternate',n=String(c.number??'?').slice(0,8),raw=String(c.label||'');
       const label=(raw.length>32?raw.slice(0,31)+'…':raw)+(alt?' · ALT':'')+(c.rf?' · RF':'');
       const nw=Math.max(31*A,(n.length*11+12)*A),w=nw+Math.max(0,label.length*font*.61+12*A),gap=size*.64;
@@ -2371,7 +2378,7 @@
           ? { line: '#14181c', solid: '#14181c', tint: '#14181c' }
           : { line: mount.colour, solid: mount.colour, tint: mount.colour };
 
-        group.appendChild(schematicGlyph(members[0],ink,x+33*scale,cursor-10*scale,28*scale));
+        group.appendChild(schematicGlyph(members[0],{line:'#253642',solid:'#253642',tint:'#253642'},x+33*scale,cursor-10*scale,28*scale));
         addText(mount.name,x+55*scale,cursor,13,600,'#172530',0);
         addText([...new Set(members.map(c=>String(c.number)))].join(', '),x+blockWidth-16*scale,cursor,12,500,'#5c6773',0,'end');
         cursor += rowHeight;
@@ -2532,14 +2539,31 @@
       (isArm(camera) ? `<br>Head at <strong>${format(camera.reach, 1)} m</strong> from pivot` : '');
   }
 
-  function miniature(mountId, size) {
-    const colour = mountById(mountId).colour;
-    const node = create('svg', { viewBox: '-34 -34 68 68', xmlns: SVG_NS });
-    node.appendChild(rigGlyph(defaultsFor(mountId), { line: colour, solid: colour, tint: colour }));
-    if (size) {
-      node.setAttribute('width', size);
-      node.setAttribute('height', size);
-    }
+  // Industrial elevation pictograms: static, bounded SVG geometry.
+  // A picker symbol communicates the rig family, not a scaled footprint.
+  // Plan-view glyphs and metre-scale geometry remain independent.
+  const MOUNT_PICTOGRAMS = Object.freeze({
+  "tripodHeavy": "<path d='M9 10H24V22H9Z M24 8H49L55 11V21L49 24H24Z' fill='currentColor' fill-opacity='.18'/><path d='M50 8V24 M12 6H21V10 M30 25V29 M24 29H36 M30 29L13 43 M30 29L47 43 M30 29V42 M10 43H17 M43 43H50 M27 43H33'/>",
+  "ped": "<path d='M12 7H25V19H12Z M25 5H46L52 8V18L46 21H25Z' fill='currentColor' fill-opacity='.18'/><path d='M46 5V21 M29 22V26 M24 26H35 M25 27H34V37H25Z M19 37H40V41H19Z' fill='currentColor' fill-opacity='.12'/><circle cx='20' cy='43' r='2.5'/><circle cx='39' cy='43' r='2.5'/>",
+  "tripodDolly": "<path d='M15 7H33V18H15Z M33 9H43L47 12V15L43 18H33Z' fill='currentColor' fill-opacity='.18'/><path d='M23 5H30 M27 19V23 M27 23L12 37 M27 23L45 37 M27 23V37 M10 37H47 M12 37V40 M27 37V40 M45 37V40'/><circle cx='12' cy='43' r='3'/><circle cx='27' cy='43' r='3'/><circle cx='45' cy='43' r='3'/>",
+  "tripodEng": "<path d='M17 8H32V17H17Z M32 10H43L46 12V15L43 17H32Z' fill='currentColor' fill-opacity='.18'/><path d='M19 5H26V8 M25 18V22 M22 22H28 M25 22L12 43 M25 22L42 43 M25 22V43 M19 32H34 M10 43H15 M39 43H45'/>",
+  "crane": "<path d='M8 36H26V42H8Z M13 31H22V36H13Z' fill='currentColor' fill-opacity='.18'/><path d='M7 42H27 M11 42L8 45 M23 42L26 45 M17 32L7 38'/><path d='M15 30L34 17L38 22L19 35Z M34 18L46 8L49 12L38 22Z' fill='currentColor' fill-opacity='.18'/><circle cx='17' cy='32' r='2.8' fill='currentColor' stroke='none'/><path d='M48 10V17 M48 17H56V23H48Z M56 18H59V22H56 M9 31H4V39H9Z' fill='currentColor' fill-opacity='.18'/>",
+  "jib": "<path d='M17 31L8 43 M17 31L30 43 M17 31V43 M7 43H11 M28 43H32'/><path d='M12 34L46 8L49 12L15 38Z' fill='currentColor' fill-opacity='.13'/><path d='M18 29L23 31L25 24L30 26L32 19L37 21L39 14L44 16 M47 10V16 M47 16H55V22H47Z M55 17H59V21H55 M12 34H5V41H12Z' fill='none'/><circle cx='17' cy='31' r='2.8' fill='currentColor' stroke='none'/>",
+  "steadicam": "<circle cx='15' cy='10' r='5'/><path d='M8 36V24Q8 18 15 18H20L23 28V42 M8 37L11 43 M23 21L32 27L38 21 M23 26L32 32L39 26 M15 18V35H22' /><path d='M36 6H49V15H36Z M49 8H55V13H49Z' fill='currentColor' fill-opacity='.18'/><path d='M42 15V40 M37 17H47 M36 28L31 31L34 35L39 32 M37 40H47V44H37Z' fill='currentColor' fill-opacity='.13'/>",
+  "handheld": "<circle cx='19' cy='11' r='5'/><path d='M9 43V28Q9 20 19 20H26L34 27 M14 26L24 34L40 25 M25 34L27 43 M16 20L22 23'/><path d='M24 10H42V22H24Z M42 12H51L55 15V19L51 22H42Z' fill='currentColor' fill-opacity='.18'/><path d='M29 7H38V10 M33 23H42'/>",
+  "robo": "<path d='M18 38V32Q8 29 8 17V13H13V18Q13 26 20 27 M46 38V32Q56 29 56 17V13H51V18Q51 26 44 27' /><path d='M19 10Q19 5 25 5H38Q45 5 45 12V22Q45 29 38 29H26Q19 29 19 22Z' fill='currentColor' fill-opacity='.18'/><circle cx='36' cy='17' r='6'/><circle cx='36' cy='17' r='2' fill='currentColor' stroke='none'/><path d='M27 29V37 M13 37H51V43H13Z' fill='currentColor' fill-opacity='.13'/>",
+  "pov": "<path d='M16 12H35V29H16Z M35 15H46V26H35Z' fill='currentColor' fill-opacity='.18'/><path d='M46 13V28 M21 16H24 M24 29V36H38 M16 36H38V41H16Z M15 17H11V24H15'/><circle cx='32' cy='36' r='1.8' fill='currentColor' stroke='none'/>",
+  "rail": "<path d='M15 8H32V19H15Z M32 10H42L47 13V16L42 19H32Z' fill='currentColor' fill-opacity='.18'/><path d='M26 19V24 M20 24H33 M20 24V33H33V24 M11 33H48V37H11Z' fill='currentColor' fill-opacity='.13'/><circle cx='16' cy='40' r='3'/><circle cx='43' cy='40' r='3'/><path d='M4 43H58 M4 46H58 M8 43V46 M21 43V46 M34 43V46 M47 43V46'/>",
+  "special": "<path d='M13 11H39V29H13Z M39 15H48V25H39Z' fill='currentColor' fill-opacity='.18'/><path d='M19 11V7H32V11 M19 29V36 M33 29V36 M11 36H41V42H11Z M8 15V26 M53 16V24'/><circle cx='21' cy='20' r='3'/><path d='M29 18H34 M29 22H34'/>",
+  "_fallback": "<rect x='14' y='13' width='34' height='22' rx='3'/><path d='M22 21H40 M31 16V31 M12 41H50'/>"
+});
+  const MOUNT_LABELS = Object.freeze({"tripodHeavy":"Heavy tripod","ped":"Pedestal","tripodDolly":"Tripod dolly","tripodEng":"ENG tripod","crane":"Telescopic crane","jib":"Jib arm","steadicam":"Steadicam","handheld":"Handheld / HH","robo":"Remote / PTZ","pov":"POV / box","rail":"Track / rail","special":"Specialty"});
+  const MOUNT_ACCENTS = Object.freeze({"tripodHeavy":"#82b7ed","ped":"#82b7ed","tripodDolly":"#65c5b7","tripodEng":"#82b7ed","crane":"#b9a1ee","jib":"#b9a1ee","steadicam":"#e7b76a","handheld":"#ee9b80","robo":"#83c7a1","pov":"#79c4d6","rail":"#d7a0c9","special":"#b6c2cb"});
+  function miniature(mountId,size) {
+    const node=create('svg',{viewBox:'0 0 64 48',xmlns:SVG_NS,fill:'none',stroke:'currentColor','stroke-width':2.2,'stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':'true',focusable:'false','data-mount-icon':mountId});
+    // Only immutable, authored catalogue markup is assigned; no project data.
+    node.innerHTML=MOUNT_PICTOGRAMS[mountId]||MOUNT_PICTOGRAMS._fallback;
+    if(size){node.setAttribute('width',size);node.setAttribute('height',size*0.75);}
     return node;
   }
 
@@ -2582,15 +2606,15 @@
     for (const mount of MOUNTS) {
       const button = document.createElement('button');
       button.type = 'button';
-      button.title = mount.name;
-      if (mount.id === state.pendingMount) {
-        button.classList.add('is-active');
-        button.style.background = mount.colour;
-        button.style.borderColor = mount.colour;
-      }
-      button.appendChild(miniature(mount.id, null));
-      const caption = document.createElement('span');
-      caption.textContent = mount.short;
+      button.title=mount.name;
+      button.dataset.mount=mount.id;
+      button.setAttribute('aria-label',mount.name);
+      button.setAttribute('aria-pressed',String(mount.id===state.pendingMount));
+      button.style.setProperty('--family',state.monochrome?'#b6c2cb':MOUNT_ACCENTS[mount.id]);
+      if(mount.id===state.pendingMount)button.classList.add('is-active');
+      button.appendChild(miniature(mount.id,null));
+      const caption=document.createElement('span');
+      caption.textContent=MOUNT_LABELS[mount.id];
       button.appendChild(caption);
       button.addEventListener('click', () => {
         state.pendingMount = mount.id;
