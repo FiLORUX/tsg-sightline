@@ -78,9 +78,10 @@ before anyone unloads a truck.
    back to the file you opened; elsewhere it downloads. Ctrl+S saves, Ctrl+Shift+S
    chooses a new file. The browser also keeps an autosave and offers it back
    after a crash or a closed tab.
-7. **Share.** Copy share link puts the positions and title block in a URL a
-   few kilobytes long. The recipient sees them on a blank sheet at the right
-   scale and loads the venue plan themselves; the drawing never travels.
+7. **Share.** In a local project, **Copy share link** puts the positions and
+   title block in a portable URL. The recipient can open the study and add
+   the venue drawing locally. For an already published project the same button
+   copies its current viewer URL, including access to its approved public assets.
 
 Handling shortcuts are listed at the bottom of the side panel.
 
