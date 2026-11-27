@@ -8,4 +8,15 @@ assert.equal(G.boom(legacy).reach,10);near(G.boom(c).reach,5);near(G.boom(c).z,1
 assert.equal(G.boom({...c,mount:'jib'}).valid,false);assert.equal(G.boom({...c,mount:'jib',grip:{...c.grip,boomMin:10,boomMax:10}}).valid,true);
 assert.equal(G.boom({...c,grip:{...c.grip,boomElevation:90}}).valid,false);assert.equal(G.compatible({mount:'rail',grip:{system:'agito-sports'}}),false);
 assert.equal(G.template({mount:'tripodHeavy'}).family,G.template({mount:'tripodEng'}).family);assert.equal(G.template({mount:'rail'}).mobility,'track-constrained');
+assert.deepEqual(G.placementGrip('ped'),{system:'vinten-hp419'});
+assert.deepEqual(G.placementGrip('ped',null),{system:'vinten-hp419'});
+assert.deepEqual(G.placementGrip('jib'),{system:'jimmy-jib'});
+const osprey={system:'vinten-osprey',head:'vector900',reference:'Osprey supplier drawing'};
+assert.deepEqual(G.placementGrip('ped',osprey),{system:'vinten-hp419',head:'vector900'});
+const hp419={system:'vinten-hp419',reference:'HP 419 drawing'};
+assert.deepEqual(G.placementGrip('ped',hp419),hp419);
+assert.deepEqual(G.systemOptions({mount:'ped'}).map(x=>x.id),['','vinten-hp419']);
+assert.ok(G.systemOptions({mount:'ped',grip:osprey}).some(x=>x.id===osprey.system));
+assert.equal(G.profile({mount:'ped'}).system,'');
+assert.equal(G.profile({mount:'ped',grip:osprey}).system,'vinten-osprey');
 console.log('Grip assembly and nominal/spatial boom tests passed');

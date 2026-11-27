@@ -20,7 +20,8 @@ export function createGrip(){
     {id:'vinten-hdt2',name:'Vinten HDT-2 tripod',families:['tripod','tripod-dolly'],source:'https://www.vinten.com/en/product/hdt-2-heavy-duty-tripod/',note:'Two-stage legs; flat four-bolt / Quickfix interface; 120 kg tripod rating, not an assembled system rating.'},
     {id:'sachtler-ob2000',name:'Sachtler OB 2000 tripod',families:['tripod','tripod-dolly'],source:'https://www.sachtler.com/en/product/tripod-ob-2000/',note:'Flat-base tripod; 140 kg tripod rating. Head, dolly and centre of gravity are independent.'},
     {id:'sachtler-ob-dolly',name:'Sachtler OB 2000 + Dolly XL',families:['tripod-dolly'],source:'https://www.sachtler.com/en/product/system-video-75-ob-2000/',note:'Caster-supported tripod. A floor dolly does not imply a rail-constrained movement.'},
-    {id:'vinten-osprey',name:'Vinten Osprey Plus pedestal',families:['pedestal'],source:'https://www.vinten.com/wp-content/uploads/2023/08/v4170-0001-osprey-plus-user-guide.pdf',note:'Balanced vertical column and wheeled base; distinguish studio and OB versions.'},
+    {id:'vinten-hp419',name:'Vinten HP 419 I',families:['pedestal'],source:'https://collection.sciencemuseumgroup.org.uk/objects/co8356226/vinten-hp-419-i-television-camera-pedestal',note:'Studio pedestal with a steering ring and domed housings. Confirm the installed base and wheel geometry on site.'},
+    {id:'vinten-osprey',savedOnly:true,name:'Vinten Osprey Plus pedestal',families:['pedestal'],source:'https://www.vinten.com/wp-content/uploads/2023/08/v4170-0001-osprey-plus-user-guide.pdf',note:'Balanced vertical column and wheeled base; distinguish studio and OB versions.'},
     {id:'scorpio45',name:"Servicevision Scorpio 45′",families:['telescopic-boom'],source:'https://scorpio.servicevision.es/en/product/grips-en/telescopic-cranes/scorpio-45-en/scorpio-45/',note:'Published length 2.41–14 m; column extension 0.65 m; maximum optic-axis height 14.1 m. Published overall length is not automatically pivot-to-head distance. Use the configured boom and head offsets.'},
     {id:'jimmy-jib',name:'Stanton Jimmy Jib Triangle',families:['fixed-boom'],source:'https://www.jimmyjib.com/docs/manuals/Triangle_Pro_Standard_4C.pdf',note:'Modular fixed-length boom; identify installed sections, pivot and rear arm from the supplier drawing.'},
     {id:'steadicam',name:'Steadicam vest / arm / sled',families:['body-mounted-sled'],source:'https://flysteadicam.tiffen.com/products/steadicam-g-50x-arm',note:'Iso-elastic arm supports the balanced sled; sled mass is part of arm payload.'},
@@ -57,6 +58,16 @@ export function createGrip(){
     const a=p.boomElevation*Math.PI/180,co=Math.cos(a);
     return {explicit:true,valid:true,reach:p.boomLength*co,min:p.boomMin*co,max:p.boomMax*co,tail:p.rearLength*co,z:p.pivotHeight+p.boomLength*Math.sin(a)+p.headOffsetZ};
   }
+  const placementSystems={ped:'vinten-hp419',jib:'jimmy-jib'};
+  function placementGrip(mount,previous={}){
+    const system=placementSystems[mount];
+    if(!system||previous?.system===system)return {...previous};
+    return previous?.head ? {system,head:previous.head} : {system};
+  }
+  function systemOptions(c){
+    const current=profile(c).system,family=template(c).family;
+    return systems.filter(s=>s.id===current||(!s.savedOnly&&(!s.families||s.families.includes(family))));
+  }
   const compatible=c=>{const s=systems.find(x=>x.id===profile(c).system);return !s||!s.families||s.families.includes(template(c).family)};
-  return {templates,systems,heads,template,profile,boom,compatible};
+  return {templates,systems,heads,template,profile,boom,compatible,placementGrip,systemOptions};
 }

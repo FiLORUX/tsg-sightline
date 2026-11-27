@@ -6,6 +6,8 @@ Sightline uses two deliberately separate drawing conventions.
 - The plan and its legend use oriented plan-view schematic glyphs. Neutral linework improves contrast on CAD and in monochrome output. Camera numbers, RF and alternate-position state remain annotations; metric footprint and optical frustum remain independent.
 - A wheeled tripod dolly is not a pulley. The stable mount IDs and all project coordinates, camera profiles, scale, optical calculations and share formats remain unchanged.
 
+The palette has one Vinten HP 419 I pedestal and one Jimmy Jib Triangle placement template. The jib silhouette shows the stayed Extreme configuration. The generic telescopic crane serves all telescopic boom presets. These three rigs and Steadicam use a separately drawn optical-size variant in the camera list.
+
 The sixteen symbols are original technical pictograms, not an asserted EBU/IEC standard or exact equipment drawings. Their geometry is deliberately schematic. Do not use them as mechanical dimensions or certified rigging envelopes.
 
 Browser regression verifies all twelve distinct SVGs, bounds, labels and keyboard-accessible native buttons. The app's existing plan/export, context and optical tests remain release gates.

@@ -15,10 +15,10 @@ before anyone unloads a truck.
 
 ## What it does
 
-- **Mount-accurate plan symbols.** Pedestal, heavy tripod, ENG tripod, tripod on
-  pulley, telescopic crane, jib arm, Steadicam, handheld, robotic head, POV and
-  rail dolly. Each footprint is drawn in metres from published equipment figures,
-  so a position on the sheet occupies the floor it occupies in the venue.
+- **Rig plan symbols.** The Vinten HP 419 I pedestal, heavy tripod, ENG tripod,
+  tripod dolly, telescopic crane, Jimmy Jib Triangle, Steadicam, handheld,
+  robotic head, POV and rail dolly have distinct plan symbols. Metric footprints
+  use nominal equipment profiles and the position's configured geometry.
 - **Lens-driven camera silhouettes.** The barrel is sized from the fitted lens, so
   a box lens and a portable zoom on the same body read differently on the plan
   and in a monochrome plot.
@@ -101,10 +101,12 @@ repository. They embed floor plans supplied under production agreements.
 
 ## Equipment figures
 
-Symbol dimensions come from manufacturer or hire-house documentation where it
-was available: Vinten Quattro-L wheel track, steering ring and wheel diameter;
-MovieBird 45 chassis, retracted and extended reach from the post, and tail
-length derived from back-to-nose minus post-to-nose. Angle of view for the
+Symbol dimensions come from manufacturer or hire-house documentation where
+available. The pedestal template retains its nominal planning dimensions, originally
+based on the Quattro-L. The HP 419 I outline depicts its three wheel housings
+and steering ring. MovieBird 45 dimensions include the chassis, retracted
+and extended reach from the post, and tail length derived from back-to-nose
+minus post-to-nose. Angle of view for the
 Fujinon UA107x8.4 matches the manufacturer's published figures to a tenth of a
 degree. Where a figure is nominal it is marked as such in the source and should
 be checked against the supplier rigging data before a position is committed.

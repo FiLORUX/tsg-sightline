@@ -630,7 +630,7 @@
           <div class="field"><label for="grip-reference">Installed configuration / supplier reference</label><input id="grip-reference" maxlength="200"></div>
           <div id="grip-preview"></div>
           <div id="grip-info" class="readout" role="status"></div>
-          <a id="grip-source" hidden target="_blank" rel="noopener noreferrer">Manufacturer specification</a>
+          <a id="grip-source" hidden target="_blank" rel="noopener noreferrer">Support reference</a>
         </details>
         <div id="arm-fields" hidden>
           <div class="field">
@@ -895,7 +895,8 @@
     {id:'vinten-hdt2',name:'Vinten HDT-2 tripod',families:['tripod','tripod-dolly'],source:'https://www.vinten.com/en/product/hdt-2-heavy-duty-tripod/',note:'Two-stage legs; flat four-bolt / Quickfix interface; 120 kg tripod rating, not an assembled system rating.'},
     {id:'sachtler-ob2000',name:'Sachtler OB 2000 tripod',families:['tripod','tripod-dolly'],source:'https://www.sachtler.com/en/product/tripod-ob-2000/',note:'Flat-base tripod; 140 kg tripod rating. Head, dolly and centre of gravity are independent.'},
     {id:'sachtler-ob-dolly',name:'Sachtler OB 2000 + Dolly XL',families:['tripod-dolly'],source:'https://www.sachtler.com/en/product/system-video-75-ob-2000/',note:'Caster-supported tripod. A floor dolly does not imply a rail-constrained movement.'},
-    {id:'vinten-osprey',name:'Vinten Osprey Plus pedestal',families:['pedestal'],source:'https://www.vinten.com/wp-content/uploads/2023/08/v4170-0001-osprey-plus-user-guide.pdf',note:'Balanced vertical column and wheeled base; distinguish studio and OB versions.'},
+    {id:'vinten-hp419',name:'Vinten HP 419 I',families:['pedestal'],source:'https://collection.sciencemuseumgroup.org.uk/objects/co8356226/vinten-hp-419-i-television-camera-pedestal',note:'Studio pedestal with a steering ring and domed housings. Confirm the installed base and wheel geometry on site.'},
+    {id:'vinten-osprey',savedOnly:true,name:'Vinten Osprey Plus pedestal',families:['pedestal'],source:'https://www.vinten.com/wp-content/uploads/2023/08/v4170-0001-osprey-plus-user-guide.pdf',note:'Balanced vertical column and wheeled base; distinguish studio and OB versions.'},
     {id:'scorpio45',name:"Servicevision Scorpio 45′",families:['telescopic-boom'],source:'https://scorpio.servicevision.es/en/product/grips-en/telescopic-cranes/scorpio-45-en/scorpio-45/',note:'Published length 2.41–14 m; column extension 0.65 m; maximum optic-axis height 14.1 m. Published overall length is not automatically pivot-to-head distance. Use the configured boom and head offsets.'},
     {id:'jimmy-jib',name:'Stanton Jimmy Jib Triangle',families:['fixed-boom'],source:'https://www.jimmyjib.com/docs/manuals/Triangle_Pro_Standard_4C.pdf',note:'Modular fixed-length boom; identify installed sections, pivot and rear arm from the supplier drawing.'},
     {id:'steadicam',name:'Steadicam vest / arm / sled',families:['body-mounted-sled'],source:'https://flysteadicam.tiffen.com/products/steadicam-g-50x-arm',note:'Iso-elastic arm supports the balanced sled; sled mass is part of arm payload.'},
@@ -932,17 +933,27 @@
     const a=p.boomElevation*Math.PI/180,co=Math.cos(a);
     return {explicit:true,valid:true,reach:p.boomLength*co,min:p.boomMin*co,max:p.boomMax*co,tail:p.rearLength*co,z:p.pivotHeight+p.boomLength*Math.sin(a)+p.headOffsetZ};
   }
+  const placementSystems={ped:'vinten-hp419',jib:'jimmy-jib'};
+  function placementGrip(mount,previous={}){
+    const system=placementSystems[mount];
+    if(!system||previous?.system===system)return {...previous};
+    return previous?.head ? {system,head:previous.head} : {system};
+  }
+  function systemOptions(c){
+    const current=profile(c).system,family=template(c).family;
+    return systems.filter(s=>s.id===current||(!s.savedOnly&&(!s.families||s.families.includes(family))));
+  }
   const compatible=c=>{const s=systems.find(x=>x.id===profile(c).system);return !s||!s.families||s.families.includes(template(c).family)};
-  return {templates,systems,heads,template,profile,boom,compatible};
+  return {templates,systems,heads,template,profile,boom,compatible,placementGrip,systemOptions};
 })();
   // #endregion grip-core
   const MOUNTS = [
     { id: 'tripodHeavy', short: 'OB tripod',  name: 'Heavy-duty OB tripod',            colour: '#14508c', spread: 0.72 },
-    { id: 'ped',         short: 'Pedestal',    name: 'Studio / OB pedestal',         colour: '#1f6fb8' },
+    { id: 'ped',         short: 'HP 419 I',    name: 'Vinten HP 419 I', familyLabel: 'Pedestal',         colour: '#1f6fb8' },
     { id: 'tripodDolly', short: 'Dolly',  name: 'Tripod on wheeled dolly',        colour: '#2f8f8a', spread: 0.58 },
     { id: 'tripodEng',   short: 'ENG',    name: 'ENG tripod',              colour: '#4a9fd8', spread: 0.52 },
     { id: 'crane',       short: 'Crane',  name: 'Telescopic crane',        colour: '#a05fc4' },
-    { id: 'jib',         short: 'Jib',    name: 'Jib arm',                 colour: '#7a52c0' },
+    { id: 'jib',         short: 'Jimmy Jib',    name: 'Jimmy Jib Triangle', familyLabel: 'Fixed jib',                 colour: '#7a52c0' },
     { id: 'steadicam',   short: 'Stead',  name: 'Steadicam',               colour: '#e8a53c' },
     { id: 'handheld',    short: 'Hand',   name: 'Handheld / shoulder',                colour: '#dd5f42' },
     { id: 'robo',        short: 'Remote',   name: 'Fixed remote head / PTZ',            colour: '#3aa06f' },
@@ -1251,6 +1262,14 @@
   };
 
   const mountById = (id) => MOUNTS.find((m) => m.id === id) || MOUNTS[MOUNTS.length - 1];
+  function cameraMountLabel(camera, short=false) {
+    const mount=mountById(camera.mount);
+    if (!mount.familyLabel) return short ? mount.short : mount.name;
+    const system=Grip.systems.find(item=>item.id===camera.grip?.system && item.families?.includes(Grip.template(camera).family));
+    if (!system) return mount.familyLabel;
+    if (short && system.id===Grip.placementGrip(camera.mount).system) return mount.short;
+    return system.name;
+  }
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
   const toRadians = (deg) => (deg * Math.PI) / 180;
   const format = (value, digits) => Number(value).toFixed(digits);
@@ -1528,13 +1547,21 @@
     return bodyEnd;
   }
 
-  function pedestalBase(group, colours, centreY) {
-    // A Vinten Quattro reads from above as two concentric circles: the wheel
-    // track at 1.07 m and the detachable steering ring at 0.74 m. Nothing else in
-    // a studio has that signature, and the ring is what the operator's hands
-    // occupy, so it belongs on a clearance drawing.
+  // Schematic top outline of the HP 419 I's scalloped base and three wheel housings.
+  // Both plot scales use the same profile; the metric view retains the nominal planning radius.
+  const HP419_BASE = 'M-15-13Q0-9 15-13Q22-14 20-6Q10-1 6 14Q6 21 0 21Q-6 21-6 14Q-10-1-20-6Q-22-14-15-13Z';
+
+  function pedestalBase(group, colours, centreY, systemId) {
     const track = PEDESTAL.track / 2;
     const ring = PEDESTAL.ring / 2;
+    if (systemId === 'vinten-hp419') {
+      group.appendChild(create('path', {
+        d: HP419_BASE, transform: `translate(0 ${centreY}) scale(${track / 20})`,
+        ...OUTLINE(colours), fill: colours.line, 'fill-opacity': 0.15
+      }));
+      group.appendChild(create('circle', {cx: 0, cy: centreY, r: ring, ...OUTLINE(colours)}));
+      return;
+    }
 
     group.appendChild(create('circle', {
       cx: 0, cy: centreY, r: track, fill: 'none', stroke: colours.line,
@@ -1562,8 +1589,7 @@
       'stroke-width': 3.2, 'vector-effect': 'non-scaling-stroke'
     }));
 
-    // The Quattro column is a triangular extrusion, which is both its stiffness
-    // trick and the quickest way to tell it apart from a round-column pedestal.
+    // Original nominal Quattro-based pedestal profile for existing plots.
     const column = [90, 210, 330].map((angle) => pointOnCircle(0, centreY, 0.13, angle));
     group.appendChild(create('polygon', {
       points: column.map((p) => `${p.x.toFixed(3)},${p.y.toFixed(3)}`).join(' '),
@@ -1674,9 +1700,8 @@
       }));
     }
 
-    if (!telescopic) {
-      // The Jimmy Jib Triangle carries a triangular truss, so the plan glyph gets
-      // the bracing that gives the arm its name.
+    if (camera.mount === 'jib' && camera.grip?.system !== 'jimmy-jib') {
+      // Earlier fixed-boom templates used lattice bracing. The Triangle has a closed tube.
       const bays = 6;
       for (let i = 0; i < bays; i += 1) {
         const y1 = (tip / bays) * i;
@@ -1710,8 +1735,8 @@
      The plan glyph has to stay top-down to be dimensionally honest, but a plan
      symbol is a poor way to tell an operator which piece of kit is meant. These
      side elevations carry the silhouette a crew recognises: the steering ring on
-     a Quattro, the counterweight trolley on a MovieBird, the triangular truss on
-     a Jimmy Jib, the sled and iso-elastic arm on an Ultra2. They are used in the
+     a pedestal, the counterweight trolley on a telescopic crane, the fixed boom on
+     a jib, and the sled and iso-elastic arm on a Steadicam. They are used in the
      palette, the camera list and the drawing legend, never on the plan itself.
      Drawn in a 120 by 100 box with the ground at y 92, camera facing right. */
 
@@ -1955,13 +1980,25 @@
   function operator(x,y){o(x,y,6);p('M'+(x-8)+' '+(y+8)+'Q'+x+' '+(y+3)+' '+(x+8)+' '+(y+8));}
   switch(c.mount){
     case 'ped':
-      o(0,0,18);o(0,0,12,'none',1.4);for(const [x,y] of [[0,-17],[-14,9],[14,9]])r(x-3,y-2,6,4,1,ink.line,1);head(0,0);break;
+      if (c.grip?.system === 'vinten-hp419') {
+        p(HP419_BASE, '#fff');
+        o(0, 0, 13, 'none');
+      } else {
+        o(0,0,18);o(0,0,12,'none',1.4);for(const [x,y] of [[0,-17],[-14,9],[14,9]])r(x-3,y-2,6,4,1,ink.line,1);
+      }
+      head(0,0);break;
     case 'tripodHeavy':tripod(false,20);head(0,0);break;
     case 'tripodEng':tripod(false,16);head(0,0,optics==='box'?'box':'portable');break;
     case 'tripodDolly':tripod(true,19);head(0,0);break;
     case 'crane':case 'jib':
       if(c.mount==='crane'){r(-10,-8,20,17,2);for(const x of [-12,9])for(const y of [-6,4])r(x,y,3,5,.7,ink.line,1);r(-3.8,-23,7.6,23,1);r(-2.3,-27,4.6,17,1);}
-      else{tripod(true,12);p('M-4 0L-4 -23H4V0Z','#fff');for(let y=0;y>-20;y-=6)l(y%12===0?-4:4,y,y%12===0?4:-4,y-6,1.3);}
+      else {
+        tripod(true,12);
+        p('M-4 0L-4 -23H4V0Z','#fff');
+        if (c.grip?.system !== 'jimmy-jib') {
+          for (let y=0; y>-20; y-=6) l(y%12===0?-4:4,y,y%12===0?4:-4,y-6,1.3);
+        }
+      }
       l(0,4,0,23,2.6);r(-6,18,12,8,1,ink.line,1);o(0,0,4.5);r(-5,-28,10,7,1);l(-4,-28,4,-28,3);break;
     case 'steadicam':
       operator(0,16);r(-7,-15,14,20);l(-6,-15,6,-15,3);l(0,5,0,13);r(-5,6,10,4,1);
@@ -1995,7 +2032,7 @@
 
     switch (camera.mount) {
       case 'ped':
-        pedestalBase(group, colours, centre);
+        pedestalBase(group, colours, centre, camera.grip?.system);
         cameraHead(group, colours, profile);
         operatorMark(group, colours, centre + PEDESTAL.track / 2 + 0.34, 0.28);
         break;
@@ -2573,7 +2610,8 @@
           : { line: mount.colour, solid: mount.colour, tint: mount.colour };
 
         group.appendChild(schematicGlyph(members[0],{line:'#253642',solid:'#253642',tint:'#253642'},x+33*scale,cursor-10*scale,28*scale));
-        addText(mount.name,x+55*scale,cursor,13,600,'#172530',0);
+        const names=new Set(members.map(camera=>cameraMountLabel(camera)));
+        addText(names.size===1?cameraMountLabel(members[0]):mount.familyLabel||mount.name,x+55*scale,cursor,13,600,'#172530',0);
         addText([...new Set(members.map(c=>String(c.number)))].join(', '),x+blockWidth-16*scale,cursor,12,500,'#5c6773',0,'end');
         cursor += rowHeight;
       }
@@ -2691,7 +2729,12 @@
 
     el('cam-number').value = camera.number;
     el('cam-label').value = camera.label;
-    el('cam-mount').value = camera.mount;
+    const mountSelect=el('cam-mount');
+    for(const option of mountSelect.options) {
+      const mount=mountById(option.value);
+      if(mount.familyLabel) option.textContent=camera.mount===mount.id ? cameraMountLabel(camera) : mount.name;
+    }
+    mountSelect.value = camera.mount;
     updateGripEditor(camera);
     el('cam-body').value = camera.body;
     el('cam-control').value = camera.control;
@@ -2750,11 +2793,12 @@
     "svg": "<g transform=\"translate(8 3) scale(0.94)\"><path d=\"M0 4H10V1H16V4H20V0H42L48 3V15L42 18H20V15H0Z M23 3V15H25V3Z M41 3V15H43V3Z\" fill-rule=\"evenodd\"/></g><g transform=\"translate(30 20) scale(1)\"><path d=\"M-6 0H6V3H2.5V6H-2.5V3H-6Z\"/></g><path d=\"M27 25H33L53 41H46L33 32V41H28V32L15 41H8Z\"/><path d=\"M18 35H43V38H18Z M7 41H17V44H7Z M44 41H54V44H44Z M25 41H36V44H25Z\"/>"
   },
   "ped": {
-    "label": "Pedestal",
+    "label": "Vinten HP 419 I",
     "category": "Ground support",
-    "mechanism": "Balanced column · wheeled base",
+    "mechanism": "Studio pedestal · steering ring and domed housings",
     "legacy": true,
-    "svg": "<g transform=\"translate(10 3) scale(0.9)\"><path d=\"M0 4H10V1H16V4H20V0H42L48 3V15L42 18H20V15H0Z M23 3V15H25V3Z M41 3V15H43V3Z\" fill-rule=\"evenodd\"/></g><g transform=\"translate(32 20) scale(1)\"><path d=\"M-6 0H6V3H2.5V6H-2.5V3H-6Z\"/></g><path d=\"M28 26H36V34H39V37H25V34H28Z M19 28H45V31H19Z M21 38H43L49 41V42H15V41Z\"/><path d=\"M18 43a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z M19.8 43a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M40 43a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z M41.8 43a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/>"
+    "svg": "<g transform=\"translate(0 4) scale(0.4)\"><path fill-rule=\"evenodd\" d=\"M46 10 53 7h25V4q0-2 2-2h4q2 0 2 2v3h25l7 3v4l9-1v17l-10-2v5H51l-5-4Zm5 16v2h61v-2ZM119 17v8l4 1V16Z\"/>\n\n\n<path fill-rule=\"evenodd\" d=\"M61 33h38l-5 5-8 3v2H75v-3l-8-2-10 3-15 9-2-3 15-10 9-3z M76 35a1.7 1.7 0 1 0 3.4 0 1.7 1.7 0 1 0-3.4 0z\"/>\n\n<path fill-rule=\"evenodd\" d=\"M45 47c0-4 14-6 34-6 21 0 35 2 35 6s-14 6-35 6c-20 0-34-2-34-6Zm6 0c5 1.5 12 2.5 22 2.5l-3-5c-10 0-16 1-19 2.5Zm36 2.5c10-.1 17-1 21-2.5-4-1.5-10-2.2-18-2.5z\"/>\n\n<path d=\"M71 53h16v7h2v20H69V60h2z M44 76V64c0-6 4.2-10.2 9.4-10.2S63 58.3 63 64v13z M94 79V67c0-6.1 4-10.3 9.4-10.3s9.6 4.2 9.6 10.3v14z\"/>\n\n<path fill-rule=\"evenodd\" d=\"M31 74q0-3.3 9.3-4 5.7-.4 8.8 1.7l5.4 3 15 1.6 11.3-.3 8.8-2.9 13.8.8 11.1 3.7q5.2-1.2 10.1.4 5.5 1.8 5.5 5.1v8.9q0 4.3-10.3 4.8-8.4.4-11.5-2.6l-.7-3.1-20.4-4.9q-8.3-1.8-18.6-2.3l-14.5-.4-5.1 1.5q-4.1 1.9-10.2 1.1Q31 85.5 31 82.4z M62 80.6c10 .1 19.7.8 27.2 2.4l14.5 3.5-1.2-2.2-13.4-3c-8-1.6-18-2.2-27.1-2.2Z\"/>\n</g>",
+    "compactSvg": "<g transform=\"translate(2 0) scale(1.5)\"><path d=\"M9 3h10V2h3v1h8v2l3-1v6l-3-1v1H9l-2-1V5z M16 11h9l-2 2h-5z\"/><path d=\"M16 12l-5 4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M9 15c0-2 5-3 12-3s11 1 11 3-4 3-11 3-12-1-12-3z M13 15q8 2 16 0-8-2-16 0z\" fill-rule=\"evenodd\"/><path d=\"M19 17h4v8h-4z M10 24v-3q0-3 2.8-3 3 0 3 3v4z M26 25v-4q0-3 2.8-3 3 0 3 3v4z M8 24q3-1 7 0l6 2 6-1q3-2 6 0l2 2-2 2-6-1-5 2h-3l-5-2-6 .5-2-2z\"/></g>"
   },
   "tripodDolly": {
     "label": "Tripod dolly",
@@ -2773,23 +2817,26 @@
   "crane": {
     "label": "Telescopic crane",
     "category": "Boom support",
-    "mechanism": "Extending boom · remote head",
+    "mechanism": "Telescopic boom · suspended cable loops and remote head",
     "legacy": true,
-    "svg": "<path d=\"M12 36H32V41H12Z M16 31H27V36H16Z\"/><path d=\"M13 43a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z M14.8 43a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M25 43a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z M26.8 43a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0Z\" fill-rule=\"evenodd\"/><path d=\"M5 28H12V38H5Z M11 30L21 26L23 30L11 34Z\"/><path d=\"M18 27L35 14L40 20L22 33Z M37 14L46 7L49.5 11.5L40 19Z M47.5 7L53 2L55 5L50 9.5Z\"/><circle cx=\"21\" cy=\"30\" r=\"3.1\"/><path d=\"M54 5V12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><g transform=\"translate(47 12) scale(0.52)\"><path d=\"M0 1H17V4H26V14H17V17H0Z M17 7V11H19V7Z\" fill-rule=\"evenodd\"/></g>"
+    "svg": "<path d=\"M7 34.5h7v-6.8h2v-3.1h3v3.1h2v6.8h5l2 2v2H5v-2z\"/>\n  <path fill-rule=\"evenodd\" d=\"M13 40a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zm-2.2 0a1.3 1.3 0 1 0-2.6 0 1.3 1.3 0 0 0 2.6 0zm19 0a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zm-2.2 0a1.3 1.3 0 1 0-2.6 0 1.3 1.3 0 0 0 2.6 0z\"/>\n  <g transform=\"translate(17.5 24.9) rotate(-24)\">\n    <path d=\"M-14-3.7h7v1.4h6v-1h12v1h12v.8h10v.7h10v2.2H33v.7H23v.8H11V4H-.7V2.3H-7v2.2h-7z\"/>\n    <path d=\"M-14.5-4.4h2V5h-2z\"/>\n  </g>\n  <path d=\"M27.5 23.1c0 9.4 8.3 7.5 13.7-6.5 0 7.8 8.2 6.8 13.6-6.4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.55\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\n  <path d=\"M55 7.8l3.2-1.3 1 .8v3l-3.9 3v4.3l2 2h3v1.7h-3.9l-3-3v-6.1l3.8-2.9v-.5l-2.2.8z\"/>\n  <path d=\"M55.8 13.9h4.8v1h2.6v2.7h-2.6v.9h-4.8z\"/>\n",
+    "compactSvg": "<g transform=\"translate(0 0) scale(1.77777778)\"><path d=\"M4 19.4h4.4v-5.6h2.6v5.6h3.7l1.8 1.7v1.1H3v-1.6z\"/>\n  <circle cx=\"5.5\" cy=\"22.4\" r=\"2.2\"/><circle cx=\"14.4\" cy=\"22.4\" r=\"2.2\"/>\n  <path d=\"M1.1 14.5 5 12.7l.6 1.2 4-1.9-.4-.8 9.2-4.2.6 1.1 7.4-3.3.4.8 5-2.3.8 1.8-5.3 2.4.2.6-7.8 3.6.2.5L11 16l-.5-1.1-4 1.8.4 1-4 1.8z\"/>\n  <path d=\"M17 13c0 5 4.7 4.3 7.7-3.7.2 4.5 4.4 3.3 7.1-3.5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\n  <path d=\"M31 4h2v2l-2.7 2.1v2.2l1.3 1.2h1.5v1.1H31l-2.1-2V7.5l2.6-2.1z M30.7 8.6h3.3v.7h1.8v1.8H34v.4h-3.3z\"/>\n</g>"
   },
   "jib": {
-    "label": "Fixed jib",
+    "label": "Jimmy Jib Triangle",
     "category": "Boom support",
-    "mechanism": "Modular fixed boom · counterweight",
+    "mechanism": "Fixed-length modular boom · stayed Extreme configuration shown",
     "legacy": true,
-    "svg": "<path d=\"M20 31H24L10 42H6Z M22 31H26L39 42H34Z M21 31H25V44H21Z M6 42H14V45H6Z M32 42H41V45H32Z\"/><path d=\"M6 30L50 3L53 7L9 34Z M11 37L54 10L56 13L13 41Z\"/><path d=\"M13 31L21 33L24 24L32 26L35 17L43 19L46 10L53 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.35\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M4 30H10V40H4Z\"/><circle cx=\"22\" cy=\"32\" r=\"3.3\"/><path d=\"M54 11V16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><g transform=\"translate(47 16) scale(0.52)\"><path d=\"M0 1H17V4H26V14H17V17H0Z M17 7V11H19V7Z\" fill-rule=\"evenodd\"/></g>"
+    "svg": "<path d=\"M7 31.6 22 9.5 51.4 12.1M22 9.5 39.2 16.5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.35\" stroke-linejoin=\"round\"/>\n  <path d=\"m21.2 9.4 1.5-.5 5.1 14.3-1.9.7z\"/>\n  <path fill-rule=\"evenodd\" d=\"M7 30.1 54.5 9.5l1.5 3.3L8.6 34.1z M31.3 21.1a.85.85 0 1 0 1.7 0 .85.85 0 0 0-1.7 0z M36.6 18.8a.85.85 0 1 0 1.7 0 .85.85 0 0 0-1.7 0z M41.9 16.5a.85.85 0 1 0 1.7 0 .85.85 0 0 0-1.7 0z M47.2 14.2a.85.85 0 1 0 1.7 0 .85.85 0 0 0-1.7 0z\"/>\n  <path d=\"M4.6 28.4A4.8 4.8 0 0 0 6 37.6a5.6 5.6 0 0 1-1.4-9.2z\"/>\n  <circle cx=\"8.6\" cy=\"32.6\" r=\"4.2\"/>\n  <path d=\"M17.4 26.3a3 3 0 1 0 5.8-1.2l-1.5.6-.1 3.5h-3.3v-2.6zM18.1 29.7h4.2v3l8.1 10.8h-3.9l-5.4-7.6 1.1 8.8h-3l-1.2-8.3-5.7 7h-3.8l9.6-12z\"/>\n  <path d=\"M52.7 11.7h3.6v3l-1.7 1.7v6.4h3v2.1h-3.3l-2-2v-6.7l1.1-1.6zM55.5 19.1h2v-1.5h2.7v1.5h1.5l1.4-.8v4.1l-1.4-.6h-6.2z\"/>\n",
+    "compactSvg": "<g transform=\"translate(0 0) scale(2)\"><path d=\"M3.8 16.8 10.3 4.3 26.7 6.3M10.3 4.3l2.7 8.5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.1\" stroke-linejoin=\"round\"/>\n  <path d=\"M3.5 15.7 28.1 5l.9 2.1L4.5 18z\"/>\n  <circle cx=\"3.8\" cy=\"17.4\" r=\"2.6\"/>\n  <path d=\"M9.2 14.4l2.3-1v3l4.6 5.7h-2.4L11 18.7l.3 3.8H9.6l-.4-4-2.6 3.4H4.5l4.7-6zM27 6.4h1.6v2l-.8.6v2.6h1.1v1.2h-1.7l-.9-.9V8.4l.7-.8zM28.5 9.2h1.9v.5h1.2v1.8h-3.1z\"/>\n</g>"
   },
   "steadicam": {
     "label": "Steadicam",
     "category": "Operator support",
-    "mechanism": "Vest · articulated arm · balanced sled",
+    "mechanism": "Balanced sled · gimbal and two articulated arm sections",
     "legacy": true,
-    "svg": "<circle cx=\"13\" cy=\"8\" r=\"5.6\"/><path d=\"M6 17Q12 14 19 17L22 30H18V45H12L10 34L7 45H3V30Z\"/><path d=\"M8 18H18V30H8Z M11 20V28H15V20Z\" fill-rule=\"evenodd\"/><path d=\"M19 23L29 30L39 23 M18 28L29 35L39 28\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.0\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><circle cx=\"29\" cy=\"32.5\" r=\"2.5\"/><path d=\"M40 16V39\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.0\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><g transform=\"translate(33 3) scale(0.77)\"><path d=\"M0 3H6V0H16V3H22V5H29L34 8V13L29 16H22V18H0Z M23 8V13H25V8Z\" fill-rule=\"evenodd\"/></g><path d=\"M35 36H47V39H35Z M34 40H48V44H34Z\"/><path d=\"M34 24H40V28H34Z\"/>"
+    "svg": "<g transform=\"translate(0 0) scale(0.5)\"><path d=\"M5 33q2-7 7-14 2-3 5-4l7 2 5 12-4 2-5-9-4-1-6 14-1 11H4z\"/>\n  <path d=\"M26 29l6 5-2 13-5 1-4-11z M4 49l7-1 10 3 7-4 6 2-2 10-7 3-16-3-5-3z M25 44h5v8h-5z\"/>\n  \n  <path d=\"M27 51h8l3 3-2 6h-8z\"/>\n  <path fill-rule=\"evenodd\" d=\"M33 53l4-4 24 8 1 7-4 3-24-9z M40 53.5l15.5 5.3-.8 3.1-16-5.5z\"/>\n  <path fill-rule=\"evenodd\" d=\"M56 57l18-14 5-1 4 6-1 3-19 15-5-.5-3-4z M61.5 59l14.9-11.3 1.9 2.3-15 11.6z\"/>\n  <circle cx=\"59\" cy=\"61\" r=\"3.1\"/>\n  \n  <path d=\"M77 46l1-6q.6-3 3-5l8-5 4 2-1 3-8 4q-2 1-2 3l-1 5z M89 29h9v7h-9z\"/>\n  \n  <path fill-rule=\"evenodd\" d=\"M71 11h6l4-7h13l5 6h5l1 3h4v-1h3v1h4l2-2h4v12h-4l-2-2h-4v1h-3v-2h-4l-3 4H75l-4-3z M82 10h11l-2-3h-7z\"/>\n  <path d=\"M75 25h29l-2 3h-8v2h-3v-2H78z\"/>\n  <path d=\"M91 28h4v40h-1v10h-3z M89 58h9v4h-9z\"/>\n  \n  <path d=\"M68 79l21-2v-3h9v3h11l3-7 3 1-3 9h-14l-4 4h-6l-2-3-18 2z\"/>\n  <path d=\"M67 83l16-2 2 7-1 3-16 2-3-2z M105 69l14-14 5 3-14 15-5-1z\"/>\n</g>",
+    "compactSvg": "<g transform=\"translate(2 0) scale(1.5)\"><path d=\"M1 15V9l3-4 2 1-2 4v4l3 .8 1-4h2l-.5 6L7 19l-5-1z\"/>\n  <path fill-rule=\"evenodd\" d=\"M8 15l2-1 8 3 1 2-2 2-9-4z M11 16l5.5 2 .5 1-6-2z M16 17l6-5 2 1.5-.3 2-6 5-2-1z M18 17.8l4.4-3.7.6.7-4.4 3.7z\"/>\n  <path d=\"M22 14l1-3 4.5-2.7 1.5 1.5-4.2 2.4-.5 2.4z\"/>\n  <path d=\"M23 3h2l1-2h5l2 2h2.2l1.3 1L39 3v4.5L36.5 7h-3l-1 1h-9z M23.5 8.6h9v1.2h-3v16h-1.8v-16h-4.2z M26.5 10h4v2h-4z\"/>\n  <path d=\"M20 26l8-1 5.6.2 1-2.5 1.5.5-1.2 4H30l-2 1.2-2-.9-5.8 1z M20 28l5.2-.7.5 3-5.4.8z M32.4 22l5.3-5 1.7 1.4-5.3 5z\"/>\n</g>"
   },
   "handheld": {
     "label": "Shoulder camera",
@@ -2861,7 +2908,7 @@
   function miniature(mountId,size) {
     const node=create('svg',{viewBox:'0 0 64 48',xmlns:SVG_NS,fill:'currentColor','aria-hidden':'true',focusable:'false','data-mount-icon':mountId});
     const icon=Object.hasOwn(MOUNT_PICTOGRAMS,mountId)?MOUNT_PICTOGRAMS[mountId]:MOUNT_PICTOGRAMS.special;
-    node.innerHTML=icon.svg;
+    node.innerHTML = size && size <= 32 && icon.compactSvg ? icon.compactSvg : icon.svg;
     if(size){node.setAttribute('width',size);node.setAttribute('height',size*.75);}
     return node;
   }
@@ -2883,7 +2930,7 @@
 
       const cells = [
         { text: camera.number + (Chains.role(camera) === 'alternate' ? ' ALT' : '') },
-        { text: camera.label || mountById(camera.mount).short, truncate: true },
+        { text: camera.label || cameraMountLabel(camera,true), truncate: true },
         { text: angles ? `${format(wideAov, 1)}–${format(teleAov, 2)}°` : 'Unverified' }
       ];
       for (const cell of cells) {
@@ -2989,6 +3036,7 @@
         wide:null,tele:null,focalMm:null,imagerId:'custom',imagerWidth:null,imagerHeight:null,
         lensName:'',body:'',throwMetres:0,rf:false,apertureStatus:'unverified'
       }),
+      grip: Grip.placementGrip(mountId,previous?.grip),
       id: `cam-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
       number: String(state.nextNumber),
       label: '', chainId: null, positionRole: 'primary', chainDetails: {},
@@ -3503,11 +3551,13 @@
   const BOOM_FIELDS={'grip-length':'boomLength','grip-angle':'boomElevation','grip-pivot-z':'pivotHeight','grip-offset-z':'headOffsetZ','grip-min':'boomMin','grip-max':'boomMax','grip-rear':'rearLength'};
   function updateGripEditor(c){
     const p=Grip.profile(c),t=Grip.template(c),system=Grip.systems.find(x=>x.id===p.system);
-    equipmentOptions('grip-system',Grip.systems.filter(x=>!x.families||x.families.includes(t.family)||x.id===p.system),p.system);
+    equipmentOptions('grip-system',Grip.systemOptions(c),p.system);
     equipmentOptions('grip-head',Grip.heads,p.head);
     if(document.activeElement!==el('grip-reference'))el('grip-reference').value=p.reference;
     const iconId=pictogramId(c),preview=el('grip-preview'),spec=MOUNT_PICTOGRAMS[iconId]||MOUNT_PICTOGRAMS.special;
-    if(preview.dataset.icon!==iconId){const label=document.createElement('span');label.textContent=spec.label+' · '+spec.mechanism;preview.replaceChildren(miniature(iconId,56),label);preview.dataset.icon=iconId}
+    const modelLabel=mountById(c.mount).familyLabel ? cameraMountLabel(c) : spec.label;
+    const caption=modelLabel+' · '+spec.mechanism;
+    if(preview.dataset.icon!==iconId||preview.lastElementChild?.textContent!==caption){const label=document.createElement('span');label.textContent=caption;preview.replaceChildren(miniature(iconId,56),label);preview.dataset.icon=iconId}
     const a=el('grip-source');a.hidden=!system?.source;if(system?.source)a.href=system.source;else a.removeAttribute('href');
     el('grip-info').textContent=t.mobility+' · '+t.geometry+'. '+(system?.note||'Support model not selected.')+(Grip.compatible(c)?'':' Support system does not match placement template.')+' No load or clearance certification.';
     el('grip-boom').hidden=!isArm(c);el('grip-spatial').checked=p.boomMode==='spatial';
@@ -3607,15 +3657,16 @@
   el('cam-mount').addEventListener('change', (e) => {
     const template = defaultsFor(e.target.value);
     const camera = selected();
+    const arm=e.target.value==='jib' ? template : camera;
     updateSelected({
       mount: e.target.value,
-      grip:{},
-      reachMin: camera.reachMin || template.reachMin,
-      reachMax: camera.reachMax || template.reachMax,
-      reach: camera.reach || template.reach,
-      baseSize: camera.baseSize || template.baseSize,
-      tail: camera.tail || template.tail,
-      swing: camera.swing || template.swing,
+      grip:Grip.placementGrip(e.target.value),
+      reachMin: arm.reachMin || template.reachMin,
+      reachMax: arm.reachMax || template.reachMax,
+      reach: arm.reach || template.reach,
+      baseSize: arm.baseSize || template.baseSize,
+      tail: arm.tail || template.tail,
+      swing: arm.swing || template.swing,
       roam: camera.roam || template.roam
     });
   });
@@ -4369,7 +4420,7 @@
         camera.body,
         camera.control,
         camera.lensName || `${camera.wide}-${camera.tele} mm`,
-        mountById(camera.mount).name,
+        cameraMountLabel(camera),
         camera.viewfinder,
         angles?`${format(wideAov, 3)} deg`:'UNVERIFIED',
         angles?`${format(teleAov, 3)} deg`:'UNVERIFIED',
