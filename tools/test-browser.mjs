@@ -105,6 +105,35 @@ try{
   await text('readout-calibration','Uncalibrated');
   assert.match(page.url(),/#plan=d\./);
   await page.unroute('**/context/'+key+'.json');
+  // Synthetic authorised revision migration: the later revision has another
+  // frame and scale and one alternate position, and the original link must
+  // keep working unchanged.
+  const R04_SCALE=16.71464,r04bg=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=2000;c.height=1300;const g=c.getContext('2d');g.fillStyle='#ddd';g.fillRect(0,0,2000,1300);return c.toDataURL('image/png')});
+  const k=R04_SCALE/old.pxPerMetre;
+  const r04cameras=old.cameras.map(c=>({...c,x:c.x*k+37,y:c.y*k+11,path:[]}));
+  r04cameras.push({...old.cameras[0],id:'cam-plan-01-alt',positionRole:'alternate',chainId:old.cameras[0].chainId||old.cameras[0].id,x:700,y:600,path:[]});
+  const r04={format:'sightline-context/2',
+    migration:{from:{revision:old.meta.revision,content:old.content,pxPerMetre:old.pxPerMetre},to:{revision:'R04',pxPerMetre:R04_SCALE}},
+    project:{format:old.format,meta:{...old.meta,revision:'R04'},content:{width:2000,height:1300},pxPerMetre:R04_SCALE,calibrated:false,background:{href:r04bg,width:2000,height:1300},cameras:r04cameras,dimensions:[]}};
+  await page.route('**/context/'+key+'.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(r04)}));
+  await page.reload();
+  await page.waitForFunction(()=>document.getElementById('context-banner').hidden);
+  assert.equal(await page.locator('#meta-revision').inputValue(),'R04');
+  await text('chain-summary','15 unique chains · 16 positions · 1 alternate(s)');
+  await text('readout-calibration','Estimated');
+  assert.match(page.url(),/#plan=d\./);
+  assert.equal(page.url().split('#plan=')[1],'d.'+legacy,'distributed link is unchanged');
+  await page.reload();
+  await page.waitForFunction(()=>document.getElementById('context-banner').hidden);
+  assert.equal(await page.locator('#meta-revision').inputValue(),'R04');
+  // Fail closed: a record that names another source frame must not apply.
+  r04.migration.from.revision='R99';
+  await page.unroute('**/context/'+key+'.json');
+  await page.route('**/context/'+key+'.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(r04)}));
+  await page.reload();
+  await text('context-message','could not be verified');
+  assert.equal(await page.locator('#meta-revision').inputValue(),old.meta.revision);
+  await page.unroute('**/context/'+key+'.json');
   // Reset to the position-only link before testing the optical editor.
   await page.reload();
   await text('chain-summary','15 unique chains');

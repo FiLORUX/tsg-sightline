@@ -4289,8 +4289,55 @@
     el('context-authorise').hidden=c?.status!=='auth'||!c?.url;
     if(c?.url)el('context-authorise').href=c.url;
   }
+  // Least-squares similarity (uniform scale, rotation, translation; no
+  // reflection) between two point sets, via complex numbers. Used only to
+  // describe how far a revision moved the positions; it never edits them.
+  function fitSimilarity(pairs){
+    const n=pairs.length;if(n<2)return null;
+    const cp=pairs.reduce((a,[p])=>({x:a.x+p.x/n,y:a.y+p.y/n}),{x:0,y:0}),cq=pairs.reduce((a,[,q])=>({x:a.x+q.x/n,y:a.y+q.y/n}),{x:0,y:0});
+    let re=0,im=0,den=0;
+    for(const [p,q] of pairs){const px=p.x-cp.x,py=p.y-cp.y,qx=q.x-cq.x,qy=q.y-cq.y;re+=px*qx+py*qy;im+=px*qy-py*qx;den+=px*px+py*py}
+    if(!(den>0))return null;
+    const a={re:re/den,im:im/den},tx=cq.x-(a.re*cp.x-a.im*cp.y),ty=cq.y-(a.re*cp.y+a.im*cp.x);
+    let worst=0;
+    for(const [p,q] of pairs)worst=Math.max(worst,Math.hypot(q.x-(a.re*p.x-a.im*p.y+tx),q.y-(a.re*p.y+a.im*p.x+ty)));
+    return {scale:Math.hypot(a.re,a.im),rotationDeg:Math.atan2(a.im,a.re)*180/Math.PI,maxResidualPx:worst};
+  }
+  // Authorised revision migration. A shared link freezes one revision (its
+  // frame, scale and title block). The private record carries the later
+  // revision and names exactly which earlier frame it may replace; anything
+  // else fails closed. Positions in the later revision are authoritative; the
+  // fit below only reports how far they moved, so the change is never silent.
+  function migrateVenueContext(source,ctx){
+    const m=source.migration,p=source.project,from=m?.from||{},to=m?.to||{};
+    if(!m||!p||!/^camera-plan\/[1-6]$/.test(p.format)||!Array.isArray(p.cameras))throw Error('Invalid migration context');
+    if(String(from.revision)!==String(el('meta-revision').value)||from.content?.width!==state.content.width||from.content?.height!==state.content.height||!(Number(from.pxPerMetre)>0)||Math.abs(Number(from.pxPerMetre)-state.pxPerMetre)>1e-8)throw Error('Migration source frame differs');
+    const targetScale=Number(p.pxPerMetre);
+    if(!(targetScale>0)||Math.abs(Number(to.pxPerMetre)-targetScale)>1e-8||String(to.revision)!==String(p.meta?.revision||'')||String(to.revision)===String(from.revision))throw Error('Migration target mismatch');
+    for(const k of ['production','venue'])if(String(p.meta?.[k]||'')!==String(el('meta-'+k).value||''))throw Error('Drawing identity differs');
+    const bg=p.background;
+    if(!p.vector&&(!bg||typeof bg.href!=='string'||!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(bg.href)||bg.href.length>20*1024*1024||bg.width!==p.content?.width||bg.height!==p.content?.height))throw Error('Invalid embedded raster context');
+    const target=new Map(p.cameras.map(c=>[String(c.id),c]));
+    const pairs=state.cameras.map(c=>{const t=target.get(String(c.id));if(!t)throw Error('Position missing in migrated drawing');return [{x:c.x,y:c.y},{x:t.x,y:t.y}]});
+    const known=new Set(state.cameras.map(c=>String(c.id)));
+    for(const c of p.cameras)if(!known.has(String(c.id))&&c.positionRole!=='alternate')throw Error('Unexpected position in migrated drawing');
+    const fit=fitSimilarity(pairs),fromRevision=el('meta-revision').value;
+    const project=JSON.parse(JSON.stringify(p));
+    state.sharedContext=null;state.background=null;state.vector=null;
+    applyProject(project);
+    // A scale read from the drawing is an estimate until someone confirms it
+    // against a checked dimension; the context may not promote itself.
+    if(!Spatial.trusted(state.scaleEvidence,state.pxPerMetre)){
+      state.calibrated=true;
+      state.scaleEvidence={status:'estimated',method:'Drawing-derived ('+p.meta.revision+')',pxPerMetre:state.pxPerMetre,source:String(p.scaleEvidence?.source||'')};
+      render();
+    }
+    const moved=fit?fit.maxResidualPx/targetScale:null;
+    showHint(`Authorised context: ${fromRevision} → ${p.meta.revision}. ${state.cameras.length} positions, ${state.cameras.filter(c=>c.positionRole==='alternate').length} alternate(s)`+(moved===null?'':`; largest shift ${moved.toFixed(2)} m after best fit`)+'. Scale is drawing-derived until confirmed.',true,9000);
+  }
   function attachVenueContext(source,ctx){
     if(state.sharedContext!==ctx||state.background||state.vector)throw Error('Plan changed before context arrived');
+    if(source?.format==='sightline-context/2')return migrateVenueContext(source,ctx);
     const p=source?.format==='sightline-context/1'?source.project:source;
     if(!p||!/^camera-plan\/[1-6]$/.test(p.format)||p.content?.width!==state.content.width||p.content?.height!==state.content.height||!Number.isFinite(Number(p.pxPerMetre))||Number(p.pxPerMetre)<=0||Math.abs(Number(p.pxPerMetre)-state.pxPerMetre)>1e-8)throw Error('Drawing coordinate frame differs');
     for(const [k,id] of [['production','meta-production'],['venue','meta-venue'],['revision','meta-revision']])if(String(p.meta?.[k]||'')!==String(el(id).value||''))throw Error('Drawing revision differs');
