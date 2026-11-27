@@ -91,6 +91,19 @@
   .zoom-controls button.zoom-step { font-size:23px; line-height:1; }
   #action-plan-only[aria-pressed=true] { background:#dce6ee; color:#17232b; }
   .scale-bar { pointer-events:none; }
+  dialog.sight-dialog { color:var(--ink); background:#1c252d; border:1px solid #45545d; border-radius:10px; width:min(420px,calc(100% - 32px)); padding:22px; box-sizing:border-box; }
+  dialog.sight-dialog::backdrop {background:#10161bd9}
+  .sight-dialog h2 {font-size:21px;margin:8px 0 12px;letter-spacing:-.03em}
+  .sight-dialog p {font-size:13px;line-height:1.55;color:#aebcc6}
+  .sight-dialog .button-row {margin-top:18px}
+  .sight-dialog .button-row button,.sight-dialog .button-row a {min-height:44px;flex:1;display:flex;align-items:center;justify-content:center}
+  .sight-dialog a {border:1px solid #6e8ca1;border-radius:5px;color:#17232b;background:#dce7ed;font-weight:650;text-decoration:none;padding:6px}
+  .sight-dialog .kicker {font:600 10px var(--font-data);letter-spacing:.22em}
+  .sight-dialog .check {align-items:flex-start;line-height:1.45}
+  #publish-link {width:100%;margin:8px 0;font-size:14px}
+  .public-viewer #mount-palette button {opacity:.55;pointer-events:none}
+  .public-viewer #layer-handles {display:none}
+  .public-viewer #camera-editor input,.public-viewer #camera-editor select {opacity:.85}
   #live-status[hidden] { display:none!important; }
   #live-status { position:absolute; z-index:2; top:66px; right:12px; display:flex; align-items:center; flex-wrap:wrap; gap:6px; padding:6px 9px; border:1px solid #45545d; border-radius:6px; background:#17232bf2; font-size:11px; color:#dce7ed; max-width:calc(100% - 24px); }
   #live-status[data-state="ready"] #live-indicator { color:#9fd4bd; }
@@ -380,7 +393,7 @@
     </section>
     <div id="live-status" hidden aria-label="Shared project status">
       <span id="live-indicator" role="status" aria-live="polite"></span>
-      <button id="live-save" hidden>Save</button><button id="live-latest" hidden>Load latest</button><button id="live-copy" hidden>Export draft</button><button id="live-retry" hidden>Retry</button>
+      <button id="live-save" hidden>Save</button><button id="live-owner" hidden>Editor sign-in</button><button id="live-fork" hidden>Make local copy</button><button id="live-latest" hidden>Load latest</button><button id="live-copy" hidden>Export draft</button><button id="live-retry" hidden>Retry</button>
     </div>
     <section id="previs-pane" hidden aria-label="Camera previsualisation">
       <div class="previs-top"><strong>CAMERA PREVIS</strong><span id="previs-status">Concept only</span><button id="previs-close" aria-label="Close 3D preview">Close</button></div>
@@ -785,6 +798,8 @@
         <button id="action-save-project" title="Ctrl+S">Save project</button>
         <button id="action-save-as" title="Ctrl+Shift+S" hidden>Save as</button>
         <button id="action-open-project">Open project</button>
+        <button id="action-new-local">New local project</button>
+        <button id="action-publish">Publish &amp; save</button>
         <button id="action-share" title="Position geometry and title block travel; venue drawing, 3D model and chain interface details do not">Copy share link</button>
       </div>
       <input type="file" id="file-project" accept="application/json,.json">
@@ -806,6 +821,22 @@
     </section>
   </aside>
 </main>
+<dialog id="owner-dialog" class="sight-dialog">
+  <div class="kicker">TSG / SIGHTLINE</div><h2>Editor access</h2>
+  <p>Published projects are open to view. Only the Sightline owner can change the shared version.</p>
+  <p id="owner-status" role="status">Continue through Cloudflare Access. No password is entered here.</p>
+  <div class="button-row"><button id="owner-cancel">Cancel</button><a id="owner-continue" href="./context/admin/login" target="_blank" rel="noopener noreferrer">Secure sign-in</a></div>
+  <button id="owner-check" type="button">Check session</button>
+</dialog>
+<dialog id="publish-dialog" class="sight-dialog">
+  <div class="kicker">TSG / SIGHTLINE</div><h2>Publish a new project</h2>
+  <p>A new unlisted, publicly viewable copy will be stored on Edge. Your original remains local. Only rendered plan imagery and public camera data are uploaded; no DWG, DXF, SKP or local GLB files.</p>
+  <label class="check"><input type="checkbox" id="publish-consent"> I am allowed to publish this drawing and understand that anyone with its link can view and copy it.</label>
+  <div id="publish-challenge"></div>
+  <p id="publish-status" role="status"></p>
+  <input id="publish-link" readonly hidden aria-label="New project link">
+  <div class="button-row"><button id="publish-cancel">Close</button><button id="publish-confirm" disabled>Publish &amp; save local file</button><button id="publish-copy" hidden>Copy link</button></div>
+</dialog>
 
 <div id="print-sheet" hidden></div>
 <style id="print-page"></style>
@@ -2900,7 +2931,7 @@
     updateList();
     invalidatePoint();
     queuePrevis();
-    scheduleLiveStatus();
+    applyViewerControls();scheduleLiveStatus();
     scheduleAutosave();
   }
 
@@ -2936,6 +2967,7 @@
   }
 
   function addCamera(point, mountId) {
+    if(isPublicViewer())return null;
     const previous = [...state.cameras].reverse().find((item) => item.mount === mountId);
     const camera = {
       ...(previous ? { ...previous, path: [] } : {
@@ -2959,6 +2991,7 @@
   }
 
   function updateSelected(changes) {
+    if(isPublicViewer())return;
     const camera = selected();
     if (!camera) return;
     Object.assign(camera, changes);
@@ -3011,6 +3044,7 @@
   };
 
   function setMode(mode) {
+    if(isPublicViewer()&&mode!=='select')mode='select';
     state.mode = mode;
     el('mode-select').classList.toggle('is-active', mode === 'select');
     el('mode-calibrate').classList.toggle('is-active', mode === 'calibrate');
@@ -3211,6 +3245,7 @@
     }
 
     const target = event.target.closest('[data-role]');
+    if(isPublicViewer()){if(target){state.selectedId=target.dataset.id;render()}beginPan(event);return}
     if (target) {
       const camera = state.cameras.find((item) => item.id === target.dataset.id);
       state.selectedId = target.dataset.id;
@@ -3331,6 +3366,7 @@
   svg.addEventListener('dblclick', (event) => {
     // Do not turn a mobile double-tap or pinch into an accidental placement.
     if(performance.now()-lastTouchAt<700)return;
+    if(isPublicViewer())return;
     if (state.mode === 'path') { setMode('select'); return; }
     if (state.mode !== 'select') return;
     if (performance.now() - lastPlacement < 500) return;
@@ -3345,7 +3381,7 @@
     // With a position selected the wheel becomes a trim control: the modifier
     // decides whether the coverage or the arm extension is being pulled, which
     // keeps both adjustments on the plan instead of in the side panel.
-    if (camera && (event.shiftKey || event.altKey)) {
+    if (!isPublicViewer() && camera && (event.shiftKey || event.altKey)) {
       const factor = Math.exp(-event.deltaY * 0.0014);
       if (event.altKey && isArm(camera)) {
         if(Grip.profile(camera).boomMode==='spatial'){
@@ -3389,6 +3425,7 @@
     }
 
     if (event.key === 'Escape') { setMode('select'); return; }
+    if(isPublicViewer())return;
 
     const camera = selected();
     if (!camera) return;
@@ -4388,7 +4425,7 @@
     // meaningful in metres. Opening it must not discard a drawing already
     // loaded in this session, so the sheet is kept and the coordinates are
     // rescaled to preserve the spacing between positions.
-    if(!fromLive){stopLive();state.privateContextLoaded=false;}
+    if(!fromLive){stopLive();state.sharedContext=null;state.privateContextLoaded=false;}
     const carriesPlan = Boolean(project.background || project.vector);
     const sourceScale = Number(project.pxPerMetre || state.pxPerMetre);
     if (!Number.isFinite(sourceScale) || sourceScale <= 0 || !Array.isArray(project.cameras) || !project.content || ![project.content.width, project.content.height].every(v=>Number.isFinite(v)&&v>0)) throw new Error('Invalid project dimensions, scale or camera list');
@@ -4674,7 +4711,7 @@
   // is sent to an optional same-origin, independently authorised resolver.
   function updateContextBanner(){
     const ctx=state.sharedContext;
-    const missing=Boolean(ctx&&ctx.status!=='ready')||state.cameras.length>0&&!state.background&&!state.vector;
+    const missing=Boolean(ctx&&ctx.status!=='ready')||!state.live&&state.cameras.length>0&&!state.background&&!state.vector;
     const blocked=Boolean(ctx&&ctx.status!=='missing'&&ctx.status!=='ready');
     document.querySelector('.plan-area').dataset.contextBlocked=String(blocked);
     el('context-banner').hidden=!missing;if(!missing)return;
@@ -4771,7 +4808,7 @@
     try{
       const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(payload));
       const key=Array.from(new Uint8Array(hash),x=>x.toString(16).padStart(2,'0')).join('');
-      ctx.url=new URL('./context/'+key+'.json',location.href.split('#')[0]).href;
+      ctx.url=new URL('./view/alias/'+key+'.json',location.href.split('#')[0]).href;
       await fetchVenueContext(ctx);
     }catch{if(state.sharedContext===ctx){ctx.status='error';updateContextBanner()}}
   }
@@ -4820,8 +4857,9 @@
   const liveAssetPattern=/^[a-f0-9]{64}\.(png|jpg|webp|glb)$/;
   const liveIdPattern=/^[a-f0-9]{32}$/;
   const liveTagPattern=/^"[a-zA-Z0-9._-]{1,128}"$/;
-  const livePath=id=>new URL('./context/project/'+id+'.json',location.href.split('#')[0]).href;
-  const liveAssetPath=(id,name)=>new URL('./context/project/'+id+'/asset/'+name,location.href.split('#')[0]).href;
+  const livePath=id=>new URL('./view/project/'+id+'.json',location.href.split('#')[0]).href;
+  const adminPath=id=>new URL('./context/admin/project/'+id+'.json',location.href.split('#')[0]).href;
+  const liveAssetPath=(id,name)=>new URL('./view/project/'+id+'/asset/'+name,location.href.split('#')[0]).href;
   function editablePlot(){
     return {cameras:state.cameras,dimensions:state.dimensions,nextNumber:state.nextNumber,sheet:{...state.sheet}};
   }
@@ -4833,25 +4871,29 @@
   function scheduleLiveStatus(){if(!state.live||liveStatusFrame)return;liveStatusFrame=requestAnimationFrame(()=>{liveStatusFrame=0;updateLiveStatus()})}
   function updateLiveStatus(){
     const l=state.live,bar=el('live-status');bar.hidden=!l;
-    if(!l){el('action-save-project').textContent='Save project';return}
+    document.querySelector('.workspace').classList.toggle('public-viewer',Boolean(l&&l.role!=='editor'));
+    el('action-publish').disabled=Boolean(l||state.privateContextLoaded);
+    if(!l){el('action-save-project').textContent='Save local';return}
     const dirty=isDirty(l),stateLabel=l.status==='conflict'?'Local draft · update available':l.status==='offline'?'Offline · last checked '+new Date(l.checked||Date.now()).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):l.status==='saving'?'Saving…':l.status==='syncing'?'Updating…':dirty?'Unsaved changes':'Current';
     bar.dataset.state=l.status;el('live-indicator').textContent=(l.revision||'Project')+' · '+(l.sequence||'')+' · '+stateLabel;
     el('live-save').hidden=l.role!=='editor';el('live-save').disabled=!dirty||l.busy||l.status==='conflict'||l.status==='offline'||!canSave(l);
+    el('live-owner').hidden=l.role==='editor';el('live-fork').hidden=l.role==='editor'&& !dirty;
     el('live-latest').hidden=l.status!=='conflict';el('live-copy').hidden=!dirty;
     el('live-retry').hidden=l.status!=='offline';
-    el('action-save-project').textContent=l.role==='editor'?'Save to project':'Export copy';
+    el('action-save-project').textContent=l.role==='editor'?'Save to project':'Save local copy';
     if(l.role!=='editor')el('live-indicator').textContent+=' · View only';
+    applyViewerControls();
     if(dirty&&!canSave(l))el('live-indicator').textContent+=' · Local source change';
   }
   function stopLive(){
     const l=state.live;if(!l)return;state.live=null;
     clearTimeout(l.timer);clearTimeout(l.reconnect);try{l.abort?.abort()}catch{}try{l.ws?.close()}catch{}
-    updateLiveStatus();
+    applyViewerControls();updateLiveStatus();
   }
   function readBlob(blob){return new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(fr.result);fr.onerror=()=>reject(Error('Image decode failed'));fr.readAsDataURL(blob)})}
   async function assetBytes(l,asset){
     if(!asset||!liveAssetPattern.test(asset.name)||!Number.isSafeInteger(asset.bytes)||asset.bytes<=0||asset.bytes>(asset.name.endsWith('.glb')?160:20)*1024*1024)throw Error('Invalid asset');
-    const res=await fetch(liveAssetPath(l.id,asset.name),{credentials:'same-origin',redirect:'manual',cache:'no-store'});
+    const res=await fetch(liveAssetPath(l.id,asset.name),{credentials:'omit',redirect:'error',cache:'default'});
     if(!res.ok)throw Error('Current asset unavailable');
     const blob=await res.blob();if(blob.size!==asset.bytes)throw Error('Asset length differs');
     const hash=await crypto.subtle.digest('SHA-256',await blob.arrayBuffer()),hex=Array.from(new Uint8Array(hash),x=>x.toString(16).padStart(2,'0')).join('');
@@ -4862,7 +4904,7 @@
     if(record?.format!=='sightline-live/1'||!liveIdPattern.test(record.projectId)||expectedId&&expectedId!==record.projectId||!Number.isSafeInteger(record.sequence)||record.sequence<1)throw Error('Invalid current publication');
     const p=record.project;
     if(!p||!/^camera-plan\/[1-6]$/.test(p.format)||!Array.isArray(p.cameras)||p.cameras.length>512||![p.content?.width,p.content?.height,p.pxPerMetre].every(v=>Number.isFinite(v)&&v>0)||!p.meta?.revision)throw Error('Invalid project frame');
-    if(!p.vector&&!record.assets?.background)throw Error('No current drawing');
+    if(!p.vector&&!record.assets?.background&&record.viewKind!=='position-study')throw Error('No current drawing');
     return p;
   }
   async function applyPublication(l,record,res,{initial=false}={}){
@@ -4872,9 +4914,9 @@
     const asset=record.assets?.background,oldAsset=l.assets?.background,oldGeom=l.assets?.geometry,newGeom=record.assets?.geometry;
     let bg=null;
     if(asset){
-      if(!/\.(png|jpg|webp)$/.test(asset.name)||asset.width!==p.content.width||asset.height!==p.content.height)throw Error('Drawing frame differs');
+      if(!/\.(png|jpg|webp)$/.test(asset.name)||![asset.width,asset.height].every(v=>Number.isInteger(v)&&v>0&&v<=16384))throw Error('Invalid raster dimensions');
       if(l.background&&oldAsset?.name===asset.name)bg=l.background;
-      else{const href=await readBlob(await assetBytes(l,asset));const img=new Image();img.src=href;await img.decode();if(img.naturalWidth!==asset.width||img.naturalHeight!==asset.height)throw Error('Image dimensions differ');bg={href,width:asset.width,height:asset.height}}
+      else{const href=await readBlob(await assetBytes(l,asset));const img=new Image();img.src=href;await img.decode();if(img.naturalWidth!==asset.width||img.naturalHeight!==asset.height)throw Error('Image dimensions differ');bg={href,width:p.content.width,height:p.content.height}}
     }
     if(state.live!==l)throw Error('Project changed');
     if(!initial&&(drag.kind||touches.size)){l.status='ready';l.needsRefresh=true;return}
@@ -4883,10 +4925,11 @@
     const sameFrame=!initial&&state.content.width===p.content.width&&state.content.height===p.content.height&&state.pxPerMetre===p.pxPerMetre;
     const retainedModel=sameFrame&&oldGeom?.name===newGeom?.name&&l.loadedGeometry===newGeom?.name&&JSON.stringify(l.registrationSource)===JSON.stringify(p.previs?.registration||null)?{model:previs.model,name:previs.name,registration:{...previs.registration}}:null;
     const project={...p,background:bg};
+    if(!bg&&!p.vector){state.background=null;state.vector=null;state.sharedContext=null;}
     applyProject(project,{fromLive:true});
     state.privateContextLoaded=true;
     l.sequence=record.sequence;l.revision=String(p.meta.revision);l.etag=etag;l.assets=record.assets||{};
-    l.role=res.headers.get('X-Sightline-Role')==='editor'?'editor':'viewer';l.checked=Date.now();l.pending=false;l.forceLatest=false;l.status='ready';
+    l.role=ownerSession?'editor':'viewer';l.checked=Date.now();l.pending=false;l.forceLatest=false;l.status='ready';
     l.background=state.background;l.vector=state.vector;l.logo=state.logo;l.registrationSource=p.previs?.registration||null;l.frame=frameSignature();l.baseline=editSignature();
     if(sameFrame){state.view=view;if(state.cameras.some(c=>c.id===selectedId))state.selectedId=selectedId;applyView();render()}
     if(retainedModel){previs.model=retainedModel.model;previs.name=retainedModel.name;previs.registration=retainedModel.registration;queuePrevis()}
@@ -4897,7 +4940,7 @@
     validatePublication(record,ctx.id);stopLive();
     const l={id:record.projectId,url:livePath(record.projectId),status:'syncing',sequence:0,role:'viewer',busy:true,baseline:null,assets:{},checked:0};
     state.live=l;
-    try{await applyPublication(l,record,res,{initial:true});l.busy=false;updateLiveStatus();connectLive(l);scheduleLiveCheck(l)}
+    try{await applyPublication(l,record,res,{initial:true});l.busy=false;updateLiveStatus();connectLive(l);scheduleLiveCheck(l);if(ownerIntent())void checkOwner()}
     catch(err){stopLive();state.sharedContext=ctx;throw err}
   }
   function openLiveLink(id){
@@ -4910,7 +4953,7 @@
   }
   function connectLive(l){
     if(state.live!==l||document.visibilityState==='hidden'||typeof WebSocket!=='function'||l.ws&&l.ws.readyState<2)return;
-    const u=new URL('./context/project/'+l.id+'/events',location.href.split('#')[0]);u.protocol=u.protocol==='https:'?'wss:':'ws:';
+    const u=new URL('./view/project/'+l.id+'/events',location.href.split('#')[0]);u.protocol=u.protocol==='https:'?'wss:':'ws:';
     try{
       const ws=new WebSocket(u);l.ws=ws;ws.onmessage=e=>{if(e.data==='changed')void refreshLive(l)};
       ws.onopen=()=>void refreshLive(l);
@@ -4934,7 +4977,7 @@
       if(state.live!==l)return;
       if(res.type==='opaqueredirect'||res.status===401){loseAccess(l,'auth');return}
       if(res.status===403){loseAccess(l,'denied');return}
-      l.role=res.headers.get('X-Sightline-Role')==='editor'?'editor':'viewer';
+      l.role=ownerSession?'editor':'viewer';
       if(res.status===304){l.checked=Date.now();if(l.status!=='conflict')l.status='ready';return}
       if(!res.ok)throw Error('Publication unavailable');
       const record=await res.json();validatePublication(record,l.id);
@@ -4954,11 +4997,10 @@
     const body=editSignature();if(body===l.baseline)return;
     l.busy=true;l.status='saving';updateLiveStatus();
     try{
-      const res=await fetch(l.url,{method:'PUT',credentials:'same-origin',redirect:'manual',cache:'no-store',headers:{'Content-Type':'application/json','If-Match':l.etag},body});
+      const res=await fetch(adminPath(l.id),{method:'PUT',credentials:'same-origin',redirect:'manual',cache:'no-store',headers:{'Content-Type':'application/json','If-Match':l.etag},body});
       if(state.live!==l)return;
       if(res.status===412){l.status='conflict';l.pending=true;return}
-      if(res.type==='opaqueredirect'||res.status===401){loseAccess(l,'auth');return}
-      if(res.status===403){l.role='viewer';l.status='ready';showHint('Write permission withdrawn. Export your local draft.',true);return}
+      if(res.type==='opaqueredirect'||res.status===401||res.status===403){ownerSession=false;l.role='viewer';l.status='ready';showHint('Sign in again to save your draft.',true);openOwnerDialog();return}
       if(!res.ok)throw Error('Save failed');
       const ack=await res.json(),etag=res.headers.get('ETag');
       if(ack.sequence!==l.sequence+1||!liveTagPattern.test(etag||''))throw Error('Save acknowledgement invalid');
@@ -4979,12 +5021,121 @@
   el('live-latest').addEventListener('click',()=>{const l=state.live;if(l&&window.confirm('Discard this local draft and load the latest publication? Export a copy first if needed.'))void refreshLive(l,true)});
   el('live-retry').addEventListener('click',()=>{if(state.live)void refreshLive(state.live)});
   function liveVisibility(){
+    if(document.visibilityState==='visible'&&ownerIntent())void checkOwner();
     const l=state.live;if(!l)return;
     if(document.visibilityState==='hidden'){clearTimeout(l.timer);clearTimeout(l.reconnect);try{l.ws?.close()}catch{}}
     else{void refreshLive(l);connectLive(l)}
   }
   document.addEventListener('visibilitychange',liveVisibility);
   window.addEventListener('focus',liveVisibility);window.addEventListener('pageshow',liveVisibility);
+
+
+  let ownerSession=false,ownerChecking=false,publishBusy=false,challengeId=null,publishToken='',publishSnapshot=null;
+  const isPublicViewer=()=>Boolean(state.live&&state.live.role!=='editor');
+  function ownerIntent(){try{return sessionStorage.getItem('sightline.owner-intent')==='1'}catch{return false}}
+  function openOwnerDialog(){const d=el('owner-dialog');if(!d.open)d.showModal();void checkOwner()}
+  async function checkOwner(){
+    if(ownerChecking)return;ownerChecking=true;
+    try{
+      const res=await fetch(new URL('./context/admin/session',location.href.split('#')[0]),{credentials:'same-origin',redirect:'manual',cache:'no-store'});
+      ownerSession=res.ok&&res.headers.get('content-type')?.includes('application/json')&&(await res.json()).role==='editor';
+      if(state.live){state.live.role=ownerSession?'editor':'viewer';updateLiveStatus();render()}
+      el('owner-status').textContent=ownerSession?'Owner session active.':'Continue through Cloudflare Access, then return to this tab.';
+      if(ownerSession&&el('owner-dialog').open)el('owner-dialog').close();
+    }catch{ownerSession=false;if(state.live){state.live.role='viewer';updateLiveStatus()}el('owner-status').textContent='Could not verify the editor session. Try again.'}
+    finally{ownerChecking=false}
+  }
+  const editableSelector='.panel input,.panel select,.panel textarea,#mount-palette button,#mode-calibrate,#mode-measure,#action-renumber,#action-duplicate,#action-delete,#action-draw-path,#action-clear-path,#action-alternate,#action-detach-chain,#action-load-plan,#action-clear-plan,#action-load-logo,#action-clear-logo,#action-confirm-scale,#action-apply-ratio,#action-clear-dimensions,#previs-floor,#previs-tilt,#previs-roll,#previs-pan,#previs-focal,#previs-aspect,#previs-wide,#previs-tele,#previs-load,#previs-remove,#previs-rx,#previs-ry,#previs-rz,#previs-rotation,#previs-ma,#previs-mb,#previs-pa,#previs-pb,#previs-fit,#previs-registration';
+  const viewAllowed=new Set(['option-monochrome','option-envelopes','file-project']);
+  function applyViewerControls(){
+    const locked=isPublicViewer();
+    for(const node of document.querySelectorAll(editableSelector)){
+      if(viewAllowed.has(node.id))continue;
+      if(locked){if(!node.disabled){node.dataset.viewerLock='1';node.disabled=true}}
+      else if(node.dataset.viewerLock==='1'){delete node.dataset.viewerLock;node.disabled=false}
+    }
+    if(locked&&state.mode!=='select')setMode('select');
+  }
+  function forkLocal(){
+    if(!state.live)return;
+    // Public derivatives can travel with a local project, never with raw CAD.
+    stopLive();state.sharedContext=null;state.privateContextLoaded=false;projectHandle=null;
+    history.replaceState(null,'',location.pathname);render();showHint('Local copy. Changes are not published.',true,2600)
+  }
+  el('live-owner').addEventListener('click',openOwnerDialog);
+  el('owner-cancel').addEventListener('click',()=>el('owner-dialog').close());
+  el('owner-continue').addEventListener('click',()=>{try{sessionStorage.setItem('sightline.owner-intent','1')}catch{}el('owner-status').textContent='Return to this tab after sign-in.'});
+  el('owner-check').addEventListener('click',()=>{try{sessionStorage.setItem('sightline.owner-intent','1')}catch{}void checkOwner()});
+  el('live-fork').addEventListener('click',forkLocal);
+  el('action-new-local').addEventListener('click',()=>{window.open(new URL('./',location.href.split('#')[0]).href,'_blank','noopener')});
+  function snapshotForPublic(){
+    const p=buildProject();
+    const copy=JSON.parse(JSON.stringify(p));delete copy.background;delete copy.vector;delete copy.logo;
+    copy.cameras=copy.cameras.map(({chainDetails,control,adapterNote,...camera})=>{if(camera.grip)delete camera.grip.reference;return camera});
+    if(copy.scaleEvidence)copy.scaleEvidence.source='Published drawing reference';
+    return copy;
+  }
+  async function renderPublicRaster(){
+    if(!state.background&&!state.vector)return null;
+    const w=state.content.width,h=state.content.height,scale=Math.min(1,3072/Math.max(w,h),Math.sqrt(9000000/(w*h)));
+    const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(w*scale));canvas.height=Math.max(1,Math.round(h*scale));
+    const g=canvas.getContext('2d');g.fillStyle='#f4f2ec';g.fillRect(0,0,canvas.width,canvas.height);
+    if(state.background){
+      if(!/^data:image\/(png|jpeg|webp);base64,/.test(state.background.href))throw Error('Load a local raster drawing first');
+      const img=new Image();img.src=state.background.href;await img.decode();g.drawImage(img,0,0,canvas.width,canvas.height)
+    }
+    if(state.vector){
+      const root=create('svg',{xmlns:SVG_NS,width:canvas.width,height:canvas.height,viewBox:'0 0 '+w+' '+h});
+      // Only generated drawing paths, not CAD source bytes or layer names.
+      for(const node of layers.vector.querySelectorAll('path'))root.appendChild(create('path',{d:node.getAttribute('d'),fill:'none',stroke:'#34434c','stroke-width':Math.max(.5,1/scale),'stroke-linejoin':'round','stroke-linecap':'round'}));
+      const src=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(root)],{type:'image/svg+xml'}));
+      try{const img=new Image();img.src=src;await img.decode();g.drawImage(img,0,0,canvas.width,canvas.height)}finally{URL.revokeObjectURL(src)}
+    }
+    const raster=canvas.toDataURL('image/png');if(raster.length>Math.ceil(4*1024*1024/3)*4+64)throw Error('Rendered drawing exceeds 4 MiB. Use a smaller base image.');return raster
+  }
+  function updatePublish(){el('publish-confirm').disabled=publishBusy||!publishToken||!el('publish-consent').checked||!publishSnapshot}
+  async function openPublish(){
+    if(state.live||state.privateContextLoaded||state.sharedContext&&state.sharedContext.status!=='missing')return;
+    if(!state.cameras.length){showHint('Place at least one camera first.',true);return}
+    const dialog=el('publish-dialog');el('publish-consent').checked=false;el('publish-link').hidden=true;el('publish-copy').hidden=true;el('publish-confirm').hidden=false;
+    publishToken='';publishSnapshot=null;publishBusy=true;el('publish-status').textContent='Preparing public drawing…';dialog.showModal();updatePublish();
+    try{
+      const config=await fetch(new URL('./view/config',location.href.split('#')[0]),{credentials:'omit',cache:'no-store'}).then(r=>r.json());
+      if(!config.sitekey)throw Error('Cloud publishing is not enabled. You can still save a local file.');
+      const snapshot=snapshotForPublic(),local=JSON.stringify(buildProject(),null,2),filename=planFilename('json');
+      const raster=await renderPublicRaster();publishSnapshot={project:snapshot,raster,local,filename};
+      if(!window.turnstile){
+        await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';script.async=true;script.onload=resolve;script.onerror=()=>reject(Error('Verification could not load'));document.head.appendChild(script)})
+      }
+      if(!dialog.open)return;
+      if(challengeId!==null){try{window.turnstile.remove(challengeId)}catch{}}
+      challengeId=window.turnstile.render('#publish-challenge',{sitekey:config.sitekey,action:'publish-project',theme:'dark',callback:token=>{publishToken=token;updatePublish()},'expired-callback':()=>{publishToken='';updatePublish()},'error-callback':()=>{publishToken='';el('publish-status').textContent='Verification unavailable. Try again.';updatePublish()}});
+      el('publish-status').textContent='Confirm the public publication to continue.';
+    }catch(err){el('publish-status').textContent=err.message}
+    finally{publishBusy=false;updatePublish()}
+  }
+  async function publishLocal(){
+    if(publishBusy||!publishToken||!publishSnapshot||!el('publish-consent').checked)return;
+    const snapshot=publishSnapshot;publishBusy=true;updatePublish();el('publish-status').textContent='Publishing…';
+    try{
+      const res=await fetch(new URL('./view/create',location.href.split('#')[0]),{method:'POST',credentials:'omit',redirect:'error',headers:{'Content-Type':'application/json'},body:JSON.stringify({project:snapshot.project,raster:snapshot.raster,consent:true,token:publishToken})});
+      const data=await res.json();if(res.status!==201||!liveIdPattern.test(data.projectId||''))throw Error(data.error||'Publication failed');
+      const url=location.origin+location.pathname+'#project='+data.projectId;
+      const original=JSON.parse(snapshot.local);original.publication={projectId:data.projectId,url,sequence:1};
+      download(new Blob([JSON.stringify(original,null,2)],{type:'application/json'}),snapshot.filename);
+      el('publish-link').value=url;el('publish-link').hidden=false;el('publish-copy').hidden=false;el('publish-confirm').hidden=true;
+      el('publish-status').textContent='Published. Your local project file was saved. The shared copy follows future owner updates.';
+      try{await navigator.clipboard.writeText(url)}catch{}
+      publishSnapshot=null;
+    }catch(err){el('publish-status').textContent=err.message;try{window.turnstile.reset(challengeId)}catch{}}
+    finally{publishToken='';publishBusy=false;updatePublish()}
+  }
+  el('action-publish').addEventListener('click',()=>void openPublish());
+  el('publish-consent').addEventListener('change',updatePublish);
+  el('publish-confirm').addEventListener('click',()=>void publishLocal());
+  el('publish-cancel').addEventListener('click',()=>{if(!publishBusy)el('publish-dialog').close()});
+  el('publish-dialog').addEventListener('cancel',e=>{if(publishBusy)e.preventDefault()});
+  el('publish-copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(el('publish-link').value);el('publish-status').textContent='Project link copied.'}catch{el('publish-link').select()}});
 
   // #region chain-core
   const Chains = (function createChainCore(){
