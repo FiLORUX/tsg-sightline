@@ -91,6 +91,15 @@
   .zoom-controls button.zoom-step { font-size:23px; line-height:1; }
   #action-plan-only[aria-pressed=true] { background:#dce6ee; color:#17232b; }
   .scale-bar { pointer-events:none; }
+  #live-status[hidden] { display:none!important; }
+  #live-status { position:absolute; z-index:2; top:66px; right:12px; display:flex; align-items:center; flex-wrap:wrap; gap:6px; padding:6px 9px; border:1px solid #45545d; border-radius:6px; background:#17232bf2; font-size:11px; color:#dce7ed; max-width:calc(100% - 24px); }
+  #live-status[data-state="ready"] #live-indicator { color:#9fd4bd; }
+  #live-status[data-state="conflict"] #live-indicator,#live-status[data-state="offline"] #live-indicator { color:#efd19b; }
+  #live-status button { min-height:32px; padding:4px 8px; font-size:11px; touch-action:manipulation; }
+  #live-status button[hidden] { display:none!important; }
+  .plan-area[data-context-blocked="true"] #viewport { visibility:hidden; }
+  .plan-area[data-context-blocked="true"] #plan { pointer-events:none; }
+  @media(max-width:900px){ .plan-area { grid-template-rows:auto auto auto minmax(0,1fr)!important; } #plan {grid-row:4!important;} #live-status {position:relative;inset:auto;grid-row:3;grid-column:1;max-width:none;border-width:0 0 1px;border-radius:0;padding:4px 8px;} }
   #context-detail-toggle { display:none; }
 
   #plan { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
@@ -369,6 +378,10 @@
       <button id="context-detail-toggle" aria-expanded="false" aria-controls="context-message">Details</button>
       <div class="context-actions"><a id="context-authorise" target="_blank" rel="noopener noreferrer" hidden>Sign in</a><button id="context-open" title="Open complete local project">Open file</button><button id="context-retry" hidden>Retry</button></div>
     </section>
+    <div id="live-status" hidden aria-label="Shared project status">
+      <span id="live-indicator" role="status" aria-live="polite"></span>
+      <button id="live-save" hidden>Save</button><button id="live-latest" hidden>Load latest</button><button id="live-copy" hidden>Export draft</button><button id="live-retry" hidden>Retry</button>
+    </div>
     <section id="previs-pane" hidden aria-label="Camera previsualisation">
       <div class="previs-top"><strong>CAMERA PREVIS</strong><span id="previs-status">Concept only</span><button id="previs-close" aria-label="Close 3D preview">Close</button></div>
       <canvas id="previs-canvas" aria-label="Three-dimensional geometry and camera view"></canvas>
@@ -1150,6 +1163,7 @@
   const state = {
     background: null,
     sharedContext:null,
+    live:null, privateContextLoaded:false,
     content: { ...DEFAULT_CONTENT },
     pxPerMetre: 20,
     calibrated: false,
@@ -2571,13 +2585,14 @@
     el('grid-coarse-path').setAttribute('d', `M ${coarse} 0 L 0 0 0 ${coarse}`);
 
     if (state.background) {
-      layers.background.setAttribute('href', state.background.href);
+      if(layers.background.getAttribute('href')!==state.background.href)layers.background.setAttribute('href',state.background.href);
       layers.background.setAttribute('x', 0);
       layers.background.setAttribute('y', 0);
       layers.background.setAttribute('width', width);
       layers.background.setAttribute('height', height);
       layers.background.style.display = '';
     } else {
+      layers.background.removeAttribute('href');
       layers.background.style.display = 'none';
     }
   }
@@ -2885,6 +2900,7 @@
     updateList();
     invalidatePoint();
     queuePrevis();
+    scheduleLiveStatus();
     scheduleAutosave();
   }
 
@@ -4360,7 +4376,7 @@
     hand: 'handheld', robo: 'robo', pov: 'pov', spec: 'special'
   };
 
-  function applyProject(project) {
+  function applyProject(project, {fromLive=false}={}) {
     if (!/^camera-plan\/[1-6]$/.test(String(project.format || ''))) {
       throw new Error('Unrecognised project format');
     }
@@ -4368,6 +4384,7 @@
     // meaningful in metres. Opening it must not discard a drawing already
     // loaded in this session, so the sheet is kept and the coordinates are
     // rescaled to preserve the spacing between positions.
+    if(!fromLive){stopLive();state.privateContextLoaded=false;}
     const carriesPlan = Boolean(project.background || project.vector);
     const sourceScale = Number(project.pxPerMetre || state.pxPerMetre);
     if (!Number.isFinite(sourceScale) || sourceScale <= 0 || !Array.isArray(project.cameras) || !project.content || ![project.content.width, project.content.height].every(v=>Number.isFinite(v)&&v>0)) throw new Error('Invalid project dimensions, scale or camera list');
@@ -4441,6 +4458,7 @@
   const hasFilePicker = typeof window.showSaveFilePicker === 'function' && window.isSecureContext;
 
   async function saveProject(chooseFile) {
+    if(state.live&&!chooseFile){await saveLive();return}
     const json = JSON.stringify(buildProject(), null, 2);
     if (hasFilePicker) {
       try {
@@ -4515,7 +4533,7 @@
   let autosaveArmed = false;
 
   function writeAutosave() {
-    if (!autosaveArmed) return;
+    if(!autosaveArmed||state.live||state.sharedContext||state.privateContextLoaded)return;
     const project = buildProject();
     project.savedAt = new Date().toISOString();
     try {
@@ -4623,6 +4641,8 @@
   }
 
   el('action-share').addEventListener('click', async () => {
+    if(state.live){try{await navigator.clipboard.writeText(location.origin+location.pathname+'#project='+state.live.id);showHint('Current project link copied',true)}catch{showHint('Clipboard unavailable',true)}return}
+    if(state.privateContextLoaded){showHint('Use the existing authorised project link.',true);return}
     const project = buildProject();
     delete project.background;
     delete project.vector;
@@ -4647,14 +4667,17 @@
   // The payload itself stays in the URL fragment. Only its SHA-256 identifier
   // is sent to an optional same-origin, independently authorised resolver.
   function updateContextBanner(){
-    const missing=state.cameras.length>0&&!state.background&&!state.vector;
+    const ctx=state.sharedContext;
+    const missing=Boolean(ctx&&ctx.status!=='ready')||state.cameras.length>0&&!state.background&&!state.vector;
+    const blocked=Boolean(ctx&&ctx.status!=='missing'&&ctx.status!=='ready');
+    document.querySelector('.plan-area').dataset.contextBlocked=String(blocked);
     el('context-banner').hidden=!missing;if(!missing)return;
     const c=state.sharedContext,zero=state.cameras.filter(x=>!(Number(x.throwMetres)>0)).length;
     const needsAuth=c?.status==='auth'||c?.status==='denied';
     el('context-banner').classList.toggle('has-authorise',needsAuth);
-    el('context-heading').textContent=c?.status==='loading'?'Loading venue drawing…':c?.status==='auth'?'Sign in to view venue drawing':c?.status==='denied'?'Venue drawing access denied':'No venue drawing · position study only';
+    el('context-heading').textContent=c?.status==='loading'?'Opening current project…':c?.status==='auth'?'Sign in to view venue drawing':c?.status==='denied'?'Venue drawing access denied':c?.status==='error'?'Current project unavailable':'No venue drawing · position study only';
     const detail=c?.status==='auth'?'Sign in with an approved account, then return to this tab.':c?.status==='denied'?'The current account is not authorised, or the access configuration rejected the request. Check the approved account.':c?.status==='error'?'Private context could not be verified; open the complete authorised project.':c?.status==='missing'?'No private drawing has been registered for this link.':'Camera positions alone do not include a venue drawing. Open the complete project.';
-    el('context-message').textContent=detail+(zero?' '+zero+' position(s) have no plan throw.':'');
+    el('context-message').textContent=detail+(c?.status==='missing'&&zero?' '+zero+' position(s) have no plan throw.':'');
     el('context-retry').hidden=!c?.url||c.status==='loading';
     el('context-authorise').hidden=!needsAuth||!c?.url;
     if(c?.url){const url=new URL(c.url);url.searchParams.set('view','authorise');el('context-authorise').href=url.href;}
@@ -4694,7 +4717,7 @@
     const fit=fitSimilarity(pairs),fromRevision=el('meta-revision').value;
     const project=JSON.parse(JSON.stringify(p));
     state.sharedContext=null;state.background=null;state.vector=null;
-    applyProject(project);
+    applyProject(project);state.privateContextLoaded=true;
     // A scale read from the drawing is an estimate until someone confirms it
     // against a checked dimension; the context may not promote itself.
     if(!Spatial.trusted(state.scaleEvidence,state.pxPerMetre)){
@@ -4715,7 +4738,7 @@
     if(!bg||bg.width!==state.content.width||bg.height!==state.content.height||typeof bg.href!=='string'||!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(bg.href)||bg.href.length>20*1024*1024)throw Error('Invalid embedded raster context');
     state.background={href:bg.href,width:bg.width,height:bg.height};
     state.vector=null;state.calibrated=false;state.scaleEvidence=null;state.plotRatio=null;
-    state.sharedContext=null;buildLayerList();render();fitToContent();
+    state.sharedContext=null;state.privateContextLoaded=true;buildLayerList();render();fitToContent();
   }
   async function fetchVenueContext(ctx){
     if(!ctx?.url||state.sharedContext!==ctx||state.background||state.vector)return;
@@ -4725,17 +4748,20 @@
       if(state.sharedContext!==ctx)return;
       if(res.type==='opaqueredirect'||res.status===401){ctx.status='auth';return}
       if(res.status===403){ctx.status='denied';return}
-      if(res.status===404){ctx.status='missing';return}
+      if(res.status===404&&!ctx.direct){ctx.status='missing';return}
       if(!res.ok||!(res.headers.get('content-type')||'').includes('application/json'))throw Error('Unexpected context response');
       const declared=Number(res.headers.get('content-length'));if(declared>24*1024*1024)throw Error('Context too large');
       const bytes=await res.arrayBuffer();if(bytes.byteLength>24*1024*1024)throw Error('Context too large');
-      attachVenueContext(JSON.parse(new TextDecoder().decode(bytes)),ctx);
+      const record=JSON.parse(new TextDecoder().decode(bytes));
+      if(record?.format==='sightline-live/1')await startLive(record,res,ctx);
+      else if(ctx.direct)throw Error('Invalid current publication');
+      else attachVenueContext(record,ctx);
     }catch(err){if(state.sharedContext===ctx)ctx.status='error'}
     finally{updateContextBanner()}
   }
   async function resolveVenueContext(payload){
-    const ctx={status:'missing',url:null};state.sharedContext=ctx;updateContextBanner();
-    if(!window.isSecureContext||!globalThis.crypto?.subtle)return;
+    const ctx=state.sharedContext||{status:'loading',url:null};state.sharedContext=ctx;updateContextBanner();
+    if(!window.isSecureContext||!globalThis.crypto?.subtle){ctx.status='missing';updateContextBanner();return;}
     try{
       const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(payload));
       const key=Array.from(new Uint8Array(hash),x=>x.toString(16).padStart(2,'0')).join('');
@@ -4751,7 +4777,10 @@
   el('context-open').addEventListener('click',()=>openProjectFile());
   el('context-retry').addEventListener('click',()=>fetchVenueContext(state.sharedContext));
   let pendingAuthReturn=null;
-  el('context-authorise').addEventListener('click',()=>{pendingAuthReturn=state.sharedContext});
+  el('context-authorise').addEventListener('click',event=>{
+    pendingAuthReturn=state.sharedContext;
+    try{sessionStorage.setItem('sightline.auth-return.v1',location.hash);event.preventDefault();location.assign(el('context-authorise').href)}catch{}
+  });
   function retryOnReturn(){
     if(document.visibilityState!=='visible'||!pendingAuthReturn)return;
     const ctx=pendingAuthReturn;pendingAuthReturn=null;
@@ -4767,7 +4796,7 @@
       // external drawing URLs, model registration or interface metadata.
       delete project.background;delete project.vector;delete project.logo;delete project.previs;delete project.scaleEvidence;
       if(Array.isArray(project.cameras))project.cameras=project.cameras.map(({chainDetails,...position})=>position);
-      state.background=null;state.vector=null;state.sharedContext=null;
+      stopLive();state.background=null;state.vector=null;state.sharedContext={status:'loading',url:null};
       applyProject(project);
       void resolveVenueContext(payload);
     } catch (error) {
@@ -4776,6 +4805,176 @@
       // Preserve the portable plan fragment for reload and forwarding.
     }
   }
+
+
+  // Hosted publications are distinct from local portable files. All network
+  // resources are same-origin and independently authorised by the Worker.
+  const liveAssetPattern=/^[a-f0-9]{64}\.(png|jpg|webp|glb)$/;
+  const liveIdPattern=/^[a-f0-9]{32}$/;
+  const liveTagPattern=/^"[a-zA-Z0-9._-]{1,128}"$/;
+  const livePath=id=>new URL('./context/project/'+id+'.json',location.href.split('#')[0]).href;
+  const liveAssetPath=(id,name)=>new URL('./context/project/'+id+'/asset/'+name,location.href.split('#')[0]).href;
+  function editablePlot(){
+    return {cameras:state.cameras,dimensions:state.dimensions,nextNumber:state.nextNumber,sheet:{...state.sheet}};
+  }
+  function editSignature(){return JSON.stringify(editablePlot())}
+  function frameSignature(){return [state.content.width,state.content.height,state.pxPerMetre,el('meta-production').value,el('meta-venue').value,el('meta-revision').value,state.calibrated,JSON.stringify(state.scaleEvidence)].join('\u001f')}
+  function isDirty(l){return !!l.baseline&&(editSignature()!==l.baseline||frameSignature()!==l.frame||state.background!==l.background||state.vector!==l.vector||state.logo!==l.logo)}
+  function canSave(l){return frameSignature()===l.frame&&state.background===l.background&&state.vector===l.vector&&state.logo===l.logo}
+  let liveStatusFrame=0;
+  function scheduleLiveStatus(){if(!state.live||liveStatusFrame)return;liveStatusFrame=requestAnimationFrame(()=>{liveStatusFrame=0;updateLiveStatus()})}
+  function updateLiveStatus(){
+    const l=state.live,bar=el('live-status');bar.hidden=!l;
+    if(!l){el('action-save-project').textContent='Save project';return}
+    const dirty=isDirty(l),stateLabel=l.status==='conflict'?'Local draft · update available':l.status==='offline'?'Offline · last checked '+new Date(l.checked||Date.now()).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):l.status==='saving'?'Saving…':l.status==='syncing'?'Updating…':dirty?'Unsaved changes':'Current';
+    bar.dataset.state=l.status;el('live-indicator').textContent=(l.revision||'Project')+' · '+(l.sequence||'')+' · '+stateLabel;
+    el('live-save').hidden=l.role!=='editor';el('live-save').disabled=!dirty||l.busy||l.status==='conflict'||l.status==='offline'||!canSave(l);
+    el('live-latest').hidden=l.status!=='conflict';el('live-copy').hidden=!dirty;
+    el('live-retry').hidden=l.status!=='offline';
+    el('action-save-project').textContent=l.role==='editor'?'Save to project':'Export copy';
+    if(l.role!=='editor')el('live-indicator').textContent+=' · View only';
+  }
+  function stopLive(){
+    const l=state.live;if(!l)return;state.live=null;
+    clearTimeout(l.timer);clearTimeout(l.reconnect);try{l.abort?.abort()}catch{}try{l.ws?.close()}catch{}
+    updateLiveStatus();
+  }
+  function readBlob(blob){return new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(fr.result);fr.onerror=()=>reject(Error('Image decode failed'));fr.readAsDataURL(blob)})}
+  async function assetBytes(l,asset){
+    if(!asset||!liveAssetPattern.test(asset.name)||!Number.isSafeInteger(asset.bytes)||asset.bytes<=0||asset.bytes>(asset.name.endsWith('.glb')?160:20)*1024*1024)throw Error('Invalid asset');
+    const res=await fetch(liveAssetPath(l.id,asset.name),{credentials:'same-origin',redirect:'manual',cache:'no-store'});
+    if(!res.ok)throw Error('Current asset unavailable');
+    const blob=await res.blob();if(blob.size!==asset.bytes)throw Error('Asset length differs');
+    const hash=await crypto.subtle.digest('SHA-256',await blob.arrayBuffer()),hex=Array.from(new Uint8Array(hash),x=>x.toString(16).padStart(2,'0')).join('');
+    if(hex!==asset.name.split('.')[0])throw Error('Asset digest differs');
+    return blob;
+  }
+  function validatePublication(record,expectedId){
+    if(record?.format!=='sightline-live/1'||!liveIdPattern.test(record.projectId)||expectedId&&expectedId!==record.projectId||!Number.isSafeInteger(record.sequence)||record.sequence<1)throw Error('Invalid current publication');
+    const p=record.project;
+    if(!p||!/^camera-plan\/[1-6]$/.test(p.format)||!Array.isArray(p.cameras)||p.cameras.length>512||![p.content?.width,p.content?.height,p.pxPerMetre].every(v=>Number.isFinite(v)&&v>0)||!p.meta?.revision)throw Error('Invalid project frame');
+    if(!p.vector&&!record.assets?.background)throw Error('No current drawing');
+    return p;
+  }
+  async function applyPublication(l,record,res,{initial=false}={}){
+    const p=validatePublication(record,l.id);
+    if(!initial&&record.sequence<=l.sequence)throw Error('Publication did not advance');
+    const etag=res.headers.get('ETag');if(!liveTagPattern.test(etag||''))throw Error('Missing publication ETag');
+    const asset=record.assets?.background,oldAsset=l.assets?.background,oldGeom=l.assets?.geometry,newGeom=record.assets?.geometry;
+    let bg=null;
+    if(asset){
+      if(!/\.(png|jpg|webp)$/.test(asset.name)||asset.width!==p.content.width||asset.height!==p.content.height)throw Error('Drawing frame differs');
+      if(l.background&&oldAsset?.name===asset.name)bg=l.background;
+      else{const href=await readBlob(await assetBytes(l,asset));const img=new Image();img.src=href;await img.decode();if(img.naturalWidth!==asset.width||img.naturalHeight!==asset.height)throw Error('Image dimensions differ');bg={href,width:asset.width,height:asset.height}}
+    }
+    if(state.live!==l)throw Error('Project changed');
+    if(!initial&&isDirty(l)&&!l.forceLatest){l.status='conflict';l.pending=true;updateLiveStatus();return}
+    const view={...state.view},selectedId=state.selectedId;
+    const sameFrame=!initial&&state.content.width===p.content.width&&state.content.height===p.content.height&&state.pxPerMetre===p.pxPerMetre;
+    const retainedModel=sameFrame&&oldGeom?.name===newGeom?.name&&l.loadedGeometry===newGeom?.name?{model:previs.model,name:previs.name,registration:{...previs.registration}}:null;
+    const project={...p,background:bg};
+    applyProject(project,{fromLive:true});
+    state.privateContextLoaded=true;
+    l.sequence=record.sequence;l.revision=String(p.meta.revision);l.etag=etag;l.assets=record.assets||{};
+    l.role=res.headers.get('X-Sightline-Role')==='editor'?'editor':'viewer';l.checked=Date.now();l.pending=false;l.forceLatest=false;l.status='ready';
+    l.background=state.background;l.vector=state.vector;l.logo=state.logo;l.frame=frameSignature();l.baseline=editSignature();
+    if(sameFrame){state.view=view;if(state.cameras.some(c=>c.id===selectedId))state.selectedId=selectedId;applyView();render()}
+    if(retainedModel){previs.model=retainedModel.model;previs.name=retainedModel.name;previs.registration=retainedModel.registration;queuePrevis()}
+    else{l.loadedGeometry=null;if(!el('previs-pane').hidden)void ensureLiveGeometry()}
+    state.sharedContext=null;updateContextBanner();updateLiveStatus();
+  }
+  async function startLive(record,res,ctx){
+    validatePublication(record,ctx.id);stopLive();
+    const l={id:record.projectId,url:livePath(record.projectId),status:'syncing',sequence:0,role:'viewer',busy:true,baseline:null,assets:{},checked:0};
+    state.live=l;
+    try{await applyPublication(l,record,res,{initial:true});l.busy=false;updateLiveStatus();connectLive(l);scheduleLiveCheck(l)}
+    catch(err){stopLive();state.sharedContext=ctx;throw err}
+  }
+  function openLiveLink(id){
+    stopLive();state.background=null;state.vector=null;state.cameras=[];state.privateContextLoaded=false;
+    const ctx={id,direct:true,status:'loading',url:livePath(id)};state.sharedContext=ctx;render();void fetchVenueContext(ctx);
+  }
+  function scheduleLiveCheck(l,delay){
+    clearTimeout(l.timer);if(state.live!==l||document.visibilityState==='hidden')return;
+    l.timer=setTimeout(()=>void refreshLive(l),delay??(l.ws?.readyState===1?15000:3000));
+  }
+  function connectLive(l){
+    if(state.live!==l||document.visibilityState==='hidden'||typeof WebSocket!=='function'||l.ws&&l.ws.readyState<2)return;
+    const u=new URL('./context/project/'+l.id+'/events',location.href.split('#')[0]);u.protocol=u.protocol==='https:'?'wss:':'ws:';
+    try{
+      const ws=new WebSocket(u);l.ws=ws;ws.onmessage=e=>{if(e.data==='changed')void refreshLive(l)};
+      ws.onopen=()=>void refreshLive(l);
+      ws.onclose=()=>{if(state.live!==l)return;scheduleLiveCheck(l,500);clearTimeout(l.reconnect);l.reconnect=setTimeout(()=>connectLive(l),5000)};
+      ws.onerror=()=>{try{ws.close()}catch{}};
+    }catch{}
+  }
+  function loseAccess(l,status){
+    if(state.live!==l)return;
+    const ctx={id:l.id,direct:true,url:l.url,status};stopLive();state.background=null;state.vector=null;state.logo=null;state.cameras=[];state.selectedId=null;resetPrevis(null);state.sharedContext=ctx;render();
+  }
+  async function refreshLive(l,force=false){
+    if(state.live!==l)return;
+    if(l.busy){l.needsRefresh=true;return}
+    if(document.visibilityState==='hidden'&&!force)return;
+    if(drag.kind||touches.size){scheduleLiveCheck(l,400);return}
+    l.busy=true;
+    try{
+      const requestHeaders={};if(l.etag&&!force)requestHeaders['If-None-Match']=l.etag;
+      const res=await fetch(l.url,{credentials:'same-origin',redirect:'manual',cache:'no-store',headers:requestHeaders});
+      if(state.live!==l)return;
+      if(res.type==='opaqueredirect'||res.status===401){loseAccess(l,'auth');return}
+      if(res.status===403){loseAccess(l,'denied');return}
+      l.role=res.headers.get('X-Sightline-Role')==='editor'?'editor':'viewer';
+      if(res.status===304){l.checked=Date.now();if(l.status!=='conflict')l.status='ready';return}
+      if(!res.ok)throw Error('Publication unavailable');
+      const record=await res.json();validatePublication(record,l.id);
+      if(record.sequence===l.sequence&&res.headers.get('ETag')===l.etag){l.checked=Date.now();l.status='ready';return}
+      if(record.sequence<=l.sequence)throw Error('Stale publication');
+      if(isDirty(l)&&!force){l.status='conflict';l.pending=true;return}
+      l.forceLatest=force;l.status='syncing';updateLiveStatus();
+      await applyPublication(l,record,res);
+    }catch(err){if(state.live===l){l.forceLatest=false;if(l.status!=='conflict')l.status='offline'}}
+    finally{if(state.live===l){l.busy=false;updateLiveStatus();const again=l.needsRefresh;l.needsRefresh=false;scheduleLiveCheck(l,again?50:undefined)}}
+  }
+  async function saveLive(){
+    const l=state.live;if(!l)return;
+    if(l.role!=='editor'){await saveProject(true);return}
+    if(l.busy||l.status==='conflict'||l.status==='offline')return;
+    if(!canSave(l)){showHint('Source drawing or scale changed locally. Export a copy; publish the revised source separately.',true,5000);return}
+    const body=editSignature();if(body===l.baseline)return;
+    l.busy=true;l.status='saving';updateLiveStatus();
+    try{
+      const res=await fetch(l.url,{method:'PUT',credentials:'same-origin',redirect:'manual',cache:'no-store',headers:{'Content-Type':'application/json','If-Match':l.etag},body});
+      if(state.live!==l)return;
+      if(res.status===412){l.status='conflict';l.pending=true;return}
+      if(res.type==='opaqueredirect'||res.status===401){loseAccess(l,'auth');return}
+      if(res.status===403){l.role='viewer';l.status='ready';showHint('Write permission withdrawn. Export your local draft.',true);return}
+      if(!res.ok)throw Error('Save failed');
+      const ack=await res.json(),etag=res.headers.get('ETag');
+      if(ack.sequence!==l.sequence+1||!liveTagPattern.test(etag||''))throw Error('Save acknowledgement invalid');
+      l.sequence=ack.sequence;l.etag=etag;l.baseline=body;l.checked=Date.now();l.status='ready';
+      showHint('Saved to shared project',true,1800);
+    }catch{if(state.live===l)l.status='offline'}
+    finally{if(state.live===l){l.busy=false;updateLiveStatus();scheduleLiveCheck(l,100)}}
+  }
+  async function ensureLiveGeometry(){
+    const l=state.live,a=l?.assets?.geometry;if(!a||l.loadedGeometry===a.name||l.geometryLoading||!previs.loadPublishedModel)return;
+    l.geometryLoading=true;const sequence=l.sequence;
+    try{const blob=await assetBytes(l,a);if(state.live!==l||l.assets?.geometry?.name!==a.name||l.sequence!==sequence)return;await previs.loadPublishedModel(new File([blob],a.name,{type:'model/gltf-binary'}));if(state.live===l&&l.assets?.geometry?.name===a.name)l.loadedGeometry=a.name}
+    catch{if(state.live===l)showHint('Current 3D geometry could not be loaded.',true,4000)}
+    finally{l.geometryLoading=false;if(state.live===l&&l.sequence!==sequence&&!el('previs-pane').hidden)void ensureLiveGeometry()}
+  }
+  el('live-save').addEventListener('click',saveLive);
+  el('live-copy').addEventListener('click',()=>saveProject(true));
+  el('live-latest').addEventListener('click',()=>{const l=state.live;if(l&&window.confirm('Discard this local draft and load the latest publication? Export a copy first if needed.'))void refreshLive(l,true)});
+  el('live-retry').addEventListener('click',()=>{if(state.live)void refreshLive(state.live)});
+  function liveVisibility(){
+    const l=state.live;if(!l)return;
+    if(document.visibilityState==='hidden'){clearTimeout(l.timer);clearTimeout(l.reconnect);try{l.ws?.close()}catch{}}
+    else{void refreshLive(l);connectLive(l)}
+  }
+  document.addEventListener('visibilitychange',liveVisibility);
+  window.addEventListener('focus',liveVisibility);window.addEventListener('pageshow',liveVisibility);
 
   // #region chain-core
   const Chains = (function createChainCore(){
@@ -5072,7 +5271,7 @@ void main(){float shade=1.0;if(lit){vec3 n=cross(dFdx(world),dFdy(world));float 
     }catch(e){info+='\n'+e.message}el('previs-info').textContent=info;
   };
   P.clearGpu=clearBuffers;P.poseFor=poseFor;
-  function toggle(on){el('previs-pane').hidden=!on;el('action-previs').setAttribute('aria-pressed',String(on));if(on)queuePrevis()}
+  function toggle(on){el('previs-pane').hidden=!on;el('action-previs').setAttribute('aria-pressed',String(on));if(on){queuePrevis();void ensureLiveGeometry()}}
   el('action-previs').addEventListener('click',()=>toggle(el('previs-pane').hidden));el('previs-close').addEventListener('click',()=>toggle(false));
   for(const id of ['previs-view','previs-orbit','previs-elevation'])el(id).addEventListener('input',queuePrevis);
   el('previs-camera').addEventListener('change',e=>{state.selectedId=e.target.value;render()});
@@ -5095,17 +5294,19 @@ void main(){float shade=1.0;if(lit){vec3 n=cross(dFdx(world),dFdy(world));float 
       try{worker.postMessage(file)}catch(e){finish();reject(e)}
     });
   }
-  el('previs-file').addEventListener('change',async e=>{
-    const file=e.target.files[0];e.target.value='';if(!file)return;
-    if(file.size>160*1024*1024){showHint('GLB exceeds 160 MiB; export a simplified model.',true);return}
+  async function loadModel(file){
+    if(!file)return false;
+    if(file.size>160*1024*1024){showHint('GLB exceeds 160 MiB; export a simplified model.',true);return false}
     const token=++P.loadToken;if(P.cancelLoad)P.cancelLoad();P.loading=true;P.registration.confirmed=false;invalidatePoint();queuePrevis();
     el('previs-model').textContent='Reading local geometry…';
     try{
       const model=await readLocalModel(file);if(token!==P.loadToken)return;
-      clearBuffers();P.model=model;P.name=file.name;P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();
-    }catch(err){if(token===P.loadToken)showHint(err.message,true,7000)}
+      clearBuffers();P.model=model;P.name=file.name;P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();return true;
+    }catch(err){if(token===P.loadToken)showHint(err.message,true,7000);return false}
     finally{if(token===P.loadToken){P.loading=false;queuePrevis()}}
-  });
+  }
+  P.loadPublishedModel=async file=>{if(!await loadModel(file))throw Error('GLB import failed')};
+  el('previs-file').addEventListener('change',e=>{const file=e.target.files[0];e.target.value='';if(state.live)state.live.loadedGeometry=null;void loadModel(file)});
   el('previs-remove').addEventListener('click',()=>{++P.loadToken;if(P.cancelLoad)P.cancelLoad();P.loading=false;clearBuffers();P.model=null;P.name='';P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();queuePrevis()});
   for(const [id,key] of Object.entries({'previs-rx':'x','previs-ry':'y','previs-rz':'z','previs-rotation':'rotation'}))el(id).addEventListener('change',()=>{P.registration[key]=clamp(readNumber(id,P.registration[key]),-1e6,1e6);P.registration.confirmed=false;el('previs-residual').textContent='';invalidatePoint();scheduleAutosave();queuePrevis()});
   el('previs-fit').addEventListener('click',()=>{try{const xy=id=>{const parts=el(id).value.split(',');if(parts.length!==2||parts.some(p=>!p.trim()))throw Error('Enter X,Y in metres');return parts.map(Number)};const fit=S.fitRegistration(xy('previs-ma'),xy('previs-mb'),xy('previs-pa'),xy('previs-pb'),P.registration.z);P.registration={x:fit.x,y:fit.y,z:fit.z,rotation:fit.rotation,confirmed:false};el('previs-residual').textContent=`Endpoint residual ${fit.residual.toFixed(3)} m · model span ${fit.modelSpan.toFixed(3)} m / plan ${fit.planSpan.toFixed(3)} m. Check independent point and datum.`;invalidatePoint();scheduleAutosave();queuePrevis()}catch(e){el('previs-residual').textContent=e.message}});
@@ -5140,8 +5341,9 @@ void main(){float shade=1.0;if(lit){vec3 n=cross(dFdx(world),dFdy(world));float 
 
   // A shared link wins over the autosave prompt: the visitor came for the plan
   // in the link. The autosave stays in storage until the next write.
-  const shared = location.hash.match(/^#plan=([A-Za-z0-9._-]+)$/);
-  if (shared) openSharedPlan(shared[1]);
+  const shared=location.hash.match(/^#plan=([A-Za-z0-9._-]+)$/),published=location.hash.match(/^#project=([a-f0-9]{32})$/);
+  if(published)openLiveLink(published[1]);
+  else if(shared)openSharedPlan(shared[1]);
   else offerRestore();
   autosaveArmed = true;
 })();
