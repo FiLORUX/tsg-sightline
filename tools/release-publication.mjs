@@ -33,7 +33,10 @@ if(mode==='preflight'){
 }else if(mode==='verify'){
   const html=await (await fetch(endpoint,{cache:'no-store',signal:AbortSignal.timeout(30000)})).text();
   if(!html.includes('./view/alias/'))fail('Canonical host still serves old code');
-  const publication=decode((await fetchBytes(endpoint+'view/alias/'+digest+'.json',{},2*1024*1024)).b);
+  const current=await fetchBytes(endpoint+'view/alias/'+digest+'.json',{},2*1024*1024);
+  const version=current.r.headers.get('X-Sightline-Version');
+  if(!/^"[A-Za-z0-9._-]{1,128}"$/.test(version||''))fail('Strong application version missing at canonical proxy');
+  const publication=decode(current.b);
   const info=verify(publication);
   if(publication.publication!=='public-view/1'||!/^[a-f0-9]{32}$/.test(publication.projectId||''))fail('Public manifest invalid');
   const asset=publication.assets.background;

@@ -22,7 +22,7 @@ store('projects/'+id+'/latest.json',JSON.stringify(rec),{visibility:'public',ass
 store('context/'+alias+'.json','{}',{projectId:id});store('projects/'+id+'/assets/'+img,'abc',{publicDerivative:'1'});
 const request=(path,method='GET',token='',body,headers={})=>new Request(base+path,{method,headers:{Origin:'https://tsg.thast.live',...(token?{'CF-Access-Jwt-Assertion':token}:{}),...(body?{'Content-Type':'application/json'}:{}),...headers},...(body?{body:JSON.stringify(body)}:{})});
 const run=(...a)=>publicContext(request(...a),env,opts);
-let r=await run(view);assert.equal(r.status,200);assert.equal(r.headers.get('X-Sightline-Role'),'viewer');assert(!JSON.stringify(await r.json()).includes('PRIVATE'));
+let r=await run(view);assert.equal(r.status,200);assert.equal(r.headers.get('X-Sightline-Role'),'viewer');assert.equal(r.headers.get('X-Sightline-Version'),'"initial"');assert(!JSON.stringify(await r.json()).includes('PRIVATE'));
 assert.equal((await run('/view/alias/'+alias+'.json')).status,200);assert.equal((await run('/view/project')).status,404);
 assert.equal((await run('/view/project/'+id+'/asset/'+img)).status,200);assert.equal((await run('/view/project/'+id+'/asset/file.dwg')).status,404);
 store('projects/'+id+'/assets/'+img,'abc',{});assert.equal((await run('/view/project/'+id+'/asset/'+img)).status,404);
@@ -32,7 +32,7 @@ const edit={cameras:p.cameras,dimensions:[],nextNumber:2,sheet:p.sheet};
 assert.equal((await run(view,'PUT',ownerToken,edit,{'If-Match':'"initial"'})).status,405);
 assert.equal((await run(admin,'PUT','',edit,{'If-Match':'"initial"'})).status,401);
 assert.equal((await run(admin,'PUT',otherToken,edit,{'If-Match':'"initial"'})).status,403);
-const results=await Promise.all([run(admin,'PUT',ownerToken,edit,{'If-Match':'"initial"'}),run(admin,'PUT',ownerToken,edit,{'If-Match':'"initial"'})]);assert.deepEqual(results.map(r=>r.status).sort(),[200,412]);assert.equal(notifications,1);
+const results=await Promise.all([run(admin,'PUT',ownerToken,edit,{'If-Match':'"initial"'}),run(admin,'PUT',ownerToken,edit,{'If-Match':'"initial"'})]);assert.deepEqual(results.map(r=>r.status).sort(),[200,412]);assert.equal(notifications,1);const saved=results.find(r=>r.status===200);assert.equal(saved.headers.get('X-Sightline-Version'),saved.headers.get('ETag'));const version=saved.headers.get('X-Sightline-Version');const unchanged=await run(view,'GET','',undefined,{'If-None-Match':version});assert.equal(unchanged.status,304);assert.equal(unchanged.headers.get('X-Sightline-Version'),version);
 assert.equal((await run(view)).status,200);
 const create={project:p,consent:true,token:'verified'};
 rate=false;assert.equal((await run('/view/create','POST','',create)).status,429);rate=true;

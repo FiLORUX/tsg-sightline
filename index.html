@@ -4720,7 +4720,7 @@
     const needsAuth=c?.status==='auth'||c?.status==='denied';
     el('context-banner').classList.toggle('has-authorise',needsAuth);
     el('context-heading').textContent=c?.status==='loading'?'Opening current project…':c?.status==='auth'?'Sign in to view venue drawing':c?.status==='denied'?'Venue drawing access denied':c?.status==='error'?'Current project unavailable':'No venue drawing · position study only';
-    const detail=c?.status==='auth'?'Sign in with an approved account, then return to this tab.':c?.status==='denied'?'The current account is not authorised, or the access configuration rejected the request. Check the approved account.':c?.status==='error'?'Private context could not be verified; open the complete authorised project.':c?.status==='missing'?'No private drawing has been registered for this link.':'Camera positions alone do not include a venue drawing. Open the complete project.';
+    const detail=c?.status==='auth'?'Sign in with an approved account, then return to this tab.':c?.status==='denied'?'The current account is not authorised, or the access configuration rejected the request. Check the approved account.':c?.status==='error'?'The current project could not be loaded. Retry. '+(c.failure||''):c?.status==='missing'?'No private drawing has been registered for this link.':'Camera positions alone do not include a venue drawing. Open the complete project.';
     el('context-message').textContent=detail+(c?.status==='missing'&&zero?' '+zero+' position(s) have no plan throw.':'');
     el('context-retry').hidden=!c?.url||c.status==='loading';
     el('context-authorise').hidden=!needsAuth||!c?.url;
@@ -4800,7 +4800,7 @@
       if(record?.format==='sightline-live/1')await startLive(record,res,ctx);
       else if(ctx.direct)throw Error('Invalid current publication');
       else {const snapshot=await portableSnapshot(ctx);if(state.sharedContext!==ctx)return;applyProject(snapshot,{fromLive:true});attachVenueContext(record,ctx)}
-    }catch(err){if(state.sharedContext===ctx)ctx.status='error'}
+    }catch(err){if(state.sharedContext===ctx){ctx.status='error';ctx.failure=String(err?.message||'Unknown loading error').slice(0,180)}}
     finally{updateContextBanner()}
   }
   async function resolveVenueContext(payload){
@@ -4855,6 +4855,7 @@
   const liveAssetPattern=/^[a-f0-9]{64}\.(png|jpg|webp|glb)$/;
   const liveIdPattern=/^[a-f0-9]{32}$/;
   const liveTagPattern=/^"[a-zA-Z0-9._-]{1,128}"$/;
+  const publicationVersion=res=>res.headers.get('X-Sightline-Version')||res.headers.get('ETag');
   const livePath=id=>new URL('./view/project/'+id+'.json',location.href.split('#')[0]).href;
   const adminPath=id=>new URL('./context/admin/project/'+id+'.json',location.href.split('#')[0]).href;
   const liveAssetPath=(id,name)=>new URL('./view/project/'+id+'/asset/'+name,location.href.split('#')[0]).href;
@@ -4908,7 +4909,7 @@
   async function applyPublication(l,record,res,{initial=false}={}){
     const p=validatePublication(record,l.id);
     if(!initial&&record.sequence<=l.sequence)throw Error('Publication did not advance');
-    const etag=res.headers.get('ETag');if(!liveTagPattern.test(etag||''))throw Error('Missing publication ETag');
+    const etag=publicationVersion(res);if(!liveTagPattern.test(etag||''))throw Error('Missing strong project version');
     const asset=record.assets?.background,oldAsset=l.assets?.background,oldGeom=l.assets?.geometry,newGeom=record.assets?.geometry;
     let bg=null;
     if(asset){
@@ -4979,7 +4980,7 @@
       if(res.status===304){l.checked=Date.now();if(l.status!=='conflict')l.status='ready';return}
       if(!res.ok)throw Error('Publication unavailable');
       const record=await res.json();validatePublication(record,l.id);
-      if(record.sequence===l.sequence&&res.headers.get('ETag')===l.etag){l.checked=Date.now();l.status='ready';return}
+      if(record.sequence===l.sequence&&publicationVersion(res)===l.etag){l.checked=Date.now();l.status='ready';return}
       if(record.sequence<=l.sequence)throw Error('Stale publication');
       if(isDirty(l)&&!force){l.status='conflict';l.pending=true;return}
       l.forceLatest=force;l.status='syncing';updateLiveStatus();
@@ -5000,7 +5001,7 @@
       if(res.status===412){l.status='conflict';l.pending=true;return}
       if(res.type==='opaqueredirect'||res.status===401||res.status===403){ownerSession=false;l.role='viewer';l.status='ready';showHint('Sign in again to save your draft.',true);openOwnerDialog();return}
       if(!res.ok)throw Error('Save failed');
-      const ack=await res.json(),etag=res.headers.get('ETag');
+      const ack=await res.json(),etag=publicationVersion(res);
       if(ack.sequence!==l.sequence+1||!liveTagPattern.test(etag||''))throw Error('Save acknowledgement invalid');
       l.sequence=ack.sequence;l.etag=etag;l.baseline=body;l.checked=Date.now();l.status='ready';
       showHint('Saved to shared project',true,1800);

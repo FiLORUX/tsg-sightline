@@ -47,6 +47,10 @@ export function publicRecord(value,id){
   return {format:value.format,publication:'public-view/1',projectId:id,sequence:value.sequence,publishedAt:str(value.publishedAt,64),viewKind:assets.background?'drawing':'position-study',project:publicProject(value.project),assets};
 }
 const tag=o=>{const e=o.httpEtag||(o.etag?'"'+o.etag+'"':'');return /^"[A-Za-z0-9._-]{1,128}"$/.test(e)?e:null};
+// HTTP intermediaries can weaken ETag when applying content encoding.
+// The application version is the original R2 strong validator. It must
+// survive transport transformations for compare-and-swap writes.
+const versionHeaders=(etag,role)=>({ETag:etag,'X-Sightline-Version':etag,'X-Sightline-Role':role});
 const drop=async o=>{try{await o?.body?.cancel()}catch{}};
 async function readJSON(o,limit,expectedHash=null){
   if(Number(o.headers?.get('Content-Length')||o.size)>limit||!o.body)throw Error('Too large');
@@ -212,7 +216,7 @@ export async function publicContext(req,env,{fetcher=fetch,clock=Date.now}={}){
     const headers={...BASE,'Content-Type':MIME[ext],'Cache-Control':'public, max-age=86400, immutable','ETag':tag(a)||'','Content-Length':String(a.size)};
     if(tag(a)&&req.headers.get('If-None-Match')===tag(a)){await drop(a);delete headers['Content-Length'];return new Response(null,{status:304,headers})}
     return new Response(a.body,{headers})}
-  if(!save&&req.headers.get('If-None-Match')===etag){await drop(o);return new Response(null,{status:304,headers:{...BASE,ETag:etag,'X-Sightline-Role':'viewer'}})}
+  if(!save&&req.headers.get('If-None-Match')===etag){await drop(o);return new Response(null,{status:304,headers:{...BASE,...versionHeaders(etag,'viewer')}})}
   if(save){
     const expected=req.headers.get('If-Match');if(!expected||expected==='*'){await drop(o);return error(428,'Current ETag required')}
     if(expected!==etag){await drop(o);return error(412,'Newer publication exists')}
@@ -223,9 +227,9 @@ export async function publicContext(req,env,{fetcher=fetch,clock=Date.now}={}){
     const body=JSON.stringify(next);if(new TextEncoder().encode(body).byteLength>MAX_JSON)return error(413,'Project too large');
     const written=await bucket.put(key(id),body,{onlyIf:{etagMatches:o.etag},customMetadata:pubMeta(next.assets),httpMetadata:{contentType:'application/json',cacheControl:'private, no-store'}});
     if(!written)return error(412,'Newer publication exists');
-    await notify(env,id);return response({sequence:next.sequence,publishedAt:next.publishedAt},200,{ETag:tag(written)||'','X-Sightline-Role':'editor'});
+    await notify(env,id);return response({sequence:next.sequence,publishedAt:next.publishedAt},200,versionHeaders(tag(written)||'','editor'));
   }
-  try{return response(publicRecord(await readJSON(o,MAX_JSON),id),200,{ETag:etag,'X-Sightline-Role':'viewer'})}catch{return error(503,'Invalid current publication')}
+  try{return response(publicRecord(await readJSON(o,MAX_JSON),id),200,versionHeaders(etag,'viewer'))}catch{return error(503,'Invalid current publication')}
 }
 // Retained legacy endpoint is owner-only even if an old Access policy grants
 // other identities. Public viewers must use the derivative projection above.
