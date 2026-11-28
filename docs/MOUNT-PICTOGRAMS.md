@@ -23,7 +23,7 @@ An older `handheld` position or legacy `type: hand` opens as **Handheld**. Expli
 - The plan and its legend use oriented plan-view schematic glyphs. Neutral linework improves contrast on CAD and in monochrome output. Camera numbers, RF and alternate-position state remain annotations; metric footprint and optical frustum remain independent.
 - A wheeled tripod dolly is not a pulley. The stable mount IDs and all project coordinates, camera profiles, scale, optical calculations and share formats remain unchanged.
 
-The palette has one Vinten HP 419 I pedestal and one Jimmy Jib Triangle placement template. The jib silhouette shows the stayed Extreme configuration. The generic telescopic crane serves all telescopic boom presets. These three rigs and Steadicam use a separately drawn optical-size variant in the camera list.
+The palette has one **Pedestal** template and one Jimmy Jib Triangle template. The pedestal symbol depicts the Vinten HP 419 I, the default model under **Support system**. The jib silhouette shows the stayed Extreme configuration. The generic telescopic crane serves all telescopic boom presets. These three rigs and Steadicam use a separately drawn optical-size variant in the camera list.
 
 Handheld shows an ENG operator head-on. The camera rests on the operator’s right shoulder (the viewer’s left). The eyecup meets the right eye and the lens sits inside the rectangular zoom hood. [Sony PXW-X500](https://pro.sony/s3/cms-static-content/uploadfile/15/1237493135315.pdf) · [Canon CJ20ex5B](https://www.usa.canon.com/shop/p/cj20ex5b-iase-t)
 

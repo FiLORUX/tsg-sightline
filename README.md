@@ -16,7 +16,7 @@ before anyone unloads a truck.
 
 ## What it does
 
-- **Rig plan symbols.** The Vinten HP 419 I pedestal, heavy tripod, ENG tripod,
+- **Rig plan symbols.** Pedestal (illustrated by the Vinten HP 419 I), heavy tripod, ENG tripod,
   tripod dolly, telescopic crane, Jimmy Jib Triangle, Steadicam, Handheld,
   Easyrig, robotic head, POV and rail dolly have distinct plan symbols. Metric footprints
   use nominal equipment profiles and the position's configured geometry.

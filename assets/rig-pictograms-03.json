@@ -7,7 +7,7 @@
     "svg": "<g transform=\"translate(8 3) scale(0.94)\"><path d=\"M0 4H10V1H16V4H20V0H42L48 3V15L42 18H20V15H0Z M23 3V15H25V3Z M41 3V15H43V3Z\" fill-rule=\"evenodd\"/></g><g transform=\"translate(30 20) scale(1)\"><path d=\"M-6 0H6V3H2.5V6H-2.5V3H-6Z\"/></g><path d=\"M27 25H33L53 41H46L33 32V41H28V32L15 41H8Z\"/><path d=\"M18 35H43V38H18Z M7 41H17V44H7Z M44 41H54V44H44Z M25 41H36V44H25Z\"/>"
   },
   "ped": {
-    "label": "Vinten HP 419 I",
+    "label": "Pedestal",
     "category": "Ground support",
     "mechanism": "Studio pedestal · steering ring and domed housings",
     "legacy": true,

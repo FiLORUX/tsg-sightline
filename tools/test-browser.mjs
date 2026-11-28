@@ -63,7 +63,7 @@ try{
   assert.equal(new Set(glyphs.map(g=>g.markup)).size,13,'distinct elevation pictograms');
   assert(glyphs.every(g=>g.name&&g.viewBox==='0 0 64 48'&&g.width>=63&&g.height>=47&&!g.overflow&&g.box[0]>=0&&g.box[1]>=0&&g.box[0]+g.box[2]<=64&&g.box[1]+g.box[3]<=48),'bounded, legible picker icons');
   assert.equal(glyphs.filter(g=>g.pressed==='true').length,1);
-  for (const [id,label] of [['handheld','Handheld'],['easyrig','Easyrig']]) {
+  for (const [id,label] of [['ped','Pedestal'],['handheld','Handheld'],['easyrig','Easyrig']]) {
     assert.equal(glyphs.find(g=>g.id===id)?.name,label);
     assert(registry[id].compactSvg && registry[id].compactSvg!==registry[id].svg);
   }
